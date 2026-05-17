@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>كلمات المناظر</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky1: #87ceeb;
+    --sky2: #b0e0f7;
+    --sea: #4a9ebe;
+    --sand: #f5deb3;
+    --gold: #f5a623;
+    --purple: #7c4dff;
+    --purple-light: #b39ddb;
+    --white: #ffffff;
+    --gray: #9e9e9e;
+    --dark: #333;
+    --correct: #66bb6a;
+    --wrong: #ef5350;
+    --tile-bg: rgba(255,255,255,0.92);
+    --tile-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Cairo', 'Tajawal', sans-serif;
+    background: linear-gradient(180deg, var(--sky1) 0%, var(--sky2) 45%, var(--sea) 70%, #3a7a9c 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+    user-select: none;
+  }
+
+  /* Background decoration */
+  .palm-left, .palm-right {
+    position: fixed;
+    top: 0;
+    width: 90px;
+    height: 160px;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .palm-left { left: -10px; }
+  .palm-right { right: -10px; transform: scaleX(-1); }
+
+  .cloud {
+    position: fixed;
+    background: rgba(255,255,255,0.7);
+    border-radius: 50px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .cloud1 { width: 80px; height: 28px; top: 60px; left: 60px; animation: drift 18s infinite linear; }
+  .cloud2 { width: 55px; height: 20px; top: 90px; right: 100px; animation: drift 25s infinite linear reverse; }
+  @keyframes drift { 0%,100%{transform:translateX(0)} 50%{transform:translateX(20px)} }
+
+  /* Header */
+  .header {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    gap: 8px;
+  }
+
+  .coin-badge {
+    background: rgba(0,0,0,0.35);
+    border-radius: 20px;
+    padding: 5px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+    backdrop-filter: blur(4px);
+  }
+  .coin-icon { font-size: 18px; }
+
+  .free-coins {
+    background: rgba(0,0,0,0.35);
+    border-radius: 20px;
+    padding: 5px 12px;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .free-coins span { color: #66ff66; }
+
+  .level-badge {
+    background: rgba(0,0,0,0.35);
+    border-radius: 20px;
+    padding: 5px 12px;
+    color: white;
+    font-weight: 700;
+    font-size: 14px;
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* Title */
+  .game-title {
+    position: relative;
+    z-index: 10;
+    color: white;
+    font-size: 30px;
+    font-weight: 900;
+    text-shadow: 0 3px 12px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.5);
+    letter-spacing: 2px;
+    margin: 4px 0 12px;
+  }
+
+  /* Answer slots */
+  .answer-row {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 7px;
+    margin-bottom: 18px;
+    min-height: 54px;
+    direction: ltr;
+  }
+
+  .answer-slot {
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 900;
+    font-family: 'Cairo', sans-serif;
+    background: var(--tile-bg);
+    box-shadow: var(--tile-shadow);
+    border: 2px solid rgba(255,255,255,0.6);
+    transition: all 0.25s cubic-bezier(.34,1.56,.64,1);
+    color: var(--dark);
+    letter-spacing: 0;
+  }
+
+  .answer-slot.filled {
+    background: var(--purple);
+    color: white;
+    border-color: var(--purple-light);
+    transform: scale(1.07);
+  }
+
+  .answer-slot.correct {
+    background: var(--correct);
+    color: white;
+    border-color: #4caf50;
+    animation: pop 0.4s cubic-bezier(.34,1.56,.64,1);
+  }
+
+  .answer-slot.shake {
+    animation: shake 0.4s ease;
+    background: var(--wrong);
+    color: white;
+  }
+
+  @keyframes pop {
+    0%{transform:scale(1)} 50%{transform:scale(1.25)} 100%{transform:scale(1)}
+  }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)}
+  }
+
+  /* Wheel area */
+  .wheel-container {
+    position: relative;
+    z-index: 10;
+    width: 240px;
+    height: 240px;
+    margin: 10px auto 16px;
+  }
+
+  .wheel-bg {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(80,80,80,0.35);
+    backdrop-filter: blur(6px);
+    border: 2px solid rgba(255,255,255,0.2);
+  }
+
+  .wheel-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.4);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.7);
+    font-size: 22px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .wheel-center:hover { background: rgba(255,255,255,0.35); }
+
+  /* Letter buttons on wheel */
+  .letter-btn {
+    position: absolute;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: var(--white);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    border: 3px solid rgba(255,255,255,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 900;
+    font-family: 'Cairo', sans-serif;
+    color: var(--dark);
+    cursor: pointer;
+    transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+    z-index: 2;
+  }
+
+  .letter-btn:hover, .letter-btn.selected {
+    background: #e8e0ff;
+    transform: scale(1.12);
+    box-shadow: 0 6px 18px rgba(124,77,255,0.35);
+    border-color: var(--purple-light);
+  }
+
+  .letter-btn.active {
+    background: var(--purple);
+    color: white;
+    border-color: #fff;
+    transform: scale(1.15);
+  }
+
+  /* Connector lines canvas */
+  #lineCanvas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Side buttons */
+  .side-btns {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+
+  .side-btn {
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(5px);
+    border-radius: 50%;
+    width: 58px;
+    height: 58px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: transform 0.15s, background 0.15s;
+    gap: 2px;
+  }
+  .side-btn:hover { transform: scale(1.08); background: rgba(0,0,0,0.6); }
+  .side-btn .icon { font-size: 20px; }
+  .side-btn.hint-btn .icon { color: var(--gold); }
+  .side-btn.hint-cost { color: var(--wrong); font-size: 10px; }
+
+  /* Word list (found words) */
+  .found-words {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    max-width: 340px;
+    margin: 4px 0;
+  }
+  .found-word-tag {
+    background: rgba(255,255,255,0.25);
+    border-radius: 14px;
+    padding: 3px 12px;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    backdrop-filter: blur(3px);
+    animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes popIn { from{transform:scale(0);opacity:0} to{transform:scale(1);opacity:1} }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background: rgba(30,30,30,0.92);
+    color: white;
+    padding: 14px 30px;
+    border-radius: 30px;
+    font-size: 18px;
+    font-weight: 700;
+    z-index: 100;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+    text-align: center;
+    font-family: 'Cairo', sans-serif;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  /* Level complete overlay */
+  .level-complete {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s;
+  }
+  .level-complete.show { opacity: 1; pointer-events: all; }
+  .level-complete h2 {
+    color: white;
+    font-size: 36px;
+    font-weight: 900;
+    text-shadow: 0 0 30px var(--gold);
+    animation: glow 1.5s infinite alternate;
+  }
+  @keyframes glow { from{text-shadow:0 0 20px var(--gold)} to{text-shadow:0 0 50px #fff,0 0 20px var(--gold)} }
+  .level-complete .stars { font-size: 50px; animation: popIn 0.5s 0.3s both; }
+  .next-btn {
+    background: var(--purple);
+    color: white;
+    border: none;
+    border-radius: 30px;
+    padding: 14px 40px;
+    font-size: 20px;
+    font-weight: 900;
+    font-family: 'Cairo', sans-serif;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(124,77,255,0.5);
+    transition: transform 0.15s;
+    animation: popIn 0.5s 0.5s both;
+  }
+  .next-btn:hover { transform: scale(1.06); }
+
+  /* Progress bar */
+  .progress-bar-wrap {
+    position: relative;
+    z-index: 10;
+    width: 220px;
+    height: 8px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--gold);
+    border-radius: 10px;
+    transition: width 0.5s;
+  }
+
+  /* SVG palms */
+  svg.palm { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+
+<!-- Background decoration -->
+<div class="palm-left">
+  <svg class="palm" viewBox="0 0 90 160" xmlns="http://www.w3.org/2000/svg">
+    <path d="M45 160 Q48 120 55 90 Q70 60 85 20 Q75 35 60 55 Q52 70 50 90 Q55 50 35 15 Q30 40 40 70 Q44 95 43 120 Z" fill="#2d6a1f" opacity="0.85"/>
+    <path d="M45 160 Q42 130 30 100 Q10 65 0 30 Q15 50 28 72 Q38 90 40 110 Z" fill="#3d8a2f" opacity="0.8"/>
+    <rect x="43" y="80" width="4" height="80" rx="2" fill="#8B6914" opacity="0.9"/>
+  </svg>
+</div>
+<div class="palm-right">
+  <svg class="palm" viewBox="0 0 90 160" xmlns="http://www.w3.org/2000/svg">
+    <path d="M45 160 Q48 120 55 90 Q70 60 85 20 Q75 35 60 55 Q52 70 50 90 Q55 50 35 15 Q30 40 40 70 Q44 95 43 120 Z" fill="#2d6a1f" opacity="0.85"/>
+    <path d="M45 160 Q42 130 30 100 Q10 65 0 30 Q15 50 28 72 Q38 90 40 110 Z" fill="#3d8a2f" opacity="0.8"/>
+    <rect x="43" y="80" width="4" height="80" rx="2" fill="#8B6914" opacity="0.9"/>
+  </svg>
+</div>
+<div class="cloud cloud1"></div>
+<div class="cloud cloud2"></div>
+
+<!-- Header -->
+<div class="header">
+  <div class="coin-badge"><span class="coin-icon">🪙</span><span id="coins">100</span></div>
+  <div class="free-coins">🎁 عملات مجانية <span>+30</span></div>
+  <div class="level-badge">🐱 مستوى <span id="levelNum">1</span></div>
+</div>
+
+<!-- Title -->
+<div class="game-title">كلمات المناظر</div>
+
+<!-- Answer slots -->
+<div class="answer-row" id="answerRow"></div>
+
+<!-- Progress bar -->
+<div class="progress-bar-wrap">
+  <div class="progress-bar-fill" id="progressBar" style="width:0%"></div>
+</div>
+
+<!-- Found words -->
+<div class="found-words" id="foundWords"></div>
+
+<!-- Wheel -->
+<div class="wheel-container" id="wheelContainer">
+  <div class="wheel-bg"></div>
+  <canvas id="lineCanvas" width="240" height="240"></canvas>
+  <div class="wheel-center" id="wheelCenter">✓</div>
+</div>
+
+<!-- Side buttons -->
+<div class="side-btns">
+  <button class="side-btn hint-btn" onclick="useHint()">
+    <span class="icon">💡</span>
+    <span>تلميح</span>
+    <span class="hint-cost">-100</span>
+  </button>
+  <button class="side-btn" onclick="clearSelection()">
+    <span class="icon">↺</span>
+    <span>مسح</span>
+  </button>
+  <button class="side-btn" onclick="shuffleLetters()">
+    <span class="icon">🔀</span>
+    <span>خلط</span>
+  </button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Level complete -->
+<div class="level-complete" id="levelComplete">
+  <div class="stars">⭐⭐⭐</div>
+  <h2>أحسنت! 🎉</h2>
+  <button class="next-btn" onclick="nextLevel()">المستوى التالي ←</button>
+</div>
+
+<script>
+// ============================================================
+// ARABIC WORD PUZZLES
+// Each level: letters (3–5 Arabic chars), words to find
+// All words use only the provided letters
+// ============================================================
+const LEVELS = [
+  {
+    letters: ['ب','ا','ب'],
+    words: ['باب','أب','با'],
+    bonus: ['ب','ا']
+  },
+  {
+    letters: ['ك','ت','ا','ب'],
+    words: ['كتاب','كتب','باك','تاب','بات'],
+    bonus: ['كت','بك']
+  },
+  {
+    letters: ['ن','و','ر'],
+    words: ['نور','ورن','رون'],
+    bonus: ['نو','ور']
+  },
+  {
+    letters: ['ب','ي','ت'],
+    words: ['بيت','تيب','بت'],
+    bonus: ['بي','تب']
+  },
+  {
+    letters: ['ق','م','ر'],
+    words: ['قمر','رقم','مرق'],
+    bonus: ['قر','مر']
+  },
+  {
+    letters: ['ش','م','س'],
+    words: ['شمس','مش','سم'],
+    bonus: ['شم','مس']
+  },
+  {
+    letters: ['م','ا','ء'],
+    words: ['ماء','مام','ءام'],
+    bonus: ['ما','ءا']
+  },
+  {
+    letters: ['ح','ب','ر'],
+    words: ['حبر','برح','رحب'],
+    bonus: ['حب','بر']
+  },
+  {
+    letters: ['س','ل','م'],
+    words: ['سلم','ملس','لمس','سمل'],
+    bonus: ['سل','لم']
+  },
+  {
+    letters: ['ع','ل','م'],
+    words: ['علم','ملع','لمع','معل'],
+    bonus: ['عل','لم']
+  },
+  {
+    letters: ['د','ر','س'],
+    words: ['درس','سرد','رسد','دسر'],
+    bonus: ['در','رس']
+  },
+  {
+    letters: ['ح','ل','م'],
+    words: ['حلم','ملح','لحم','محل'],
+    bonus: ['حل','لم']
+  },
+  {
+    letters: ['خ','ب','ز'],
+    words: ['خبز','بخز','زبخ'],
+    bonus: ['خب','بز']
+  },
+  {
+    letters: ['ف','ر','ح'],
+    words: ['فرح','حرف','رفح'],
+    bonus: ['فر','رح']
+  },
+  {
+    letters: ['ص','ب','ح'],
+    words: ['صبح','بصح','حصب'],
+    bonus: ['صب','بح']
+  }
+];
+
+// Only use real Arabic words for answers
+// Let's redefine with proper curated levels
+const PROPER_LEVELS = [
+  {
+    letters: ['ب','ا','ب'],
+    words: ['باب'],
+    target: 1
+  },
+  {
+    letters: ['ق','م','ر'],
+    words: ['قمر','مرق'],
+    target: 2
+  },
+  {
+    letters: ['ب','ي','ت'],
+    words: ['بيت'],
+    target: 1
+  },
+  {
+    letters: ['ش','م','س'],
+    words: ['شمس'],
+    target: 1
+  },
+  {
+    letters: ['ن','و','ر'],
+    words: ['نور','ورن'],
+    target: 2
+  },
+  {
+    letters: ['ك','ت','ا','ب'],
+    words: ['كتاب','كتب','باك','تاب'],
+    target: 4
+  },
+  {
+    letters: ['ح','ل','م'],
+    words: ['حلم','ملح','لحم','محل'],
+    target: 4
+  },
+  {
+    letters: ['ف','ر','ح'],
+    words: ['فرح','حرف','رفح'],
+    target: 3
+  },
+  {
+    letters: ['ع','ل','م'],
+    words: ['علم','لمع'],
+    target: 2
+  },
+  {
+    letters: ['د','ر','س'],
+    words: ['درس','سرد'],
+    target: 2
+  },
+  {
+    letters: ['س','ل','م'],
+    words: ['سلم','ملس','لمس'],
+    target: 3
+  },
+  {
+    letters: ['ص','ب','ح'],
+    words: ['صبح'],
+    target: 1
+  },
+  {
+    letters: ['خ','ب','ز'],
+    words: ['خبز'],
+    target: 1
+  },
+  {
+    letters: ['ح','ب','ر'],
+    words: ['حبر','رحب'],
+    target: 2
+  },
+  {
+    letters: ['م','ل','ك'],
+    words: ['ملك','لكم','كلم'],
+    target: 3
+  }
+];
+
+// ============================================================
+// State
+// ============================================================
+let currentLevel = 0;
+let coins = 100;
+let selected = [];          // indices of selected letter buttons
+let foundWords = new Set();
+let levelData = null;
+
+// ============================================================
+// Init
+// ============================================================
+function initLevel() {
+  levelData = PROPER_LEVELS[currentLevel % PROPER_LEVELS.length];
+  selected = [];
+  foundWords.clear();
+  document.getElementById('levelNum').textContent = currentLevel + 1;
+  document.getElementById('coins').textContent = coins;
+  document.getElementById('foundWords').innerHTML = '';
+  updateProgress();
+  buildAnswerRow();
+  buildWheel();
+  clearCanvas();
+}
+
+function buildAnswerRow() {
+  const row = document.getElementById('answerRow');
+  row.innerHTML = '';
+  // Show slots for the longest word
+  const maxLen = Math.max(...levelData.words.map(w => w.length));
+  for (let i = 0; i < maxLen; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'answer-slot';
+    slot.id = `slot-${i}`;
+    row.appendChild(slot);
+  }
+  // Update active word display
+  updateActiveWordSlots();
+}
+
+function updateActiveWordSlots() {
+  const maxLen = Math.max(...levelData.words.map(w => w.length));
+  // Reset all slots
+  for (let i = 0; i < maxLen; i++) {
+    const slot = document.getElementById(`slot-${i}`);
+    if (!slot) continue;
+    // Check if this slot has a found word letter
+    const foundArr = Array.from(foundWords);
+    // We show current selection
+    if (i < selected.length) {
+      slot.textContent = levelData.letters[selected[i]];
+      slot.className = 'answer-slot filled';
+    } else {
+      slot.textContent = '';
+      slot.className = 'answer-slot';
+    }
+  }
+}
+
+function buildWheel() {
+  const container = document.getElementById('wheelContainer');
+  // Remove old letter buttons
+  container.querySelectorAll('.letter-btn').forEach(e => e.remove());
+
+  const letters = levelData.letters;
+  const n = letters.length;
+  const cx = 120, cy = 120;
+  const r = 80;
+
+  letters.forEach((letter, i) => {
+    const angle = (2 * Math.PI * i / n) - Math.PI / 2;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+
+    const btn = document.createElement('div');
+    btn.className = 'letter-btn';
+    btn.textContent = letter;
+    btn.id = `lbtn-${i}`;
+    btn.style.left = (x - 29) + 'px';
+    btn.style.top = (y - 29) + 'px';
+    btn.addEventListener('mousedown', () => onLetterClick(i));
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); onLetterClick(i); }, {passive:false});
+    container.appendChild(btn);
+  });
+}
+
+// ============================================================
+// Letter selection
+// ============================================================
+function onLetterClick(idx) {
+  // Can't select same letter twice (unless there are duplicates)
+  if (selected.includes(idx)) {
+    // If clicking last selected, deselect it
+    if (selected[selected.length - 1] === idx) {
+      selected.pop();
+      document.getElementById(`lbtn-${idx}`).classList.remove('active');
+      updateActiveWordSlots();
+      drawLines();
+    }
+    return;
+  }
+
+  selected.push(idx);
+  document.getElementById(`lbtn-${idx}`).classList.add('active');
+  updateActiveWordSlots();
+  drawLines();
+
+  // Auto-check after max possible length
+  if (selected.length >= levelData.letters.length) {
+    setTimeout(checkWord, 200);
+  }
+}
+
+function clearSelection() {
+  selected.forEach(i => {
+    const btn = document.getElementById(`lbtn-${i}`);
+    if (btn) btn.classList.remove('active');
+  });
+  selected = [];
+  updateActiveWordSlots();
+  clearCanvas();
+}
+
+function checkWord() {
+  const word = selected.map(i => levelData.letters[i]).join('');
+  
+  if (levelData.words.includes(word) && !foundWords.has(word)) {
+    // Correct!
+    foundWords.add(word);
+    showCorrectAnimation(word);
+    coins += word.length * 5;
+    document.getElementById('coins').textContent = coins;
+    updateProgress();
+
+    setTimeout(() => {
+      clearSelection();
+      addFoundWordTag(word);
+      if (foundWords.size >= levelData.words.length) {
+        setTimeout(showLevelComplete, 500);
+      }
+    }, 600);
+  } else if (foundWords.has(word)) {
+    showToast('وجدتها من قبل! ✓');
+    setTimeout(clearSelection, 400);
+  } else {
+    showWrongAnimation();
+    setTimeout(clearSelection, 500);
+  }
+}
+
+// ============================================================
+// Animations
+// ============================================================
+function showCorrectAnimation(word) {
+  const maxLen = Math.max(...levelData.words.map(w => w.length));
+  for (let i = 0; i < word.length; i++) {
+    const slot = document.getElementById(`slot-${i}`);
+    if (slot) {
+      slot.className = 'answer-slot correct';
+      slot.textContent = word[i];
+    }
+  }
+  // Clear remaining slots
+  for (let i = word.length; i < maxLen; i++) {
+    const slot = document.getElementById(`slot-${i}`);
+    if (slot) { slot.textContent = ''; slot.className = 'answer-slot'; }
+  }
+  showToast('ممتاز! 🎉');
+  selected.forEach(i => {
+    const btn = document.getElementById(`lbtn-${i}`);
+    if (btn) { btn.classList.add('selected'); btn.classList.remove('active'); }
+  });
+}
+
+function showWrongAnimation() {
+  const maxLen = Math.max(...levelData.words.map(w => w.length));
+  for (let i = 0; i < selected.length; i++) {
+    const slot = document.getElementById(`slot-${i}`);
+    if (slot) slot.className = 'answer-slot shake';
+  }
+  showToast('حاول مجدداً 🤔');
+}
+
+function addFoundWordTag(word) {
+  const tag = document.createElement('div');
+  tag.className = 'found-word-tag';
+  tag.textContent = word;
+  document.getElementById('foundWords').appendChild(tag);
+}
+
+function updateProgress() {
+  const pct = levelData ? (foundWords.size / levelData.words.length) * 100 : 0;
+  document.getElementById('progressBar').style.width = pct + '%';
+}
+
+// ============================================================
+// Lines on canvas
+// ============================================================
+function drawLines() {
+  const canvas = document.getElementById('lineCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 240, 240);
+  if (selected.length < 2) return;
+
+  const cx = 120, cy = 120, r = 80;
+  const n = levelData.letters.length;
+
+  function getPos(i) {
+    const angle = (2 * Math.PI * i / n) - Math.PI / 2;
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  }
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+
+  const p0 = getPos(selected[0]);
+  ctx.moveTo(p0.x, p0.y);
+  for (let i = 1; i < selected.length; i++) {
+    const p = getPos(selected[i]);
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+}
+
+function clearCanvas() {
+  const canvas = document.getElementById('lineCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 240, 240);
+}
+
+// ============================================================
+// Hint
+// ============================================================
+function useHint() {
+  if (coins < 100) { showToast('ليس لديك عملات كافية'); return; }
+  const unfound = levelData.words.filter(w => !foundWords.has(w));
+  if (!unfound.length) { showToast('وجدت كل الكلمات!'); return; }
+  const word = unfound[0];
+  coins -= 100;
+  document.getElementById('coins').textContent = coins;
+  // Flash first letter
+  const firstLetter = word[0];
+  const idx = levelData.letters.indexOf(firstLetter);
+  if (idx >= 0) {
+    const btn = document.getElementById(`lbtn-${idx}`);
+    if (btn) {
+      btn.style.background = '#fff176';
+      btn.style.boxShadow = '0 0 16px #f5a623';
+      setTimeout(() => { btn.style.background = ''; btn.style.boxShadow = ''; }, 1200);
+    }
+  }
+  showToast(`تلميح: الكلمة تبدأ بـ "${firstLetter}"`);
+}
+
+// ============================================================
+// Shuffle letters
+// ============================================================
+function shuffleLetters() {
+  // Fisher-Yates shuffle display order (visual only, positions stay)
+  const container = document.getElementById('wheelContainer');
+  const btns = container.querySelectorAll('.letter-btn');
+  const letters = Array.from(btns).map(b => b.textContent);
+  // Shuffle letters array
+  for (let i = letters.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [letters[i], letters[j]] = [letters[j], letters[i]];
+  }
+  btns.forEach((btn, i) => { btn.textContent = letters[i]; });
+  clearSelection();
+  showToast('تم الخلط 🔀');
+}
+
+// ============================================================
+// Toast
+// ============================================================
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1500);
+}
+
+// ============================================================
+// Level complete
+// ============================================================
+function showLevelComplete() {
+  document.getElementById('levelComplete').classList.add('show');
+}
+
+function nextLevel() {
+  currentLevel++;
+  document.getElementById('levelComplete').classList.remove('show');
+  initLevel();
+}
+
+// Submit on center click
+document.getElementById('wheelCenter').addEventListener('click', () => {
+  if (selected.length >= 2) checkWord();
+});
+
+// Also submit on space/enter key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    if (selected.length >= 2) checkWord();
+    else if (selected.length === 0) shuffleLetters();
+  }
+  if (e.key === 'Escape' || e.key === 'Backspace') clearSelection();
+});
+
+// ============================================================
+// Start
+// ============================================================
+initLevel();
+</script>
+</body>
+</html>
