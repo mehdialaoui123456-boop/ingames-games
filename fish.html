@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>القط يصطاد</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --water-top: #5bc8f5;
+  --water-mid: #2d9fc9;
+  --water-deep: #1a6b9a;
+  --water-abyss: #0a2d4a;
+  --gold: #f5c842;
+  --gem: #60c8f0;
+  --star: #f5a623;
+  --fire: #ff6b35;
+  --ui-bg: rgba(30,45,60,0.88);
+  --ui-border: rgba(255,255,255,0.15);
+  --btn-blue: #2979ff;
+  --btn-locked: #4a5568;
+  --font: 'Cairo', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: #0a1a2e;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#game-wrap {
+  position: relative;
+  width: 390px;
+  height: 700px;
+  overflow: hidden;
+  border-radius: 24px;
+  box-shadow: 0 0 60px rgba(0,100,200,0.4);
+}
+
+/* ===== OCEAN BACKGROUND ===== */
+#ocean {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    var(--water-top) 0%,
+    var(--water-mid) 35%,
+    var(--water-deep) 65%,
+    var(--water-abyss) 100%
+  );
+  overflow: hidden;
+}
+
+.bubble {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.18);
+  animation: bubbleRise linear infinite;
+  pointer-events: none;
+}
+@keyframes bubbleRise {
+  0% { transform: translateY(0) scale(1); opacity: 0.6; }
+  100% { transform: translateY(-700px) scale(1.4); opacity: 0; }
+}
+
+.caustic {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    60deg,
+    transparent,
+    transparent 40px,
+    rgba(255,255,255,0.03) 40px,
+    rgba(255,255,255,0.03) 41px
+  );
+  animation: causticShift 8s linear infinite;
+  pointer-events: none;
+}
+@keyframes causticShift { 0%{background-position:0 0} 100%{background-position:80px 80px} }
+
+/* depth layers */
+.depth-line {
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: rgba(255,255,255,0.07);
+}
+
+/* ===== SURFACE / BOAT ===== */
+#surface {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 90px;
+  background: linear-gradient(180deg, #a8d8ea 0%, #5bc8f5 100%);
+  border-bottom: 3px solid rgba(255,255,255,0.3);
+}
+
+#boat {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  text-align: center;
+  animation: boatRock 3s ease-in-out infinite;
+}
+@keyframes boatRock {
+  0%,100% { transform: translateX(-50%) rotate(-2deg); }
+  50% { transform: translateX(-50%) rotate(2deg); }
+}
+
+.boat-svg { font-size: 0; }
+
+/* ===== FISHING LINE ===== */
+#fishing-line-svg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ===== HOOK ===== */
+#hook {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 50%;
+  top: 80px;
+  transform: translateX(-50%);
+  z-index: 10;
+  cursor: pointer;
+  transition: top 0.05s linear;
+}
+
+/* ===== FISH ===== */
+.fish {
+  position: absolute;
+  cursor: pointer;
+  z-index: 8;
+  animation: fishSwim linear infinite;
+  user-select: none;
+  will-change: transform;
+}
+.fish-body {
+  font-size: 32px;
+  display: block;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  transition: transform 0.15s;
+}
+.fish:hover .fish-body { transform: scale(1.15); }
+
+@keyframes fishSwim {
+  0% { transform: translateX(-80px); }
+  100% { transform: translateX(470px); }
+}
+
+/* ===== HUD ===== */
+#hud {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 20;
+}
+
+.hud-stat {
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  backdrop-filter: blur(6px);
+  min-width: 72px;
+}
+.hud-stat .icon { font-size: 16px; }
+.hud-gold { color: var(--gold); }
+.hud-gem { color: var(--gem); }
+.hud-star { color: var(--star); }
+.hud-fire { color: var(--fire); }
+
+#shop-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 6px 14px;
+  color: white;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+}
+#shop-btn:hover { background: rgba(41,121,255,0.7); }
+
+/* ===== ZONES PANEL ===== */
+#zones-panel {
+  position: absolute;
+  top: 140px;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 155px;
+}
+
+.zone-btn {
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px 0 0 10px;
+  padding: 7px 10px;
+  color: white;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  text-align: right;
+  transition: background 0.2s, border-color 0.2s;
+  position: relative;
+}
+.zone-btn.active {
+  background: rgba(41,121,255,0.7);
+  border-color: var(--btn-blue);
+}
+.zone-btn.locked {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+.zone-btn .lock-icon { font-size: 11px; opacity: 0.8; }
+.zone-btn .zone-name { font-size: 13px; }
+.zone-cost {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  font-size: 10px;
+  opacity: 0.85;
+}
+.zone-cost span { display: flex; align-items: center; gap: 2px; }
+
+/* ===== DEPTH METER (right side) ===== */
+#depth-meter {
+  position: absolute;
+  right: 158px;
+  top: 90px;
+  bottom: 130px;
+  width: 6px;
+  z-index: 15;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+}
+#depth-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(0deg, #2979ff, #60c8f0);
+  border-radius: 3px;
+  transition: height 0.3s;
+}
+#depth-label {
+  position: absolute;
+  right: 165px;
+  bottom: 4px;
+  z-index: 15;
+  color: rgba(255,255,255,0.7);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ===== STATUS BOX ===== */
+#status-box {
+  position: absolute;
+  bottom: 128px;
+  left: 8px;
+  z-index: 20;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 8px 14px;
+  color: white;
+  font-size: 13px;
+  backdrop-filter: blur(6px);
+  line-height: 1.7;
+}
+
+/* ===== RETURN BTN ===== */
+#return-btn {
+  position: absolute;
+  bottom: 80px;
+  left: 8px;
+  z-index: 20;
+  background: var(--btn-blue);
+  border: none;
+  border-radius: 14px;
+  padding: 10px 20px;
+  color: white;
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(41,121,255,0.5);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+#return-btn:hover { transform: scale(1.04); box-shadow: 0 6px 22px rgba(41,121,255,0.7); }
+
+/* ===== HOME BTN ===== */
+#home-btn {
+  position: absolute;
+  left: 8px;
+  top: 250px;
+  z-index: 20;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+/* ===== CATCH POPUP ===== */
+#catch-popup {
+  position: absolute;
+  z-index: 50;
+  background: rgba(10,20,40,0.92);
+  border: 2px solid var(--gold);
+  border-radius: 20px;
+  padding: 16px 24px;
+  color: white;
+  text-align: center;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  min-width: 180px;
+}
+#catch-popup.show {
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: all;
+}
+#catch-popup .fish-display { font-size: 48px; }
+#catch-popup .fish-name { font-size: 18px; font-weight: 900; margin: 4px 0; }
+#catch-popup .fish-value { font-size: 14px; color: var(--gold); }
+#catch-popup .fish-depth { font-size: 12px; color: rgba(255,255,255,0.6); }
+#catch-popup-close {
+  margin-top: 10px;
+  background: var(--btn-blue);
+  border: none;
+  border-radius: 10px;
+  padding: 6px 22px;
+  color: white;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ===== SHOP OVERLAY ===== */
+#shop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(5,15,30,0.96);
+  display: none;
+  flex-direction: column;
+  padding: 16px;
+  gap: 10px;
+  overflow-y: auto;
+  backdrop-filter: blur(12px);
+}
+#shop-overlay.open { display: flex; }
+#shop-title {
+  color: white;
+  font-size: 22px;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 4px;
+}
+.shop-item {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: white;
+}
+.shop-item .item-icon { font-size: 32px; }
+.shop-item .item-info { flex: 1; }
+.shop-item .item-name { font-size: 15px; font-weight: 700; }
+.shop-item .item-desc { font-size: 11px; opacity: 0.65; margin-top: 2px; }
+.shop-item .item-cost {
+  background: rgba(245,200,66,0.2);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.shop-item .item-cost:hover { background: rgba(245,200,66,0.35); }
+.shop-item .item-cost.owned { color: #66bb6a; border-color: #66bb6a; background: rgba(102,187,106,0.15); cursor: default; }
+#shop-close {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  border-radius: 12px;
+  padding: 10px;
+  color: white;
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+/* ===== TOAST ===== */
+#toast {
+  position: absolute;
+  bottom: 55px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(20,30,50,0.92);
+  color: white;
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 200;
+  opacity: 0;
+  transition: all 0.3s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ===== FISH CAUGHT FLOAT ===== */
+.float-text {
+  position: absolute;
+  color: var(--gold);
+  font-size: 16px;
+  font-weight: 900;
+  z-index: 60;
+  pointer-events: none;
+  animation: floatUp 1.2s forwards;
+}
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-60px); }
+}
+
+/* ===== DEPTH ZONE LABEL ===== */
+#zone-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  color: rgba(255,255,255,0.35);
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <!-- Ocean -->
+  <div id="ocean">
+    <div class="caustic"></div>
+    <!-- Depth lines -->
+    <div class="depth-line" style="top:200px"></div>
+    <div class="depth-line" style="top:380px"></div>
+    <div class="depth-line" style="top:560px"></div>
+  </div>
+
+  <!-- Surface sky + boat -->
+  <div id="surface">
+    <div id="boat">
+      <svg width="80" height="55" viewBox="0 0 80 55" xmlns="http://www.w3.org/2000/svg">
+        <!-- Boat body -->
+        <path d="M8 35 Q40 45 72 35 L65 48 Q40 54 15 48 Z" fill="#8B6914" stroke="#5a4008" stroke-width="1.5"/>
+        <rect x="18" y="22" width="44" height="14" rx="4" fill="#a07820"/>
+        <!-- Cat -->
+        <ellipse cx="40" cy="20" rx="12" ry="10" fill="#f5f5f5" stroke="#ddd" stroke-width="1"/>
+        <ellipse cx="40" cy="26" rx="8" ry="6" fill="#f5f5f5"/>
+        <!-- ears -->
+        <polygon points="30,14 27,8 33,13" fill="#f5f5f5"/>
+        <polygon points="50,14 53,8 47,13" fill="#f5f5f5"/>
+        <!-- eyes -->
+        <circle cx="37" cy="19" r="2" fill="#222"/>
+        <circle cx="43" cy="19" r="2" fill="#222"/>
+        <!-- fishing rod -->
+        <line x1="40" y1="22" x2="52" y2="8" stroke="#5a3a00" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="52" cy="8" r="2" fill="#ffcc00"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Fishing line SVG -->
+  <svg id="fishing-line-svg">
+    <line id="fline" x1="195" y1="45" x2="195" y2="80" stroke="rgba(255,255,255,0.5)" stroke-width="1.2" stroke-dasharray="3,2"/>
+  </svg>
+
+  <!-- Hook -->
+  <div id="hook">
+    <svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <path d="M10 2 L10 12 Q10 18 5 18 Q2 18 2 15" stroke="silver" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-stat"><span class="icon">💰</span><span class="hud-gold" id="stat-gold">475</span></div>
+    <div class="hud-stat"><span class="icon">💎</span><span class="hud-gem" id="stat-gem">0</span></div>
+    <div class="hud-stat"><span class="icon">⭐</span><span class="hud-star" id="stat-star">0</span></div>
+    <div class="hud-stat"><span class="icon">🔥</span><span class="hud-fire" id="stat-fire">0</span></div>
+  </div>
+
+  <!-- Shop button -->
+  <button id="shop-btn" onclick="openShop()">🛒 المتجر</button>
+
+  <!-- Home button -->
+  <div id="home-btn" title="الرئيسية">🏠</div>
+
+  <!-- Zones panel -->
+  <div id="zones-panel"></div>
+
+  <!-- Depth meter -->
+  <div id="depth-meter"><div id="depth-fill"></div></div>
+  <div id="depth-label">0م</div>
+
+  <!-- Zone label -->
+  <div id="zone-label" style="top:150px">المحيط العميق</div>
+
+  <!-- Status box -->
+  <div id="status-box">
+    <div>🔽 أقصى عمق: <span id="stat-depth">0</span>م</div>
+    <div>🐟 سمك مصيد: <span id="stat-caught">0</span></div>
+  </div>
+
+  <!-- Return button -->
+  <button id="return-btn" onclick="returnToBoat()">⬆ العودة للقارب</button>
+
+  <!-- Catch popup -->
+  <div id="catch-popup">
+    <div class="fish-display" id="popup-icon">🐟</div>
+    <div class="fish-name" id="popup-name">سمكة</div>
+    <div class="fish-value" id="popup-value">+10 💰</div>
+    <div class="fish-depth" id="popup-depth">عمق: 50م</div>
+    <button id="catch-popup-close" onclick="closePopup()">حسناً ✓</button>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Shop overlay -->
+  <div id="shop-overlay">
+    <div id="shop-title">🛒 المتجر</div>
+    <div id="shop-items"></div>
+    <button id="shop-close" onclick="closeShop()">✕ إغلاق</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// GAME DATA
+// ============================================================
+const ZONES = [
+  { id:'ocean',  name:'المحيط العميق', emoji:'🌊', unlocked:true,  cost:{},                  maxDepth:600,  color:'#2d9fc9', waterBg:'linear-gradient(180deg,#5bc8f5 0%,#2d9fc9 40%,#1a6b9a 100%)' },
+  { id:'abyss',  name:'الهاوية',       emoji:'🕳️', unlocked:false, cost:{gold:50000},         maxDepth:2000, color:'#1a3a5c', waterBg:'linear-gradient(180deg,#1a6b9a 0%,#0d3d6b 40%,#061a30 100%)' },
+  { id:'inf',    name:'اللانهاية',     emoji:'♾️', unlocked:false, cost:{gold:100000,gem:50}, maxDepth:9999, color:'#0a1520', waterBg:'linear-gradient(180deg,#061a30 0%,#030d1a 100%)' },
+  { id:'lava',   name:'بحيرة الحمم',   emoji:'🌋', unlocked:false, cost:{gold:250000,gem:100,star:500}, maxDepth:5000, color:'#3a0a00', waterBg:'linear-gradient(180deg,#5c1a00 0%,#2a0800 100%)' },
+];
+
+const FISH_DB = [
+  // zone, emoji, name, minDepth, maxDepth, gold, gem, star, fire, rarity
+  { zone:'ocean', emoji:'🐟', name:'سمكة صغيرة',  min:0,   max:100, gold:8,   gem:0, star:0, fire:0, w:40 },
+  { zone:'ocean', emoji:'🐠', name:'سمكة ملونة',  min:20,  max:200, gold:15,  gem:0, star:0, fire:0, w:30 },
+  { zone:'ocean', emoji:'🐡', name:'سمكة نافخة',  min:50,  max:300, gold:25,  gem:0, star:0, fire:0, w:20 },
+  { zone:'ocean', emoji:'🦈', name:'قرش صغير',    min:100, max:400, gold:60,  gem:1, star:0, fire:0, w:8  },
+  { zone:'ocean', emoji:'🐙', name:'أخطبوط',      min:150, max:500, gold:80,  gem:2, star:0, fire:0, w:5  },
+  { zone:'ocean', emoji:'🐳', name:'حوت',          min:200, max:600, gold:200, gem:5, star:1, fire:0, w:2  },
+  { zone:'abyss', emoji:'🦑', name:'حبار عملاق',  min:300, max:1000,gold:150, gem:8, star:2, fire:0, w:15 },
+  { zone:'abyss', emoji:'🐬', name:'دولفين',       min:400, max:1500,gold:300, gem:12,star:3, fire:0, w:8  },
+  { zone:'abyss', emoji:'🦐', name:'جمبري نادر',  min:500, max:2000,gold:500, gem:20,star:5, fire:1, w:3  },
+  { zone:'lava',  emoji:'🐉', name:'تنين البحر',  min:0,   max:5000,gold:1000,gem:50,star:20,fire:10,w:5  },
+];
+
+const SHOP_ITEMS = [
+  { id:'rod1',  name:'صنارة محسّنة',   desc:'تصطاد أسرع بـ25%',   icon:'🎣', cost:{gold:500},  type:'upgrade' },
+  { id:'rod2',  name:'صنارة ذهبية',    desc:'تصطاد أسرع بـ50%',   icon:'✨', cost:{gold:2000}, type:'upgrade' },
+  { id:'bait1', name:'طُعم خاص',       desc:'يجذب أسماكاً أندر',  icon:'🪱', cost:{gold:300},  type:'bait'    },
+  { id:'tank',  name:'خزان أكبر',      desc:'سعة أكبر بـ×2',      icon:'🪣', cost:{gold:1500}, type:'upgrade' },
+  { id:'depth', name:'معدات الغوص',    desc:'زيادة الحد الأقصى للعمق', icon:'🤿', cost:{gold:1000}, type:'upgrade' },
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let state = {
+  gold: 475, gem: 0, star: 0, fire: 0,
+  currentZone: 0,
+  hookY: 80,        // px from top of game
+  hookDepth: 0,     // meters
+  maxDepthReached: 0,
+  fishCaught: 0,
+  descending: false,
+  ascending: false,
+  speed: 2,
+  ownedItems: new Set(),
+  zoneLocked: [false, true, true, true],
+  popupOpen: false,
+};
+
+let fishEntities = [];
+let animFrame;
+let bubbleInterval;
+
+const GAME_H = 700;
+const SURFACE_H = 90;
+const OCEAN_H = GAME_H - SURFACE_H; // 610px
+const HOOK_START_Y = 80;
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  buildZones();
+  buildShop();
+  spawnBubbles();
+  spawnFishLoop();
+  renderHUD();
+  updateDepthDisplay();
+  startGameLoop();
+
+  // Controls
+  document.getElementById('return-btn').addEventListener('click', returnToBoat);
+
+  // Touch/mouse on ocean to lower hook
+  const ocean = document.getElementById('ocean');
+  ocean.addEventListener('click', onOceanClick);
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') state.descending = true;
+    if (e.key === 'ArrowUp') state.ascending = true;
+  });
+  document.addEventListener('keyup', e => {
+    if (e.key === 'ArrowDown') state.descending = false;
+    if (e.key === 'ArrowUp') state.ascending = false;
+  });
+}
+
+// ============================================================
+// ZONES
+// ============================================================
+function buildZones() {
+  const panel = document.getElementById('zones-panel');
+  panel.innerHTML = '';
+  ZONES.forEach((z, i) => {
+    const btn = document.createElement('div');
+    btn.className = 'zone-btn' + (i === state.currentZone ? ' active' : '') + (state.zoneLocked[i] ? ' locked' : '');
+    btn.id = `zone-btn-${i}`;
+
+    let costsHtml = '';
+    if (state.zoneLocked[i]) {
+      const c = z.cost;
+      if (c.gold) costsHtml += `<span>💰${fmtNum(c.gold)}</span>`;
+      if (c.gem)  costsHtml += `<span>💎${fmtNum(c.gem)}</span>`;
+      if (c.star) costsHtml += `<span>⭐${fmtNum(c.star)}</span>`;
+    }
+
+    btn.innerHTML = `
+      <div>${state.zoneLocked[i] ? '🔒 ' : ''}${z.emoji} <span class="zone-name">${z.name}</span></div>
+      ${state.zoneLocked[i] ? `<div class="zone-cost">${costsHtml}</div>` : ''}
+    `;
+
+    btn.addEventListener('click', () => selectZone(i));
+    panel.appendChild(btn);
+  });
+}
+
+function selectZone(i) {
+  if (state.zoneLocked[i]) {
+    // Try to unlock
+    const z = ZONES[i];
+    const c = z.cost;
+    if ((c.gold||0) <= state.gold && (c.gem||0) <= state.gem && (c.star||0) <= state.star) {
+      state.gold -= (c.gold||0);
+      state.gem  -= (c.gem||0);
+      state.star -= (c.star||0);
+      state.zoneLocked[i] = false;
+      showToast(`🎉 تم فتح ${z.name}!`);
+      buildZones();
+      renderHUD();
+    } else {
+      showToast('⛔ لا تملك الموارد الكافية');
+    }
+    return;
+  }
+  state.currentZone = i;
+  returnToBoat();
+  document.querySelectorAll('.zone-btn').forEach((b,j) => {
+    b.classList.toggle('active', j === i);
+  });
+  updateOceanBg();
+  spawnFishLoop();
+  showToast(`🌊 انتقلت إلى ${ZONES[i].name}`);
+}
+
+function updateOceanBg() {
+  const z = ZONES[state.currentZone];
+  document.getElementById('ocean').style.background = z.waterBg;
+  document.getElementById('zone-label').textContent = z.name;
+}
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+function startGameLoop() {
+  function loop() {
+    if (state.descending && !state.popupOpen) moveHook(1);
+    if (state.ascending  && !state.popupOpen) moveHook(-1);
+    checkFishCollision();
+    updateFishingLine();
+    animFrame = requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+function onOceanClick(e) {
+  if (state.popupOpen) return;
+  // Click lower half: descend; upper: ascend
+  const rect = document.getElementById('game-wrap').getBoundingClientRect();
+  const clickY = e.clientY - rect.top;
+  if (clickY > state.hookY) {
+    moveHook(30);
+  } else {
+    moveHook(-30);
+  }
+}
+
+function moveHook(delta) {
+  const maxY = GAME_H - 60;
+  state.hookY = Math.max(HOOK_START_Y, Math.min(maxY, state.hookY + delta * state.speed));
+  state.hookDepth = Math.round(((state.hookY - HOOK_START_Y) / (GAME_H - HOOK_START_Y - 20)) * ZONES[state.currentZone].maxDepth);
+  state.maxDepthReached = Math.max(state.maxDepthReached, state.hookDepth);
+
+  // Update hook position
+  const hook = document.getElementById('hook');
+  hook.style.top = state.hookY + 'px';
+
+  updateDepthDisplay();
+}
+
+function updateFishingLine() {
+  const hook = document.getElementById('hook');
+  const line = document.getElementById('fline');
+  const hookRect = hook.getBoundingClientRect();
+  const wrap = document.getElementById('game-wrap').getBoundingClientRect();
+  const hx = hookRect.left - wrap.left + 10;
+  const hy = hookRect.top  - wrap.top  + 5;
+  line.setAttribute('x2', hx);
+  line.setAttribute('y2', hy);
+}
+
+function updateDepthDisplay() {
+  document.getElementById('stat-depth').textContent = state.hookDepth;
+  document.getElementById('stat-caught').textContent = state.fishCaught;
+  document.getElementById('depth-label').textContent = state.hookDepth + 'م';
+
+  const maxD = ZONES[state.currentZone].maxDepth;
+  const pct = Math.min(100, (state.hookDepth / maxD) * 100);
+  document.getElementById('depth-fill').style.height = pct + '%';
+}
+
+function returnToBoat() {
+  state.descending = false;
+  state.ascending = false;
+  const anim = setInterval(() => {
+    if (state.hookY <= HOOK_START_Y + 2) {
+      state.hookY = HOOK_START_Y;
+      clearInterval(anim);
+    }
+    moveHook(-4);
+  }, 16);
+}
+
+// ============================================================
+// FISH
+// ============================================================
+const fishColors = ['#f4a261','#e76f51','#2a9d8f','#e9c46a','#264653','#6a4c93','#c77dff','#48cae4'];
+
+function getZoneFish() {
+  return FISH_DB.filter(f => f.zone === ZONES[state.currentZone].id || ZONES[state.currentZone].id === 'ocean');
+}
+
+function spawnFish() {
+  const wrap = document.getElementById('game-wrap');
+  const pool = FISH_DB.filter(f => f.zone === ZONES[state.currentZone].id);
+  const allFish = pool.length ? pool : FISH_DB.slice(0,5);
+
+  // Weighted random pick
+  const total = allFish.reduce((s,f) => s + f.w, 0);
+  let r = Math.random() * total;
+  let fish = allFish[0];
+  for (const f of allFish) { r -= f.w; if (r <= 0) { fish = f; break; } }
+
+  // Y position based on fish depth range
+  const minY = SURFACE_H + (fish.min / ZONES[state.currentZone].maxDepth) * OCEAN_H;
+  const maxY = SURFACE_H + (Math.min(fish.max, ZONES[state.currentZone].maxDepth) / ZONES[state.currentZone].maxDepth) * OCEAN_H;
+  const y = minY + Math.random() * (maxY - minY);
+
+  const el = document.createElement('div');
+  el.className = 'fish';
+  el.dataset.fishId = Math.random().toString(36).slice(2);
+
+  const goLeft = Math.random() > 0.5;
+  const duration = 6 + Math.random() * 8;
+  const size = 0.7 + Math.random() * 0.8;
+
+  el.style.cssText = `top:${y}px; left:${goLeft ? '100%' : '-60px'}; animation: fishSwim ${duration}s linear infinite; transform: scaleX(${goLeft ? -1 : 1}) scale(${size});`;
+  el.innerHTML = `<span class="fish-body">${fish.emoji}</span>`;
+
+  el.addEventListener('click', () => catchFish(fish, el, y));
+
+  wrap.querySelector('#ocean').appendChild(el);
+  fishEntities.push({ el, fish, y, id: el.dataset.fishId });
+
+  // Remove after 3 cycles
+  setTimeout(() => {
+    el.remove();
+    fishEntities = fishEntities.filter(f => f.el !== el);
+  }, duration * 3000);
+}
+
+function spawnFishLoop() {
+  // Clear existing
+  document.querySelectorAll('.fish').forEach(e => e.remove());
+  fishEntities = [];
+
+  const spawnOne = () => { spawnFish(); };
+  spawnOne(); spawnOne(); spawnOne();
+  setInterval(spawnOne, 2500);
+}
+
+// ============================================================
+// COLLISION: hook near fish
+// ============================================================
+function checkFishCollision() {
+  if (state.popupOpen) return;
+  const hook = document.getElementById('hook');
+  const hRect = hook.getBoundingClientRect();
+  const wrap = document.getElementById('game-wrap').getBoundingClientRect();
+  const hx = hRect.left - wrap.left + 10;
+  const hy = hRect.top  - wrap.top  + 10;
+
+  fishEntities.forEach(({ el, fish, y, id }) => {
+    const fRect = el.getBoundingClientRect();
+    const fx = fRect.left - wrap.left + fRect.width/2;
+    const fy = fRect.top  - wrap.top  + fRect.height/2;
+
+    const dist = Math.hypot(hx - fx, hy - fy);
+    if (dist < 36) {
+      catchFish(fish, el, fy);
+    }
+  });
+}
+
+function catchFish(fish, el, fy) {
+  if (state.popupOpen) return;
+  state.popupOpen = true;
+
+  // Check depth validity
+  const depth = state.hookDepth;
+  if (depth < fish.min * 0.5) {
+    state.popupOpen = false;
+    showToast('السمكة هربت! 🐟💨');
+    return;
+  }
+
+  // Add rewards
+  state.gold += fish.gold;
+  state.gem  += fish.gem;
+  state.star += fish.star;
+  state.fire += fish.fire;
+  state.fishCaught++;
+
+  // Float text
+  spawnFloatText(`+${fish.gold}💰`, el);
+
+  // Remove fish
+  el.remove();
+  fishEntities = fishEntities.filter(f => f.el !== el);
+
+  // Show popup
+  document.getElementById('popup-icon').textContent = fish.emoji;
+  document.getElementById('popup-name').textContent = fish.name;
+  document.getElementById('popup-value').textContent = `+${fish.gold} 💰${fish.gem?'  +'+fish.gem+' 💎':''}${fish.star?'  +'+fish.star+' ⭐':''}`;
+  document.getElementById('popup-depth').textContent = `عمق: ${depth}م`;
+  document.getElementById('catch-popup').classList.add('show');
+
+  renderHUD();
+  updateDepthDisplay();
+}
+
+function closePopup() {
+  document.getElementById('catch-popup').classList.remove('show');
+  state.popupOpen = false;
+}
+
+function spawnFloatText(txt, el) {
+  const wrap = document.getElementById('game-wrap');
+  const rect = el.getBoundingClientRect();
+  const wRect = wrap.getBoundingClientRect();
+  const div = document.createElement('div');
+  div.className = 'float-text';
+  div.textContent = txt;
+  div.style.left = (rect.left - wRect.left + 10) + 'px';
+  div.style.top  = (rect.top  - wRect.top  - 10) + 'px';
+  wrap.appendChild(div);
+  setTimeout(() => div.remove(), 1200);
+}
+
+// ============================================================
+// HUD
+// ============================================================
+function renderHUD() {
+  document.getElementById('stat-gold').textContent = fmtNum(state.gold);
+  document.getElementById('stat-gem').textContent  = fmtNum(state.gem);
+  document.getElementById('stat-star').textContent = fmtNum(state.star);
+  document.getElementById('stat-fire').textContent = fmtNum(state.fire);
+}
+
+// ============================================================
+// SHOP
+// ============================================================
+function buildShop() {
+  const container = document.getElementById('shop-items');
+  container.innerHTML = '';
+  SHOP_ITEMS.forEach(item => {
+    const owned = state.ownedItems.has(item.id);
+    const canAfford = (item.cost.gold||0) <= state.gold && (item.cost.gem||0) <= state.gem;
+    const div = document.createElement('div');
+    div.className = 'shop-item';
+    let costStr = '';
+    if (item.cost.gold) costStr += `💰${fmtNum(item.cost.gold)} `;
+    if (item.cost.gem)  costStr += `💎${fmtNum(item.cost.gem)}`;
+    div.innerHTML = `
+      <div class="item-icon">${item.icon}</div>
+      <div class="item-info">
+        <div class="item-name">${item.name}</div>
+        <div class="item-desc">${item.desc}</div>
+      </div>
+      <div class="item-cost ${owned?'owned':''}" onclick="buyItem('${item.id}')">
+        ${owned ? '✓ مملوك' : costStr}
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function openShop() { document.getElementById('shop-overlay').classList.add('open'); buildShop(); }
+function closeShop() { document.getElementById('shop-overlay').classList.remove('open'); }
+
+function buyItem(id) {
+  if (state.ownedItems.has(id)) return;
+  const item = SHOP_ITEMS.find(i => i.id === id);
+  if (!item) return;
+  if ((item.cost.gold||0) > state.gold || (item.cost.gem||0) > state.gem) {
+    showToast('⛔ لا تملك الموارد الكافية'); return;
+  }
+  state.gold -= (item.cost.gold||0);
+  state.gem  -= (item.cost.gem||0);
+  state.ownedItems.add(id);
+  // Apply effects
+  if (id === 'rod1') state.speed *= 1.25;
+  if (id === 'rod2') state.speed *= 1.5;
+  showToast(`✅ تم شراء ${item.name}!`);
+  renderHUD();
+  buildShop();
+}
+
+// ============================================================
+// BUBBLES
+// ============================================================
+function spawnBubbles() {
+  const ocean = document.getElementById('ocean');
+  setInterval(() => {
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = 4 + Math.random() * 10;
+    b.style.cssText = `width:${size}px;height:${size}px;left:${Math.random()*100}%;bottom:0;animation-duration:${4+Math.random()*6}s;animation-delay:${Math.random()*2}s`;
+    ocean.appendChild(b);
+    setTimeout(() => b.remove(), 10000);
+  }, 400);
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function fmtNum(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'م';
+  if (n >= 1000)    return (n/1000).toFixed(1) + 'ك';
+  return n.toString();
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ============================================================
+// START
+// ============================================================
+init();
+
+// Auto-descend on hold
+let holdInterval;
+document.getElementById('game-wrap').addEventListener('mousedown', e => {
+  if (e.target.closest('button, .zone-btn, #shop-btn, #home-btn, #catch-popup-close, #shop-close')) return;
+  const wrap = document.getElementById('game-wrap').getBoundingClientRect();
+  const clickY = e.clientY - wrap.top;
+  const dir = clickY > state.hookY ? 1 : -1;
+  holdInterval = setInterval(() => moveHook(dir * 3), 16);
+});
+document.addEventListener('mouseup', () => clearInterval(holdInterval));
+document.getElementById('game-wrap').addEventListener('touchstart', e => {
+  if (e.target.closest('button, .zone-btn, #shop-btn, #home-btn, #catch-popup-close, #shop-close')) return;
+  const wrap = document.getElementById('game-wrap').getBoundingClientRect();
+  const touchY = e.touches[0].clientY - wrap.top;
+  const dir = touchY > state.hookY ? 1 : -1;
+  holdInterval = setInterval(() => moveHook(dir * 3), 16);
+}, {passive:true});
+document.addEventListener('touchend', () => clearInterval(holdInterval));
+</script>
+</body>
+</html>
