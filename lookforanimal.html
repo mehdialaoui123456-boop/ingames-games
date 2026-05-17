@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ابحث عن الحيوان</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #c8a8d8;
+  --bg2: #b894cc;
+  --card: rgba(255,255,255,0.18);
+  --card-border: rgba(255,255,255,0.35);
+  --grid-bg: rgba(200,168,216,0.6);
+  --grid-line: rgba(255,255,255,0.4);
+  --cell-hover: rgba(255,255,255,0.25);
+  --fire: #ff6b35;
+  --hot: #ff4444;
+  --warm: #9b59b6;
+  --cold: #4fc3f7;
+  --btn: #2979ff;
+  --font: 'Cairo', sans-serif;
+  --white: #fff;
+  --text: #2d1b40;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: linear-gradient(135deg, #d4a8e8 0%, #b87ecf 50%, #a066be 100%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* animated bg blobs */
+body::before, body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 0;
+}
+body::before {
+  width: 400px; height: 400px;
+  background: #ff80ab;
+  top: -100px; left: -100px;
+  animation: blobMove1 12s ease-in-out infinite alternate;
+}
+body::after {
+  width: 350px; height: 350px;
+  background: #80d8ff;
+  bottom: -80px; right: -80px;
+  animation: blobMove2 15s ease-in-out infinite alternate;
+}
+@keyframes blobMove1 { 0%{transform:translate(0,0)} 100%{transform:translate(80px,60px)} }
+@keyframes blobMove2 { 0%{transform:translate(0,0)} 100%{transform:translate(-60px,-40px)} }
+
+/* ===== WRAP ===== */
+#wrap {
+  position: relative;
+  z-index: 1;
+  width: 380px;
+  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  gap: 16px;
+}
+
+/* ===== TITLE ===== */
+.game-title {
+  color: white;
+  font-size: 26px;
+  font-weight: 900;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  letter-spacing: 1px;
+}
+
+/* ===== TEMPERATURE BAR ===== */
+#temp-bar {
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--card-border);
+  border-radius: 50px;
+  padding: 8px 16px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  width: 100%;
+  justify-content: center;
+}
+.temp-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  opacity: 0.7;
+  transition: all 0.3s;
+}
+.temp-item.active {
+  opacity: 1;
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 6px rgba(255,255,255,0.6));
+}
+.temp-item .t-icon { font-size: 18px; }
+
+/* ===== GRID ===== */
+#grid-container {
+  background: rgba(180,130,205,0.45);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid var(--card-border);
+  border-radius: 18px;
+  padding: 10px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(80,0,120,0.2), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+#grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  width: 100%;
+}
+
+.cell {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  background: rgba(200,160,220,0.4);
+  border: 1px solid rgba(255,255,255,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+.cell:hover {
+  background: rgba(255,255,255,0.3);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.cell:active { transform: scale(0.97); }
+
+/* Tap ripple */
+.cell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0);
+  border-radius: 10px;
+  transition: background 0.3s;
+}
+.cell.tapped::after { background: rgba(255,255,255,0.4); }
+
+/* Temperature cell states */
+.cell.on-fire {
+  background: linear-gradient(135deg, #ff9800, #ff5722) !important;
+  box-shadow: 0 0 16px rgba(255,100,0,0.7), 0 0 32px rgba(255,50,0,0.4);
+  animation: firePulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes firePulse { from{box-shadow:0 0 12px rgba(255,100,0,0.6)} to{box-shadow:0 0 24px rgba(255,50,0,0.9),0 0 40px rgba(255,150,0,0.4)} }
+
+.cell.hot {
+  background: linear-gradient(135deg, #ff6b6b, #ee3333) !important;
+  box-shadow: 0 0 10px rgba(255,50,50,0.5);
+}
+.cell.warm {
+  background: linear-gradient(135deg, #c084e0, #9b59b6) !important;
+  box-shadow: 0 0 8px rgba(155,89,182,0.4);
+}
+.cell.cold {
+  background: linear-gradient(135deg, #81d4fa, #4fc3f7) !important;
+  box-shadow: 0 0 8px rgba(79,195,247,0.4);
+}
+.cell.ice {
+  background: linear-gradient(135deg, #b3e5fc, #29b6f6) !important;
+  box-shadow: 0 0 12px rgba(41,182,246,0.6);
+}
+
+/* Hint dot */
+.hint-dot {
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  bottom: 4px; right: 4px;
+  opacity: 0.8;
+}
+
+/* Found: show animal */
+.cell.found {
+  background: linear-gradient(135deg, #66ff88, #22cc55) !important;
+  box-shadow: 0 0 20px rgba(34,204,85,0.8), 0 0 40px rgba(34,204,85,0.4);
+  animation: foundPop 0.5s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes foundPop { 0%{transform:scale(0.5)} 60%{transform:scale(1.2)} 100%{transform:scale(1)} }
+
+/* Clue emoji in cell */
+.clue-emoji {
+  position: absolute;
+  font-size: 14px;
+  top: 2px; left: 2px;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+/* ===== TEMP INDICATOR (big animated) ===== */
+#temp-indicator {
+  font-size: 22px;
+  font-weight: 900;
+  color: white;
+  text-align: center;
+  min-height: 36px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: all 0.3s;
+  letter-spacing: 0.5px;
+}
+
+/* ===== STATUS ===== */
+#status-box {
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 14px 20px;
+  width: 100%;
+  text-align: center;
+  color: white;
+}
+#status-title {
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+#status-sub {
+  font-size: 15px;
+  opacity: 0.85;
+}
+
+/* ===== NEXT BUTTON ===== */
+#next-btn {
+  background: var(--btn);
+  border: none;
+  border-radius: 16px;
+  padding: 14px 0;
+  width: 100%;
+  color: white;
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 900;
+  cursor: pointer;
+  letter-spacing: 1px;
+  box-shadow: 0 6px 20px rgba(41,121,255,0.5);
+  transition: transform 0.15s, box-shadow 0.15s;
+  display: none;
+}
+#next-btn.show { display: block; }
+#next-btn:hover { transform: scale(1.03); box-shadow: 0 8px 28px rgba(41,121,255,0.7); }
+
+/* ===== SCORE BAR ===== */
+#score-bar {
+  display: flex;
+  gap: 12px;
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+}
+.score-item {
+  background: rgba(255,255,255,0.18);
+  border-radius: 20px;
+  padding: 5px 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255,255,255,0.25);
+}
+
+/* ===== ANIMAL PARADE (decoration) ===== */
+#animal-parade {
+  position: fixed;
+  bottom: 8px;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 20px;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ===== CONFETTI ===== */
+.confetti-piece {
+  position: fixed;
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 200;
+  animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+/* ===== STREAK BADGE ===== */
+#streak-badge {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) scale(0);
+  background: linear-gradient(135deg, #ff6b35, #ff3300);
+  color: white;
+  border-radius: 30px;
+  padding: 8px 20px;
+  font-size: 16px;
+  font-weight: 900;
+  z-index: 100;
+  transition: transform 0.4s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 4px 16px rgba(255,80,0,0.5);
+  white-space: nowrap;
+}
+#streak-badge.show { transform: translateX(-50%) scale(1); }
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <!-- Title -->
+  <div class="game-title">🔍 ابحث عن الحيوان</div>
+
+  <!-- Score -->
+  <div id="score-bar">
+    <div class="score-item">🏆 <span id="sc-score">0</span></div>
+    <div class="score-item">🎮 <span id="sc-round">1</span></div>
+    <div class="score-item">👆 <span id="sc-taps">0</span> نقرة</div>
+  </div>
+
+  <!-- Temp bar -->
+  <div id="temp-bar">
+    <div class="temp-item" id="t-fire"><span class="t-icon">🔥</span> ناري!</div>
+    <div class="temp-item" id="t-hot"><span class="t-icon">🌶️</span> حار</div>
+    <div class="temp-item" id="t-warm"><span class="t-icon">💜</span> دافئ</div>
+    <div class="temp-item" id="t-cold"><span class="t-icon">🥶</span> بارد</div>
+  </div>
+
+  <!-- Grid -->
+  <div id="grid-container">
+    <div id="grid"></div>
+  </div>
+
+  <!-- Temp indicator -->
+  <div id="temp-indicator">انقر على أي خلية للبدء!</div>
+
+  <!-- Status box -->
+  <div id="status-box">
+    <div id="status-title">🐾 ابحث عن الحيوان المخفي!</div>
+    <div id="status-sub">استخدم درجة الحرارة كدليل</div>
+  </div>
+
+  <!-- Next button -->
+  <button id="next-btn" onclick="nextRound()">الحيوان التالي ←</button>
+</div>
+
+<!-- Streak badge -->
+<div id="streak-badge"></div>
+
+<!-- Animal parade -->
+<div id="animal-parade"></div>
+
+<script>
+// ============================================================
+// DATA
+// ============================================================
+const ANIMALS = [
+  { emoji:'🦁', name:'أسد' },
+  { emoji:'🐘', name:'فيل' },
+  { emoji:'🦒', name:'زرافة' },
+  { emoji:'🐯', name:'نمر' },
+  { emoji:'🦊', name:'ثعلب' },
+  { emoji:'🐼', name:'باندا' },
+  { emoji:'🦋', name:'فراشة' },
+  { emoji:'🐸', name:'ضفدع' },
+  { emoji:'🦜', name:'ببغاء' },
+  { emoji:'🦔', name:'قنفذ' },
+  { emoji:'🐢', name:'سلحفاة' },
+  { emoji:'🦭', name:'فقمة' },
+  { emoji:'🦦', name:'قندس' },
+  { emoji:'🐊', name:'تمساح' },
+  { emoji:'🦩', name:'طائر النحام' },
+  { emoji:'🦚', name:'طاووس' },
+  { emoji:'🦀', name:'سرطان البحر' },
+  { emoji:'🐡', name:'سمكة نافخة' },
+  { emoji:'🦎', name:'سحلية' },
+  { emoji:'🐺', name:'ذئب' },
+  { emoji:'🦝', name:'راكون' },
+  { emoji:'🐻', name:'دب' },
+  { emoji:'🦙', name:'لاما' },
+  { emoji:'🐓', name:'ديك' },
+  { emoji:'🦅', name:'نسر' },
+];
+
+const CLUE_EMOJIS = {
+  fire: '🔥', hot: '🌶️', warm: '💜', cold: '🥶', ice: '❄️'
+};
+
+const TEMP_LABELS = {
+  fire: '🔥 ناري! أنت قريب جداً!',
+  hot:  '🌶️ حار جداً! اقترب أكثر!',
+  warm: '💜 دافئ.. في الاتجاه الصحيح',
+  cold: '🥶 بارد.. ابتعدت',
+  ice:  '❄️ جليدي! ابعد ما يكون!',
+};
+
+const GRID_SIZE = 5; // 5×5 = 25 cells
+const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
+
+// ============================================================
+// STATE
+// ============================================================
+let state = {
+  targetCell: 0,
+  animal: null,
+  taps: 0,
+  found: false,
+  score: 0,
+  round: 1,
+  streak: 0,
+  lastTemp: null,
+  usedAnimals: new Set(),
+  cellHistory: [], // [{idx, temp}]
+};
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  buildGrid();
+  newRound();
+  buildParade();
+}
+
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < TOTAL_CELLS; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.idx = i;
+    cell.addEventListener('click', () => onCellClick(i));
+    grid.appendChild(cell);
+  }
+}
+
+function newRound() {
+  // Pick random animal (no repeat until all used)
+  if (state.usedAnimals.size >= ANIMALS.length) state.usedAnimals.clear();
+  let pick;
+  do { pick = ANIMALS[Math.floor(Math.random() * ANIMALS.length)]; }
+  while (state.usedAnimals.has(pick.emoji));
+  state.usedAnimals.add(pick.emoji);
+  state.animal = pick;
+
+  // Random target cell
+  state.targetCell = Math.floor(Math.random() * TOTAL_CELLS);
+  state.taps = 0;
+  state.found = false;
+  state.lastTemp = null;
+  state.cellHistory = [];
+
+  // Reset UI
+  document.querySelectorAll('.cell').forEach(c => {
+    c.className = 'cell';
+    c.textContent = '';
+    c.innerHTML = '';
+  });
+
+  document.getElementById('status-title').textContent = `🐾 ابحث عن الـ ${state.animal.name}!`;
+  document.getElementById('status-sub').textContent = 'استخدم درجة الحرارة كدليل';
+  document.getElementById('temp-indicator').textContent = 'انقر على أي خلية للبدء!';
+  document.getElementById('next-btn').classList.remove('show');
+  document.getElementById('sc-round').textContent = state.round;
+  document.getElementById('sc-taps').textContent = '0';
+  resetTempBar();
+}
+
+// ============================================================
+// CELL CLICK
+// ============================================================
+function onCellClick(idx) {
+  if (state.found) return;
+  if (state.cellHistory.find(h => h.idx === idx)) return; // already clicked
+
+  state.taps++;
+  document.getElementById('sc-taps').textContent = state.taps;
+
+  const cell = document.querySelector(`.cell[data-idx="${idx}"]`);
+
+  // Check if found
+  if (idx === state.targetCell) {
+    foundAnimal(cell);
+    return;
+  }
+
+  // Calculate distance
+  const dist = getDistance(idx, state.targetCell);
+  const temp = getTemp(dist);
+  state.lastTemp = temp;
+  state.cellHistory.push({ idx, temp });
+
+  // Style cell
+  cell.classList.add(temp);
+  const clue = document.createElement('span');
+  clue.className = 'clue-emoji';
+  clue.textContent = CLUE_EMOJIS[temp];
+  cell.appendChild(clue);
+
+  // Ripple
+  cell.classList.add('tapped');
+  setTimeout(() => cell.classList.remove('tapped'), 300);
+
+  // Update temp indicator
+  document.getElementById('temp-indicator').textContent = TEMP_LABELS[temp];
+  updateTempBar(temp);
+}
+
+function foundAnimal(cell) {
+  state.found = true;
+  cell.classList.add('found');
+  cell.textContent = state.animal.emoji;
+
+  // Score calculation: fewer taps = more points
+  const pts = Math.max(10, 100 - (state.taps - 1) * 10);
+  state.score += pts;
+  state.streak++;
+  document.getElementById('sc-score').textContent = state.score;
+
+  document.getElementById('temp-indicator').textContent = `🎉 ${TEMP_LABELS.fire}`;
+  document.getElementById('status-title').textContent = `وجدت الـ ${state.animal.name}! ${state.animal.emoji}`;
+  document.getElementById('status-sub').textContent = `استغرقت ${state.taps} نقرة${state.taps===1?'':'ات'} — +${pts} نقطة!`;
+  document.getElementById('next-btn').classList.add('show');
+
+  launchConfetti();
+
+  if (state.streak >= 3) {
+    showStreak();
+  }
+
+  updateTempBar('fire');
+}
+
+// ============================================================
+// DISTANCE & TEMPERATURE
+// ============================================================
+function getDistance(a, b) {
+  const ar = Math.floor(a / GRID_SIZE), ac = a % GRID_SIZE;
+  const br = Math.floor(b / GRID_SIZE), bc = b % GRID_SIZE;
+  return Math.abs(ar - br) + Math.abs(ac - bc); // Manhattan distance
+}
+
+function getTemp(dist) {
+  if (dist === 0) return 'fire';
+  if (dist === 1) return 'fire';
+  if (dist === 2) return 'hot';
+  if (dist === 3) return 'warm';
+  if (dist <= 5)  return 'cold';
+  return 'ice';
+}
+
+// ============================================================
+// TEMP BAR
+// ============================================================
+function resetTempBar() {
+  ['t-fire','t-hot','t-warm','t-cold'].forEach(id => {
+    document.getElementById(id).classList.remove('active');
+  });
+}
+
+function updateTempBar(temp) {
+  resetTempBar();
+  const map = { fire:'t-fire', hot:'t-hot', warm:'t-warm', cold:'t-cold', ice:'t-cold' };
+  const el = document.getElementById(map[temp]);
+  if (el) el.classList.add('active');
+}
+
+// ============================================================
+// NEXT ROUND
+// ============================================================
+function nextRound() {
+  state.round++;
+  newRound();
+}
+
+// ============================================================
+// CONFETTI
+// ============================================================
+function launchConfetti() {
+  const colors = ['#ff6b35','#f5c842','#66ff88','#80d8ff','#ff80ab','#fff'];
+  for (let i = 0; i < 40; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.cssText = `
+      left: ${20 + Math.random() * 60}%;
+      top: ${Math.random() * 20}%;
+      background: ${colors[Math.floor(Math.random()*colors.length)]};
+      width: ${6 + Math.random()*8}px;
+      height: ${6 + Math.random()*8}px;
+      border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+      animation-duration: ${1.5 + Math.random() * 2}s;
+      animation-delay: ${Math.random() * 0.5}s;
+    `;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+}
+
+// ============================================================
+// STREAK
+// ============================================================
+function showStreak() {
+  const badge = document.getElementById('streak-badge');
+  badge.textContent = `🔥 ${state.streak} انتصارات متتالية!`;
+  badge.classList.add('show');
+  setTimeout(() => badge.classList.remove('show'), 2500);
+}
+
+// ============================================================
+// PARADE
+// ============================================================
+function buildParade() {
+  const parade = document.getElementById('animal-parade');
+  const sample = ANIMALS.sort(() => Math.random()-0.5).slice(0,10);
+  parade.textContent = sample.map(a => a.emoji).join(' ');
+}
+
+// ============================================================
+// START
+// ============================================================
+init();
+</script>
+</body>
+</html>
