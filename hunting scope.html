@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>3D Hunting Scope</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body {
+    background: #000;
+    color: #fff;
+    font-family: 'Arial Black', sans-serif;
+    height: 100%;
+    overflow: hidden;
+    touch-action: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+  }
+  .stage {
+    position: relative;
+    width: min(96vw, 480px);
+    aspect-ratio: 9 / 18;
+    max-height: 96vh;
+    background: #000;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(0,0,0,0.8);
+    cursor: crosshair;
+  }
+  canvas#scene {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom, #3a4a3a 0%, #5a6b4a 60%, #6a7a55 100%);
+    filter: saturate(0.7) brightness(0.85);
+  }
+  /* Scope system - moves with drag */
+  .scope-sys {
+    position: absolute;
+    width: 78%;
+    aspect-ratio: 1 / 1;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  /* Dark area outside the scope circle */
+  .scope-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 9999px rgba(0,0,0,0.92),
+      inset 0 0 10px rgba(0,0,0,0.6);
+    border: 3px solid #0d1a0d;
+  }
+  /* Crosshair lines spanning the scope */
+  .cross-h, .cross-v {
+    position: absolute;
+    background: rgba(0,0,0,0.85);
+  }
+  .cross-h { left: 6%; right: 6%; top: 50%; height: 2px; transform: translateY(-50%); }
+  .cross-v { top: 6%; bottom: 6%; left: 50%; width: 2px; transform: translateX(-50%); }
+  .scale {
+    position: absolute;
+    top: 14%; bottom: 14%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 26px;
+    color: rgba(0,0,0,0.75);
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+  }
+  /* The green center crosshair */
+  .center-cross {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 26px; height: 26px;
+  }
+  .center-cross::before, .center-cross::after {
+    content: '';
+    position: absolute;
+    background: #22ff44;
+    box-shadow: 0 0 6px #22ff44;
+  }
+  .center-cross::before { top: 50%; left: 0; right: 0; height: 2px; transform: translateY(-50%); }
+  .center-cross::after { left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%); }
+
+  .hud {
+    position: absolute;
+    top: 14px; left: 14px; right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #fff;
+    font-size: 18px;
+    letter-spacing: 1px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    pointer-events: none;
+    z-index: 5;
+  }
+  .combo {
+    position: absolute;
+    top: 44px; left: 50%;
+    transform: translateX(-50%);
+    color: #ffcc00;
+    font-size: 18px;
+    letter-spacing: 1px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .combo.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+  .hint {
+    position: absolute;
+    bottom: 130px; left: 0; right: 0;
+    text-align: center;
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+    letter-spacing: 2px;
+    pointer-events: none;
+    z-index: 5;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    transition: opacity 0.5s;
+  }
+  .hint.fade { opacity: 0; }
+  .controls {
+    position: absolute;
+    bottom: 18px;
+    left: 18px; right: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 6;
+  }
+  .reload {
+    background: #1a1a1a;
+    color: #fff;
+    border: 3px solid #22ff44;
+    border-radius: 10px;
+    padding: 16px 24px;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(34,255,68,0.4);
+  }
+  .shoot {
+    background: radial-gradient(circle at 35% 35%, #ff5050, #cc0000);
+    color: #fff;
+    border: 4px solid #ff1a1a;
+    border-radius: 50%;
+    width: 92px; height: 92px;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    cursor: pointer;
+    box-shadow: 0 0 18px rgba(255,40,40,0.7), inset 0 -6px 12px rgba(0,0,0,0.3);
+  }
+  .reload:active, .shoot:active { transform: scale(0.94); }
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.85);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 4;
+  }
+  .flash.fire { animation: flash 0.12s ease-out; }
+  @keyframes flash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+  .hitmark {
+    position: absolute;
+    color: #ff3030;
+    font-size: 26px;
+    font-weight: 900;
+    pointer-events: none;
+    z-index: 7;
+    transform: translate(-50%, -50%);
+    text-shadow: 0 0 6px #000;
+    animation: hitpop 0.6s forwards;
+  }
+  @keyframes hitpop {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.4); }
+    100% { opacity: 0; transform: translate(-50%, -80%) scale(1); }
+  }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <canvas id="scene" width="540" height="1080"></canvas>
+    <div class="flash" id="flash"></div>
+
+    <div class="scope-sys" id="scopeSys">
+      <div class="scope-ring"></div>
+      <div class="cross-h"></div>
+      <div class="cross-v"></div>
+      <div class="scale">
+        <span>10</span><span>5</span><span>0</span><span>5</span><span>10</span>
+      </div>
+      <div class="center-cross"></div>
+    </div>
+
+    <div class="hud">
+      <div>AMMO: <span id="ammo">10</span>/10</div>
+      <div>SCORE: <span id="score">0</span></div>
+    </div>
+    <div class="combo" id="combo">COMBO x2</div>
+    <div class="hint" id="hint">DRAG TO AIM · TAP SHOOT</div>
+
+    <div class="controls">
+      <button class="reload" id="reload">RELOAD</button>
+      <button class="shoot" id="shoot">SHOOT</button>
+    </div>
+  </div>
+
+<script>
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const stage = document.getElementById('stage');
+const scopeSys = document.getElementById('scopeSys');
+
+let ammo = 10, score = 0, combo = 0;
+let lastHitTime = 0;
+let animals = [];
+let trees = [];
+let gameRunning = true;
+
+// Scope position offset (in stage pixels relative to center)
+let scopeOffsetX = 0, scopeOffsetY = 0;
+let dragging = false;
+let dragStartX = 0, dragStartY = 0;
+let scopeStartX = 0, scopeStartY = 0;
+
+function initTrees() {
+  trees = [];
+  for (let i=0; i<6; i++) {
+    trees.push({
+      x: Math.random() * W,
+      y: H*0.35 + Math.random()*40,
+      scale: 0.5 + Math.random()*0.3,
+      depth: 0.6
+    });
+  }
+  for (let i=0; i<5; i++) {
+    trees.push({
+      x: (i+0.5) * (W/5) + (Math.random()-0.5)*40,
+      y: H*0.42 + Math.random()*30,
+      scale: 1 + Math.random()*0.4,
+      depth: 1
+    });
+  }
+  trees.sort((a,b) => a.depth - b.depth);
+}
+
+function drawTree(t) {
+  const trunkW = 18 * t.scale;
+  const trunkH = 120 * t.scale;
+  const crownR = 60 * t.scale;
+  ctx.fillStyle = t.depth < 0.8 ? '#5a4a30' : '#4a3a20';
+  ctx.fillRect(t.x - trunkW/2, t.y, trunkW, trunkH);
+  ctx.beginPath();
+  ctx.fillStyle = t.depth < 0.8 ? '#3a5a35' : '#2a4a25';
+  ctx.arc(t.x, t.y, crownR, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function spawnAnimal() {
+  const fromLeft = Math.random() < 0.5;
+  const lane = Math.random() < 0.5 ? 0 : 1;
+  const y = lane === 0 ? H*0.52 : H*0.58;
+  animals.push({
+    x: fromLeft ? -80 : W + 80,
+    y: y,
+    vx: (fromLeft ? 1 : -1) * (0.8 + Math.random()*0.8),
+    size: 32 + Math.random()*10,
+    alive: true,
+    flip: !fromLeft
+  });
+}
+
+function drawAnimal(a) {
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  if (a.flip) ctx.scale(-1, 1);
+  // woolly body (cloud-like white)
+  ctx.fillStyle = '#f5f1e6';
+  const s = a.size;
+  // multiple bumps for wool texture
+  const bumps = [
+    [-s*0.6, 0, s*0.35],
+    [-s*0.2, -s*0.15, s*0.40],
+    [s*0.2,  -s*0.15, s*0.40],
+    [s*0.55, 0, s*0.32],
+    [0, s*0.05, s*0.40],
+  ];
+  for (const [bx, by, br] of bumps) {
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // head (dark)
+  ctx.fillStyle = '#3a3028';
+  ctx.beginPath();
+  ctx.ellipse(s*0.85, -s*0.05, s*0.28, s*0.32, 0, 0, Math.PI*2);
+  ctx.fill();
+  // ear
+  ctx.beginPath();
+  ctx.ellipse(s*0.75, -s*0.30, s*0.08, s*0.14, -0.4, 0, Math.PI*2);
+  ctx.fill();
+  // legs (dark)
+  ctx.fillStyle = '#2a2018';
+  const legW = s*0.10;
+  ctx.fillRect(-s*0.45, s*0.35, legW, s*0.40);
+  ctx.fillRect(-s*0.15, s*0.35, legW, s*0.40);
+  ctx.fillRect(s*0.15,  s*0.35, legW, s*0.40);
+  ctx.fillRect(s*0.45,  s*0.35, legW, s*0.40);
+  // eye (white dot on dark head)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(s*0.95, -s*0.10, s*0.04, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawScene() {
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = 'rgba(60,80,55,0.6)';
+  ctx.fillRect(0, H*0.6, W, H*0.4);
+  trees.forEach(drawTree);
+  animals.forEach(a => { if (a.alive) drawAnimal(a); });
+}
+
+function update() {
+  if (!gameRunning) return;
+  animals.forEach(a => { a.x += a.vx * 2; });
+  animals = animals.filter(a => a.alive && a.x > -120 && a.x < W + 120);
+  drawScene();
+}
+
+// Convert scope offset (in stage px) to canvas coords for hit detection
+function getAimCanvasPoint() {
+  const stageRect = stage.getBoundingClientRect();
+  const cx = stageRect.width / 2 + scopeOffsetX;
+  const cy = stageRect.height / 2 + scopeOffsetY;
+  const canvasX = (cx / stageRect.width) * W;
+  const canvasY = (cy / stageRect.height) * H;
+  return { x: canvasX, y: canvasY };
+}
+
+function fire() {
+  if (!gameRunning) return;
+  if (ammo <= 0) {
+    document.getElementById('shoot').animate(
+      [{transform:'translateX(-2px)'},{transform:'translateX(2px)'},{transform:'translateX(0)'}],
+      {duration:120}
+    );
+    return;
+  }
+  ammo--;
+  updateHUD();
+  const flash = document.getElementById('flash');
+  flash.classList.remove('fire');
+  void flash.offsetWidth;
+  flash.classList.add('fire');
+
+  const aim = getAimCanvasPoint();
+  let hit = null;
+  for (const a of animals) {
+    if (!a.alive) continue;
+    const dx = a.x - aim.x, dy = a.y - aim.y;
+    if (Math.abs(dx) < a.size*1.2 && Math.abs(dy) < a.size*0.9) {
+      hit = a;
+      break;
+    }
+  }
+  if (hit) {
+    hit.alive = false;
+    const now = Date.now();
+    if (now - lastHitTime < 1500) combo++;
+    else combo = 1;
+    lastHitTime = now;
+    const points = 10 * Math.max(1, combo);
+    score += points;
+    showCombo();
+    showHitMark(points);
+  } else {
+    combo = 0;
+    hideCombo();
+  }
+  updateHUD();
+  if (ammo === 0) {
+    document.getElementById('reload').animate(
+      [{boxShadow:'0 0 10px rgba(34,255,68,0.4)'},{boxShadow:'0 0 22px rgba(34,255,68,1)'},{boxShadow:'0 0 10px rgba(34,255,68,0.4)'}],
+      {duration:600, iterations: 3}
+    );
+  }
+}
+
+function showHitMark(points) {
+  const stageRect = stage.getBoundingClientRect();
+  const mark = document.createElement('div');
+  mark.className = 'hitmark';
+  mark.textContent = '+' + points;
+  mark.style.left = (stageRect.width/2 + scopeOffsetX) + 'px';
+  mark.style.top  = (stageRect.height/2 + scopeOffsetY) + 'px';
+  stage.appendChild(mark);
+  setTimeout(() => mark.remove(), 600);
+}
+
+function showCombo() {
+  if (combo < 2) return;
+  const c = document.getElementById('combo');
+  c.textContent = 'COMBO x' + combo;
+  c.classList.add('show');
+}
+function hideCombo() {
+  document.getElementById('combo').classList.remove('show');
+}
+
+function reload() {
+  if (ammo === 10) return;
+  document.getElementById('reload').animate(
+    [{opacity:1},{opacity:0.5},{opacity:1}],
+    {duration:500}
+  );
+  setTimeout(() => { ammo = 10; updateHUD(); }, 500);
+}
+
+function updateHUD() {
+  document.getElementById('ammo').textContent = ammo;
+  document.getElementById('score').textContent = score;
+}
+
+function updateScopeTransform() {
+  scopeSys.style.transform = `translate(calc(-50% + ${scopeOffsetX}px), calc(-50% + ${scopeOffsetY}px))`;
+}
+
+// ----- Drag-to-aim handlers -----
+function getPoint(e) {
+  if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  return { x: e.clientX, y: e.clientY };
+}
+
+function onDown(e) {
+  if (e.target.closest('button')) return;
+  dragging = true;
+  const p = getPoint(e);
+  dragStartX = p.x; dragStartY = p.y;
+  scopeStartX = scopeOffsetX; scopeStartY = scopeOffsetY;
+  document.getElementById('hint').classList.add('fade');
+}
+
+function onMove(e) {
+  if (!dragging) return;
+  e.preventDefault();
+  const p = getPoint(e);
+  const stageRect = stage.getBoundingClientRect();
+  const dx = p.x - dragStartX;
+  const dy = p.y - dragStartY;
+  scopeOffsetX = scopeStartX + dx;
+  scopeOffsetY = scopeStartY + dy;
+  const maxX = stageRect.width * 0.32;
+  const maxY = stageRect.height * 0.30;
+  scopeOffsetX = Math.max(-maxX, Math.min(maxX, scopeOffsetX));
+  scopeOffsetY = Math.max(-maxY, Math.min(maxY, scopeOffsetY));
+  updateScopeTransform();
+}
+
+function onUp() {
+  dragging = false;
+}
+
+stage.addEventListener('mousedown', onDown);
+stage.addEventListener('touchstart', onDown, {passive:false});
+window.addEventListener('mousemove', onMove);
+window.addEventListener('touchmove', onMove, {passive:false});
+window.addEventListener('mouseup', onUp);
+window.addEventListener('touchend', onUp);
+
+document.getElementById('shoot').addEventListener('click', fire);
+document.getElementById('reload').addEventListener('click', reload);
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); fire(); }
+  else if (e.key.toLowerCase() === 'r') reload();
+  else if (e.key === 'ArrowLeft') { scopeOffsetX -= 14; updateScopeTransform(); }
+  else if (e.key === 'ArrowRight') { scopeOffsetX += 14; updateScopeTransform(); }
+  else if (e.key === 'ArrowUp') { scopeOffsetY -= 14; updateScopeTransform(); }
+  else if (e.key === 'ArrowDown') { scopeOffsetY += 14; updateScopeTransform(); }
+});
+
+// Init
+initTrees();
+updateHUD();
+updateScopeTransform();
+setInterval(spawnAnimal, 1300);
+function loop() {
+  update();
+  requestAnimationFrame(loop);
+}
+loop();
+
+setInterval(() => {
+  if (Date.now() - lastHitTime > 1800 && combo > 0) {
+    combo = 0;
+    hideCombo();
+  }
+}, 500);
+</script>
+</body>
+</html>
