@@ -9,17 +9,17 @@
       -webkit-tap-highlight-color: transparent;
       user-select: none; -webkit-user-select: none;
       -webkit-touch-callout: none; }
-  html, body { width: 100%; height: 100%; overflow: hidden; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
   body {
     font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
-    background: #000;
     color: #fff;
     touch-action: none;
     position: fixed;
     inset: 0;
   }
 
-  #game { position: absolute; inset: 0; overflow: hidden; }
+  #game { position: absolute; inset: 0; overflow: hidden; background: #000; }
+  #c { position: absolute; top: 0; left: 0; display: block; background: #000; }
 
   /* HUD ----------------------------------------------------------------- */
   #hud {
@@ -30,16 +30,8 @@
     pointer-events: none;
     font-size: 22px;
     font-weight: 700;
-    letter-spacing: 1px;
   }
   .hud-item { display: flex; align-items: center; gap: 6px; opacity: 0.95; }
-
-  /* Canvas covers the full game area */
-  #c {
-    position: absolute; inset: 0;
-    width: 100%; height: 100%;
-    display: block;
-  }
 
   /* Overlays ------------------------------------------------------------ */
   .overlay {
@@ -50,33 +42,28 @@
     text-align: center;
     padding: 24px;
   }
-  .overlay h1 { font-size: 36px; margin-bottom: 12px; letter-spacing: 1px; }
+  .overlay h1 { font-size: 34px; margin-bottom: 12px; }
   .overlay p  { font-size: 16px; margin-bottom: 24px; opacity: 0.75; line-height: 1.6; max-width: 280px; }
-  .big-score { font-size: 72px; font-weight: 800; margin: 8px 0 24px; }
+  .big-score { font-size: 64px; font-weight: 800; margin: 8px 0 24px; }
   .btn {
-    background: #fff;
-    color: #000;
-    border: none;
-    font-family: inherit;
-    font-size: 18px;
-    font-weight: 700;
-    padding: 14px 44px;
-    border-radius: 999px;
-    cursor: pointer;
+    background: #fff; color: #000; border: none;
+    font-family: inherit; font-size: 18px; font-weight: 700;
+    padding: 14px 44px; border-radius: 999px;
     box-shadow: 0 5px 0 #888;
     transition: transform 80ms, box-shadow 80ms;
-    letter-spacing: 0.5px;
   }
   .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #888; }
 
   .hint { font-size: 13px; opacity: 0.5; margin-top: 18px; }
-
   .hidden { display: none !important; }
+
+  /* Debug: tiny line at top-left to confirm script is running, hidden in prod */
+  #debug { position: absolute; top: 4px; left: 4px; font-size: 9px; opacity: 0.3; z-index: 200; pointer-events: none; }
 </style>
 </head>
 <body>
 <div id="game">
-  <canvas id="c"></canvas>
+  <canvas id="c" width="400" height="800"></canvas>
 
   <div id="hud">
     <div class="hud-item">♥ <span id="lives">3</span></div>
@@ -96,11 +83,13 @@
     <div class="big-score" id="finalScore">0</div>
     <button class="btn" id="restartBtn">العب مرة أخرى</button>
   </div>
+
+  <div id="debug"></div>
 </div>
 
 <script>
 (function () {
-  // ── Setup ────────────────────────────────────────────────────────────
+  // ── DOM ──────────────────────────────────────────────────────────────
   const game       = document.getElementById('game');
   const canvas     = document.getElementById('c');
   const ctx        = canvas.getContext('2d');
@@ -112,12 +101,16 @@
   const endView    = document.getElementById('end');
   const startBtn   = document.getElementById('startBtn');
   const restartBtn = document.getElementById('restartBtn');
+  const debugEl    = document.getElementById('debug');
 
-  let W = 0, H = 0, dpr = 1;
+  function dbg(msg) { debugEl.textContent = msg; }
+
+  let W = 400, H = 800;
   let player = null;
   let bullets = [];
   let enemies = [];
   let particles = [];
+  let stars = [];
   let score = 0;
   let lives = 3;
   let timeLeft = 60;
@@ -127,26 +120,46 @@
   let rafId = null;
   let timerInterval = null;
 
-  // ── Resize / DPR ─────────────────────────────────────────────────────
+  // ── SIZING ───────────────────────────────────────────────────────────
+  // Defensive: try every signal the WebView might give us and clamp
+  // to a minimum so we never draw to a 0x0 canvas.
   function measure() {
-    dpr = window.devicePixelRatio || 1;
-    W = game.clientWidth  || window.innerWidth;
-    H = game.clientHeight || window.innerHeight;
-    canvas.width  = Math.floor(W * dpr);
-    canvas.height = Math.floor(H * dpr);
+    const rect = game.getBoundingClientRect();
+    let w = rect.width  || game.clientWidth  || window.innerWidth  || document.documentElement.clientWidth  || 360;
+    let h = rect.height || game.clientHeight || window.innerHeight || document.documentElement.clientHeight || 640;
+    w = Math.max(200, Math.floor(w));
+    h = Math.max(300, Math.floor(h));
+
+    if (w === W && h === H && canvas.width === w && canvas.height === h) return false;
+
+    W = w; H = h;
+    // Set canvas pixel size = CSS size (no DPR scaling — avoids the
+    // setTransform(0,0) trap on some Android WebViews). Slightly less
+    // crisp but always works.
+    canvas.width  = W;
+    canvas.height = H;
     canvas.style.width  = W + 'px';
     canvas.style.height = H + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Keep player on screen if already alive
+
+    dbg(W + '×' + H);
+
     if (player) {
-      player.x = Math.min(Math.max(player.x, 40), W - 40);
+      player.x = Math.min(Math.max(player.x, 30), W - 30);
       player.y = H - 80;
     }
+    if (stars.length === 0) initStars();
+    return true;
+  }
+
+  // ResizeObserver fires reliably once the WebView lays out, even when
+  // resize/orientationchange don't.
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => measure()).observe(game);
   }
   window.addEventListener('resize', measure);
   window.addEventListener('orientationchange', () => setTimeout(measure, 100));
 
-  // ── Button bindings ──────────────────────────────────────────────────
+  // ── BUTTONS ──────────────────────────────────────────────────────────
   function bindButton(el, fn) {
     el.addEventListener('click', fn);
     el.addEventListener('touchend', (e) => { e.preventDefault(); fn(); }, { passive: false });
@@ -154,57 +167,56 @@
   bindButton(startBtn,   startGame);
   bindButton(restartBtn, startGame);
 
-  // ── Input — drag to move, tap to shoot ───────────────────────────────
+  // ── INPUT ────────────────────────────────────────────────────────────
   let dragStartX = 0;
   let dragStartPlayerX = 0;
   let pointerDown = false;
   let didDrag = false;
 
-  function onPointerDown(x, y) {
-    if (!running) return;
+  function onPointerDown(x) {
+    if (!running || !player) return;
     pointerDown = true;
     didDrag = false;
     dragStartX = x;
     dragStartPlayerX = player.x;
   }
-  function onPointerMove(x, y) {
-    if (!running || !pointerDown) return;
+  function onPointerMove(x) {
+    if (!running || !pointerDown || !player) return;
     const dx = x - dragStartX;
     if (Math.abs(dx) > 4) didDrag = true;
     player.x = Math.min(Math.max(dragStartPlayerX + dx, 30), W - 30);
   }
-  function onPointerUp(x, y) {
+  function onPointerUp() {
     if (!running) return;
     pointerDown = false;
     if (!didDrag) shoot();
   }
 
-  // Touch
-  canvas.addEventListener('touchstart', (e) => {
+  // Bind input to the GAME div, not just the canvas (more reliable across WebViews)
+  game.addEventListener('touchstart', (e) => {
+    if (!running) return;
     e.preventDefault();
-    const t = e.touches[0];
-    onPointerDown(t.clientX, t.clientY);
+    onPointerDown(e.touches[0].clientX);
   }, { passive: false });
-  canvas.addEventListener('touchmove', (e) => {
+  game.addEventListener('touchmove', (e) => {
+    if (!running) return;
     e.preventDefault();
-    const t = e.touches[0];
-    onPointerMove(t.clientX, t.clientY);
+    onPointerMove(e.touches[0].clientX);
   }, { passive: false });
-  canvas.addEventListener('touchend', (e) => {
+  game.addEventListener('touchend', (e) => {
+    if (!running) return;
     e.preventDefault();
-    const t = e.changedTouches[0];
-    onPointerUp(t.clientX, t.clientY);
+    onPointerUp();
   }, { passive: false });
 
-  // Mouse (for desktop testing)
-  canvas.addEventListener('mousedown',  (e) => onPointerDown(e.clientX, e.clientY));
-  canvas.addEventListener('mousemove',  (e) => onPointerMove(e.clientX, e.clientY));
-  canvas.addEventListener('mouseup',    (e) => onPointerUp(e.clientX, e.clientY));
-  canvas.addEventListener('mouseleave', (e) => { pointerDown = false; });
+  game.addEventListener('mousedown', (e) => onPointerDown(e.clientX));
+  game.addEventListener('mousemove', (e) => onPointerMove(e.clientX));
+  game.addEventListener('mouseup',   (e) => onPointerUp());
 
-  // ── Game state ───────────────────────────────────────────────────────
+  // ── GAME ─────────────────────────────────────────────────────────────
   function startGame() {
     measure();
+    if (stars.length === 0) initStars();
     player = { x: W / 2, y: H - 80, size: 18, cooldown: 0 };
     bullets = [];
     enemies = [];
@@ -251,7 +263,7 @@
   function spawnEnemy() {
     const r = 18 + Math.random() * 14;
     enemies.push({
-      x: 40 + Math.random() * (W - 80),
+      x: 40 + Math.random() * Math.max(40, W - 80),
       y: -r,
       r: r,
       vy: 70 + Math.random() * 80 + Math.min(60, (60 - timeLeft) * 1.5),
@@ -267,45 +279,38 @@
         x, y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: 0.5 + Math.random() * 0.3,
-        maxLife: 0.8,
+        life: 0.6,
+        maxLife: 0.6,
         color: color || '#fff',
         size: 2 + Math.random() * 2,
       });
     }
   }
 
-  // ── Update / Draw ────────────────────────────────────────────────────
   function loop(now) {
-    if (!running) return;
+    if (!running) { rafId = null; return; }
     const dt = Math.min(0.05, (now - lastTime) / 1000);
     lastTime = now;
-
     update(dt, now);
     draw();
-
     rafId = requestAnimationFrame(loop);
   }
 
   function update(dt, now) {
-    // Player cooldown
     if (player.cooldown > 0) player.cooldown -= dt;
 
-    // Bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
       b.y += b.vy * dt;
       if (b.y < -10) bullets.splice(i, 1);
     }
 
-    // Spawn enemies — faster cadence as time runs out
     const spawnRate = Math.max(0.6, 1.4 - (60 - timeLeft) * 0.012);
     if ((now - lastSpawn) / 1000 > spawnRate) {
       spawnEnemy();
       lastSpawn = now;
     }
 
-    // Enemies
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
       e.y += e.vy * dt;
@@ -313,14 +318,12 @@
       if (e.x < e.r) { e.x = e.r; e.vx *= -1; }
       if (e.x > W - e.r) { e.x = W - e.r; e.vx *= -1; }
 
-      // Enemy reached bottom — lose life
       if (e.y - e.r > H) {
         enemies.splice(i, 1);
         loseLife();
         continue;
       }
 
-      // Enemy hits player
       if (player) {
         const dx = e.x - player.x;
         const dy = e.y - player.y;
@@ -332,7 +335,6 @@
         }
       }
 
-      // Bullets vs enemy
       for (let j = bullets.length - 1; j >= 0; j--) {
         const b = bullets[j];
         const ddx = b.x - e.x;
@@ -348,7 +350,6 @@
       }
     }
 
-    // Particles
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       p.x += p.vx * dt;
@@ -363,15 +364,22 @@
   function loseLife() {
     lives--;
     livesEl.textContent = lives;
-    spawnParticles(player.x, player.y, 18, '#ff4d4d');
+    if (player) spawnParticles(player.x, player.y, 18, '#ff4d4d');
     if (lives <= 0) endGame('انتهت الأرواح!');
   }
 
   function draw() {
-    ctx.clearRect(0, 0, W, H);
+    // Clear (use explicit fillRect so we never have a transparent leak)
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
 
-    // Subtle background stars
-    drawStars();
+    // Stars
+    ctx.fillStyle = '#fff';
+    for (const st of stars) {
+      ctx.globalAlpha = st.a;
+      ctx.fillRect(st.x, st.y, st.s, st.s);
+    }
+    ctx.globalAlpha = 1;
 
     // Particles
     for (const p of particles) {
@@ -382,7 +390,7 @@
     }
     ctx.globalAlpha = 1;
 
-    // Enemies (white outlined circles)
+    // Enemies
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 2.5;
     for (const e of enemies) {
@@ -391,13 +399,13 @@
       ctx.stroke();
     }
 
-    // Bullets (small white rectangles)
+    // Bullets
     ctx.fillStyle = '#fff';
     for (const b of bullets) {
       ctx.fillRect(b.x - 2, b.y - 8, 4, 12);
     }
 
-    // Player (white outlined triangle)
+    // Player
     if (player) {
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 2.5;
@@ -410,36 +418,24 @@
     }
   }
 
-  // Tiny twinkly stars in the background
-  const stars = [];
   function initStars() {
     stars.length = 0;
-    const count = 40;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < 40; i++) {
       stars.push({
         x: Math.random() * W,
         y: Math.random() * H,
-        s: Math.random() * 1.6,
+        s: 1 + Math.random(),
         a: 0.2 + Math.random() * 0.6,
       });
     }
   }
-  function drawStars() {
-    ctx.fillStyle = '#fff';
-    for (const st of stars) {
-      ctx.globalAlpha = st.a;
-      ctx.fillRect(st.x, st.y, st.s, st.s);
-    }
-    ctx.globalAlpha = 1;
-  }
 
-  // ── Init ─────────────────────────────────────────────────────────────
+  // ── INIT ─────────────────────────────────────────────────────────────
   measure();
-  setTimeout(() => { measure(); initStars(); }, 100);
-  setTimeout(() => { measure(); initStars(); }, 500);
   initStars();
-  // Draw the static stars on the start screen so it's not pure black
   draw();
+  // Re-measure a few times in case the WebView reports 0 initially
+  [50, 200, 500, 1500].forEach(t => setTimeout(() => { measure(); draw(); }, t));
 })();
 </script>
 </body>
