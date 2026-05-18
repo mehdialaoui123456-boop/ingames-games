@@ -5,128 +5,227 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>لعبة البالونات</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  * { margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none; -webkit-user-select: none;
+      -webkit-touch-callout: none; }
   html, body { width: 100%; height: 100%; overflow: hidden; }
   body {
     font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
-    background: linear-gradient(180deg, #87CEEB 0%, #B0E0E6 50%, #FFE4B5 100%);
+    background: linear-gradient(180deg, #7DC3F0 0%, #A8DBF5 60%, #C9E8F8 100%);
     touch-action: none;
     position: fixed;
     inset: 0;
+    color: #fff;
   }
 
   #game { position: absolute; inset: 0; overflow: hidden; }
 
+  /* Soft clouds in the background */
+  .cloud {
+    position: absolute;
+    background: rgba(255,255,255,0.5);
+    border-radius: 50%;
+    filter: blur(8px);
+    pointer-events: none;
+  }
+
   /* HUD ----------------------------------------------------------------- */
   #hud {
     position: absolute; top: 0; left: 0; right: 0;
-    padding: 12px 16px;
+    padding: 14px 16px;
     display: flex; justify-content: space-between; align-items: center;
     z-index: 10;
     pointer-events: none;
-    background: linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0));
   }
   .pill {
-    background: rgba(0,0,0,0.6);
+    background: rgba(0,0,0,0.55);
     color: #fff;
-    padding: 8px 16px;
+    padding: 10px 18px;
     border-radius: 999px;
-    font-size: 18px;
-    font-weight: 700;
-    min-width: 90px;
+    font-size: 20px;
+    font-weight: 800;
+    min-width: 80px;
     text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
   }
+  .pill .ic { font-size: 18px; }
 
   /* Balloons ------------------------------------------------------------ */
-  .balloon {
+  .balloon-wrap {
     position: absolute;
-    width: 80px;
-    height: 96px;
-    border-radius: 50% 50% 50% 50% / 55% 55% 45% 45%;
-    box-shadow: inset -10px -14px 18px rgba(0,0,0,0.25),
-                inset 8px 8px 14px rgba(255,255,255,0.4);
     will-change: transform;
-    cursor: pointer;
-    /* Bigger invisible hit area around the balloon for easier tapping */
+    pointer-events: auto;
   }
-  .balloon::before {
-    /* invisible larger hit area */
+  /* Invisible larger hit area so taps near the balloon still register */
+  .balloon-wrap::before {
     content: "";
     position: absolute;
-    inset: -16px;
+    inset: -14px -14px -28px -14px;
   }
+  .balloon {
+    position: relative;
+    width: 80px;
+    height: 96px;
+    border-radius: 50% 50% 50% 50% / 53% 53% 47% 47%;
+    box-shadow:
+      inset -14px -18px 22px rgba(0,0,0,0.30),
+      inset 10px 10px 16px rgba(255,255,255,0.55),
+      0 8px 18px rgba(0,0,0,0.18);
+  }
+  /* The little nubbin at the bottom of the balloon */
   .balloon::after {
     content: "";
     position: absolute;
-    left: 50%; bottom: -14px;
-    width: 2px; height: 16px;
-    background: rgba(0,0,0,0.4);
+    left: 50%; bottom: -6px;
+    width: 14px; height: 10px;
+    background: inherit;
+    transform: translateX(-50%);
+    clip-path: polygon(0 0, 100% 0, 70% 100%, 30% 100%);
+    filter: brightness(0.75);
+  }
+  /* Shine highlight */
+  .shine {
+    position: absolute;
+    top: 14%; left: 18%;
+    width: 22%; height: 28%;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.95), rgba(255,255,255,0) 70%);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  /* Sparkle */
+  .sparkle {
+    position: absolute;
+    top: 24%; left: 30%;
+    width: 10px; height: 10px;
+    pointer-events: none;
+  }
+  .sparkle::before, .sparkle::after {
+    content: "";
+    position: absolute;
+    background: #fff;
+    border-radius: 999px;
+  }
+  .sparkle::before {
+    left: 50%; top: 0; width: 2px; height: 100%;
     transform: translateX(-50%);
   }
-  .balloon.pop {
-    transition: transform 200ms ease-out, opacity 200ms ease-out;
-    transform: scale(1.7) !important;
+  .sparkle::after {
+    top: 50%; left: 0; height: 2px; width: 100%;
+    transform: translateY(-50%);
+  }
+  /* String */
+  .string {
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    width: 2px;
+    height: 28px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.15));
+    transform: translateX(-50%);
+    transform-origin: top center;
+    pointer-events: none;
+  }
+  /* Knot */
+  .knot {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 24px);
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.35);
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .balloon-wrap.pop {
+    transition: transform 220ms ease-out, opacity 220ms ease-out;
+    transform: scale(1.8) !important;
     opacity: 0;
     pointer-events: none;
   }
 
-  /* Floating +1 --------------------------------------------------------- */
+  /* Float +1 ------------------------------------------------------------ */
   .score-float {
     position: absolute;
     color: #fff;
-    font-weight: 800;
-    font-size: 24px;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    font-weight: 900;
+    font-size: 28px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.6);
     pointer-events: none;
     transition: transform 700ms ease-out, opacity 700ms ease-out;
+    z-index: 50;
   }
 
   /* Overlays ------------------------------------------------------------ */
   .overlay {
     position: absolute; inset: 0;
-    background: rgba(0,0,0,0.7);
+    background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.7));
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     z-index: 100;
-    color: #fff;
     text-align: center;
     padding: 24px;
+    backdrop-filter: blur(4px);
   }
-  .overlay h1 { font-size: 34px; margin-bottom: 10px; }
-  .overlay p  { font-size: 17px; margin-bottom: 22px; opacity: 0.9; line-height: 1.5; }
-  .big-score { font-size: 64px; font-weight: 800; margin: 6px 0 22px; color: #FFD93D; }
+  .overlay h1 {
+    font-size: 36px;
+    margin-bottom: 12px;
+    text-shadow: 0 3px 10px rgba(0,0,0,0.4);
+  }
+  .overlay p { font-size: 17px; margin-bottom: 26px; opacity: 0.9; line-height: 1.6; max-width: 280px; }
+  .big-score {
+    font-size: 72px;
+    font-weight: 900;
+    margin: 6px 0 22px;
+    color: #FFD93D;
+    text-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  }
   .btn {
     background: #FF6B6B;
     color: #fff;
     border: none;
     font-family: inherit;
-    font-size: 19px;
-    font-weight: 700;
-    padding: 14px 38px;
+    font-size: 20px;
+    font-weight: 800;
+    padding: 16px 44px;
     border-radius: 999px;
-    cursor: pointer;
-    box-shadow: 0 6px 0 #C44;
+    box-shadow: 0 6px 0 #C73E3E, 0 8px 18px rgba(0,0,0,0.3);
     transition: transform 80ms, box-shadow 80ms;
+    letter-spacing: 0.5px;
   }
-  .btn:active { transform: translateY(3px); box-shadow: 0 3px 0 #C44; }
-
+  .btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 3px 0 #C73E3E, 0 4px 10px rgba(0,0,0,0.3);
+  }
+  .hint { font-size: 13px; opacity: 0.7; margin-top: 16px; }
   .hidden { display: none !important; }
 </style>
 </head>
 <body>
 <div id="game">
+  <!-- Decorative clouds -->
+  <div class="cloud" style="top: 8%;  left: 10%; width: 120px; height: 40px;"></div>
+  <div class="cloud" style="top: 30%; left: 70%; width: 90px;  height: 30px;"></div>
+  <div class="cloud" style="top: 55%; left: 15%; width: 100px; height: 34px;"></div>
+
   <div id="hud">
-    <div class="pill">⏱️ <span id="time">30</span></div>
-    <div class="pill">🎯 <span id="score">0</span></div>
+    <div class="pill"><span class="ic">⏱️</span><span id="time">30</span></div>
+    <div class="pill"><span class="ic">⭐</span><span id="score">0</span></div>
   </div>
 
   <div id="start" class="overlay">
     <h1>🎈 لعبة البالونات</h1>
     <p>اضغط على البالونات لتفجيرها<br>قبل أن ينفد الوقت!</p>
     <button class="btn" id="startBtn">ابدأ اللعب</button>
+    <div class="hint">٣٠ ثانية — اجمع أكبر عدد من النقاط</div>
   </div>
 
   <div id="end" class="overlay hidden">
-    <h1>انتهى الوقت!</h1>
+    <h1>أحسنت! 🎉</h1>
     <p>نقاطك:</p>
     <div class="big-score" id="finalScore">0</div>
     <button class="btn" id="restartBtn">العب مرة أخرى</button>
@@ -135,8 +234,18 @@
 
 <script>
 (function () {
-  // ── State ────────────────────────────────────────────────────────────
-  const colors = ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF', '#FF9F45', '#C780FA', '#FF6FB5'];
+  // ── Color palette for balloons ───────────────────────────────────────
+  const colors = [
+    { base: '#E63946', light: '#FF8A93' }, // red
+    { base: '#F4A261', light: '#FFCC9C' }, // orange
+    { base: '#FFD93D', light: '#FFEC8B' }, // yellow
+    { base: '#43AA8B', light: '#7FD9BC' }, // green
+    { base: '#4D96FF', light: '#8BBCFF' }, // blue
+    { base: '#9B5DE5', light: '#CFA2F2' }, // purple
+    { base: '#F15BB5', light: '#FFA0D6' }, // pink
+  ];
+
+  // ── DOM ──────────────────────────────────────────────────────────────
   const game        = document.getElementById('game');
   const timeEl      = document.getElementById('time');
   const scoreEl     = document.getElementById('score');
@@ -146,7 +255,7 @@
   const startBtn    = document.getElementById('startBtn');
   const restartBtn  = document.getElementById('restartBtn');
 
-  let W = 0, H = 0;
+  let W = 360, H = 640;
   let balloons = [];
   let score = 0;
   let timeLeft = 30;
@@ -158,13 +267,17 @@
 
   // ── Sizing ───────────────────────────────────────────────────────────
   function measure() {
-    W = game.clientWidth  || window.innerWidth;
-    H = game.clientHeight || window.innerHeight;
+    const rect = game.getBoundingClientRect();
+    W = Math.max(240, Math.floor(rect.width  || game.clientWidth  || window.innerWidth  || 360));
+    H = Math.max(360, Math.floor(rect.height || game.clientHeight || window.innerHeight || 640));
+  }
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => measure()).observe(game);
   }
   window.addEventListener('resize', measure);
   window.addEventListener('orientationchange', () => setTimeout(measure, 100));
 
-  // ── Button bindings (both click and touchstart, important for WebView) ─
+  // ── Buttons ──────────────────────────────────────────────────────────
   function bindButton(el, fn) {
     el.addEventListener('click', fn);
     el.addEventListener('touchend', (e) => { e.preventDefault(); fn(); }, { passive: false });
@@ -172,10 +285,9 @@
   bindButton(startBtn, startGame);
   bindButton(restartBtn, startGame);
 
-  // ── Game loop ────────────────────────────────────────────────────────
+  // ── Game ─────────────────────────────────────────────────────────────
   function startGame() {
     measure();
-    // Reset
     balloons.forEach(b => b.el.remove());
     balloons = [];
     document.querySelectorAll('.score-float').forEach(el => el.remove());
@@ -185,7 +297,6 @@
     startView.classList.add('hidden');
     endView.classList.add('hidden');
 
-    // Countdown
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       timeLeft--;
@@ -193,7 +304,6 @@
       if (timeLeft <= 0) endGame();
     }, 1000);
 
-    // Animation loop
     lastTime = performance.now();
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(loop);
@@ -208,12 +318,13 @@
   }
 
   function loop(now) {
-    if (!running) return;
-    const dt = Math.min(50, now - lastTime) / 1000; // seconds, clamped
+    if (!running) { rafId = null; return; }
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
     lastTime = now;
 
-    // Spawn cadence
-    if (now - lastSpawn > 600) {
+    // Spawn cadence — slightly faster as time runs out
+    const spawnEvery = Math.max(400, 700 - (30 - timeLeft) * 10);
+    if (now - lastSpawn > spawnEvery) {
       spawnBalloon();
       lastSpawn = now;
     }
@@ -222,9 +333,11 @@
     for (let i = balloons.length - 1; i >= 0; i--) {
       const b = balloons[i];
       b.y -= b.speed * dt;
-      b.x += b.drift * dt;
-      b.el.style.transform = `translate(${b.x}px, ${b.y}px)`;
-      if (b.y < -120) {
+      // Gentle sine sway
+      b.swayT += dt;
+      const sway = Math.sin(b.swayT * b.swayFreq) * b.swayAmp;
+      b.el.style.transform = `translate(${b.x + sway}px, ${b.y}px)`;
+      if (b.y < -160) {
         b.el.remove();
         balloons.splice(i, 1);
       }
@@ -234,33 +347,59 @@
   }
 
   function spawnBalloon() {
-    const el = document.createElement('div');
-    el.className = 'balloon';
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    el.style.background = `radial-gradient(circle at 30% 30%, ${lighten(color, 0.35)}, ${color})`;
+    const wrap = document.createElement('div');
+    wrap.className = 'balloon-wrap';
 
-    const size = 70 + Math.random() * 30;
-    el.style.width  = size + 'px';
-    el.style.height = (size * 1.2) + 'px';
+    const balloon = document.createElement('div');
+    balloon.className = 'balloon';
 
-    const startX = 20 + Math.random() * (W - size - 40);
-    const startY = H + 20;
-    const speed  = 80 + Math.random() * 80;          // px/sec upward
-    const drift  = (Math.random() - 0.5) * 40;       // px/sec horizontal
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    balloon.style.background = `radial-gradient(circle at 32% 30%, ${c.light}, ${c.base} 70%)`;
 
-    const obj = { el, x: startX, y: startY, speed, drift };
-    el.style.transform = `translate(${startX}px, ${startY}px)`;
+    const size = 70 + Math.random() * 28;
+    balloon.style.width  = size + 'px';
+    balloon.style.height = (size * 1.2) + 'px';
 
-    // Tap handler (touchstart for instant response on mobile)
+    const shine = document.createElement('div');
+    shine.className = 'shine';
+    balloon.appendChild(shine);
+
+    const sparkle = document.createElement('div');
+    sparkle.className = 'sparkle';
+    balloon.appendChild(sparkle);
+
+    const string = document.createElement('div');
+    string.className = 'string';
+    balloon.appendChild(string);
+
+    const knot = document.createElement('div');
+    knot.className = 'knot';
+    balloon.appendChild(knot);
+
+    wrap.appendChild(balloon);
+
+    // Position & motion
+    const startX = 20 + Math.random() * Math.max(40, W - size - 40);
+    const startY = H + 40;
+    const speed  = 75 + Math.random() * 75;
+    const swayFreq = 1.5 + Math.random() * 1.5;
+    const swayAmp  = 8 + Math.random() * 14;
+
+    const obj = {
+      el: wrap, x: startX, y: startY, speed,
+      swayT: Math.random() * 6, swayFreq, swayAmp,
+    };
+    wrap.style.transform = `translate(${startX}px, ${startY}px)`;
+
+    // Tap handler
     const pop = (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      if (el.classList.contains('pop')) return;
-      el.classList.add('pop');
+      if (wrap.classList.contains('pop')) return;
+      wrap.classList.add('pop');
       score++;
       scoreEl.textContent = score;
 
-      // Get tap location for the +1 float
       let x, y;
       if (ev.touches && ev.touches[0]) {
         x = ev.touches[0].clientX; y = ev.touches[0].clientY;
@@ -272,15 +411,15 @@
       showFloatScore(x, y);
 
       setTimeout(() => {
-        el.remove();
+        wrap.remove();
         const idx = balloons.indexOf(obj);
         if (idx >= 0) balloons.splice(idx, 1);
-      }, 220);
+      }, 230);
     };
-    el.addEventListener('touchstart', pop, { passive: false });
-    el.addEventListener('mousedown', pop);
+    wrap.addEventListener('touchstart', pop, { passive: false });
+    wrap.addEventListener('mousedown', pop);
 
-    game.appendChild(el);
+    game.appendChild(wrap);
     balloons.push(obj);
   }
 
@@ -288,32 +427,21 @@
     const s = document.createElement('div');
     s.className = 'score-float';
     s.textContent = '+1';
-    s.style.left = (x - 10) + 'px';
-    s.style.top  = (y - 20) + 'px';
+    s.style.left = (x - 14) + 'px';
+    s.style.top  = (y - 24) + 'px';
     s.style.transform = 'translateY(0)';
     s.style.opacity = '1';
     game.appendChild(s);
-    // Trigger transition next frame
     requestAnimationFrame(() => {
-      s.style.transform = 'translateY(-50px)';
+      s.style.transform = 'translateY(-60px)';
       s.style.opacity = '0';
     });
     setTimeout(() => s.remove(), 700);
   }
 
-  function lighten(hex, amount) {
-    const c = hex.replace('#', '');
-    const r = parseInt(c.substr(0, 2), 16);
-    const g = parseInt(c.substr(2, 2), 16);
-    const b = parseInt(c.substr(4, 2), 16);
-    const ll = v => Math.min(255, Math.round(v + (255 - v) * amount));
-    return `rgb(${ll(r)}, ${ll(g)}, ${ll(b)})`;
-  }
-
-  // Initial measurement — try a few times in case WebView reports 0
+  // ── Init ─────────────────────────────────────────────────────────────
   measure();
-  setTimeout(measure, 100);
-  setTimeout(measure, 500);
+  [50, 200, 500, 1500].forEach(t => setTimeout(measure, t));
 })();
 </script>
 </body>
