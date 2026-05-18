@@ -1,347 +1,446 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>لعبة الرماية</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>لعبة الفضاء</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
-    width: 100%; height: 100%;
+  * { margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none; -webkit-user-select: none;
+      -webkit-touch-callout: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
     background: #000;
-    overflow: hidden;
+    color: #fff;
     touch-action: none;
-  }
-  canvas {
-    display: block;
     position: fixed;
-    top: 0; left: 0;
-    touch-action: none;
+    inset: 0;
   }
+
+  #game { position: absolute; inset: 0; overflow: hidden; }
+
+  /* HUD ----------------------------------------------------------------- */
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 14px 18px;
+    display: flex; justify-content: space-between; align-items: center;
+    z-index: 10;
+    pointer-events: none;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .hud-item { display: flex; align-items: center; gap: 6px; opacity: 0.95; }
+
+  /* Canvas covers the full game area */
+  #c {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+  }
+
+  /* Overlays ------------------------------------------------------------ */
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    z-index: 100;
+    text-align: center;
+    padding: 24px;
+  }
+  .overlay h1 { font-size: 36px; margin-bottom: 12px; letter-spacing: 1px; }
+  .overlay p  { font-size: 16px; margin-bottom: 24px; opacity: 0.75; line-height: 1.6; max-width: 280px; }
+  .big-score { font-size: 72px; font-weight: 800; margin: 8px 0 24px; }
+  .btn {
+    background: #fff;
+    color: #000;
+    border: none;
+    font-family: inherit;
+    font-size: 18px;
+    font-weight: 700;
+    padding: 14px 44px;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #888;
+    transition: transform 80ms, box-shadow 80ms;
+    letter-spacing: 0.5px;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #888; }
+
+  .hint { font-size: 13px; opacity: 0.5; margin-top: 18px; }
+
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<div id="game">
+  <canvas id="c"></canvas>
+
+  <div id="hud">
+    <div class="hud-item">♥ <span id="lives">3</span></div>
+    <div class="hud-item"><span id="score">0</span></div>
+  </div>
+
+  <div id="start" class="overlay">
+    <h1>🚀 لعبة الفضاء</h1>
+    <p>اسحب لتحريك المركبة<br>اضغط للإطلاق على الأعداء</p>
+    <button class="btn" id="startBtn">ابدأ اللعب</button>
+    <div class="hint">٦٠ ثانية — ٣ أرواح</div>
+  </div>
+
+  <div id="end" class="overlay hidden">
+    <h1 id="endTitle">انتهت اللعبة</h1>
+    <p>نقاطك:</p>
+    <div class="big-score" id="finalScore">0</div>
+    <button class="btn" id="restartBtn">العب مرة أخرى</button>
+  </div>
+</div>
+
 <script>
-const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
+(function () {
+  // ── Setup ────────────────────────────────────────────────────────────
+  const game       = document.getElementById('game');
+  const canvas     = document.getElementById('c');
+  const ctx        = canvas.getContext('2d');
+  const livesEl    = document.getElementById('lives');
+  const scoreEl    = document.getElementById('score');
+  const finalEl    = document.getElementById('finalScore');
+  const endTitle   = document.getElementById('endTitle');
+  const startView  = document.getElementById('start');
+  const endView    = document.getElementById('end');
+  const startBtn   = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
 
-// ── Always fill the full viewport ──
-function resize() {
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-resize();
-window.addEventListener('resize', () => { resize(); player.x = canvas.width / 2; player.y = canvas.height - 80; });
+  let W = 0, H = 0, dpr = 1;
+  let player = null;
+  let bullets = [];
+  let enemies = [];
+  let particles = [];
+  let score = 0;
+  let lives = 3;
+  let timeLeft = 60;
+  let running = false;
+  let lastTime = 0;
+  let lastSpawn = 0;
+  let rafId = null;
+  let timerInterval = null;
 
-// Short aliases
-let W = () => canvas.width;
-let H = () => canvas.height;
-
-// ── State ──
-let state = 'start';
-let score = 0, lives = 3, frame = 0;
-let animId;
-
-// ── Player ──
-const player = { x: 0, y: 0, w: 40, h: 40, speed: 6 };
-let dragging = false, dragStartX = 0, playerStartX = 0;
-
-// ── Bullets ──
-let bullets = [];
-const BULLET_SPEED = 14, BULLET_W = 5, BULLET_H = 18;
-let bulletCooldown = 0, BULLET_RATE = 14;
-
-// ── Enemies ──
-let enemies = [];
-const ENEMY_RADIUS = 26;
-let enemySpeed = 1.4, spawnRate = 70;
-
-// ── Explosions ──
-let explosions = [];
-
-// ── Stars (generated once, reused) ──
-let stars = [];
-function buildStars() {
-  stars = Array.from({length: 55}, () => ({
-    x: Math.random() * W(),
-    y: Math.random() * H(),
-    r: Math.random() * 1.5 + 0.3,
-    speed: Math.random() * 0.5 + 0.2,
-  }));
-}
-buildStars();
-
-// ── Init player position ──
-player.x = W() / 2;
-player.y = H() - 80;
-
-// ─────────────────────────────────────────────
-//  Input — no passive: false (Flutter WebView compat)
-// ─────────────────────────────────────────────
-canvas.addEventListener('touchstart', e => {
-  const t = e.touches[0];
-  if (state === 'start' || state === 'gameover') { startGame(); return; }
-  dragging = true;
-  dragStartX  = t.clientX;
-  playerStartX = player.x;
-}, false);
-
-canvas.addEventListener('touchmove', e => {
-  if (!dragging || state !== 'playing') return;
-  const t = e.touches[0];
-  const dx = t.clientX - dragStartX;
-  player.x = Math.max(player.w / 2, Math.min(W() - player.w / 2, playerStartX + dx));
-}, false);
-
-canvas.addEventListener('touchend', () => { dragging = false; }, false);
-
-// Mouse (desktop preview)
-canvas.addEventListener('mousedown', e => {
-  if (state === 'start' || state === 'gameover') { startGame(); return; }
-  dragging = true; dragStartX = e.clientX; playerStartX = player.x;
-});
-canvas.addEventListener('mousemove', e => {
-  if (!dragging || state !== 'playing') return;
-  const dx = e.clientX - dragStartX;
-  player.x = Math.max(player.w/2, Math.min(W()-player.w/2, playerStartX + dx));
-});
-canvas.addEventListener('mouseup', () => { dragging = false; });
-
-// ─────────────────────────────────────────────
-//  Game logic
-// ─────────────────────────────────────────────
-function startGame() {
-  score = 0; lives = 3; frame = 0;
-  bullets = []; enemies = []; explosions = [];
-  player.x = W() / 2; player.y = H() - 80;
-  enemySpeed = 1.4; spawnRate = 70;
-  state = 'playing';
-}
-
-function spawnEnemy() {
-  const x = ENEMY_RADIUS + Math.random() * (W() - ENEMY_RADIUS * 2);
-  enemies.push({ x, y: -ENEMY_RADIUS, r: ENEMY_RADIUS });
-}
-
-function fireBullet() {
-  bullets.push({ x: player.x, y: player.y - player.h / 2, w: BULLET_W, h: BULLET_H });
-}
-
-function addExplosion(x, y) {
-  for (let i = 0; i < 10; i++) {
-    explosions.push({
-      x, y,
-      vx: (Math.random() - 0.5) * 5,
-      vy: (Math.random() - 0.5) * 5,
-      life: 1,
-      decay: 0.06 + Math.random() * 0.04,
-    });
-  }
-}
-
-function rectCircleOverlap(rx, ry, rw, rh, cx, cy, cr) {
-  const nx = Math.max(rx, Math.min(cx, rx + rw));
-  const ny = Math.max(ry, Math.min(cy, ry + rh));
-  const dx = cx - nx, dy = cy - ny;
-  return dx * dx + dy * dy < cr * cr;
-}
-
-function update() {
-  frame++;
-
-  // Difficulty ramp
-  if (frame % 400 === 0) {
-    enemySpeed = Math.min(enemySpeed + 0.3, 6);
-    spawnRate  = Math.max(spawnRate - 5, 28);
-  }
-
-  if (frame % spawnRate === 0) spawnEnemy();
-
-  // Auto fire
-  bulletCooldown--;
-  if (bulletCooldown <= 0) { fireBullet(); bulletCooldown = BULLET_RATE; }
-
-  // Move bullets
-  bullets = bullets.filter(b => b.y + b.h > 0);
-  bullets.forEach(b => b.y -= BULLET_SPEED);
-
-  // Move enemies
-  enemies.forEach(e => e.y += enemySpeed);
-
-  // Bullet ↔ enemy collisions
-  bullets = bullets.filter(b => {
-    let hit = false;
-    enemies = enemies.filter(e => {
-      if (!hit && rectCircleOverlap(b.x - b.w/2, b.y, b.w, b.h, e.x, e.y, e.r)) {
-        hit = true; score++; addExplosion(e.x, e.y); return false;
-      }
-      return true;
-    });
-    return !hit;
-  });
-
-  // Enemy reaches bottom
-  enemies = enemies.filter(e => {
-    if (e.y - e.r > H()) {
-      lives--;
-      addExplosion(e.x, H() - 20);
-      if (lives <= 0) { state = 'gameover'; cancelAnimationFrame(animId); }
-      return false;
+  // ── Resize / DPR ─────────────────────────────────────────────────────
+  function measure() {
+    dpr = window.devicePixelRatio || 1;
+    W = game.clientWidth  || window.innerWidth;
+    H = game.clientHeight || window.innerHeight;
+    canvas.width  = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Keep player on screen if already alive
+    if (player) {
+      player.x = Math.min(Math.max(player.x, 40), W - 40);
+      player.y = H - 80;
     }
-    return true;
-  });
-
-  // Update explosions
-  explosions.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= p.decay; });
-  explosions = explosions.filter(p => p.life > 0);
-
-  // Move stars
-  stars.forEach(s => { s.y += s.speed; if (s.y > H()) { s.y = 0; s.x = Math.random() * W(); } });
-}
-
-// ─────────────────────────────────────────────
-//  Draw
-// ─────────────────────────────────────────────
-function drawStars() {
-  ctx.fillStyle = '#fff';
-  stars.forEach(s => {
-    ctx.globalAlpha = 0.4 + s.r * 0.2;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.globalAlpha = 1;
-}
-
-function drawPlayer() {
-  const x = player.x, y = player.y, w = player.w, h = player.h;
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(x, y - h/2);
-  ctx.lineTo(x + w/2, y + h/2);
-  ctx.lineTo(x - w/2, y + h/2);
-  ctx.closePath();
-  ctx.stroke();
-  // Thruster flicker
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(x - 8, y + h/2);
-  ctx.lineTo(x, y + h/2 + 10 + Math.random() * 6);
-  ctx.lineTo(x + 8, y + h/2);
-  ctx.stroke();
-}
-
-function drawBullets() {
-  ctx.fillStyle = '#fff';
-  bullets.forEach(b => ctx.fillRect(b.x - b.w/2, b.y, b.w, b.h));
-}
-
-function drawEnemies() {
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-  enemies.forEach(e => {
-    ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.stroke();
-  });
-}
-
-function drawExplosions() {
-  explosions.forEach(p => {
-    ctx.globalAlpha = p.life;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
-  });
-  ctx.globalAlpha = 1;
-}
-
-function drawHUD() {
-  const fs = Math.max(18, Math.min(28, W() * 0.07));
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${fs}px monospace`;
-  ctx.textAlign = 'right';
-  ctx.fillText(score, W() - 24, fs + 16);
-
-  ctx.textAlign = 'left';
-  const heartSize = Math.max(9, Math.min(13, W() * 0.033));
-  for (let i = 0; i < 3; i++) {
-    ctx.strokeStyle = i < lives ? '#fff' : 'rgba(255,255,255,0.2)';
-    ctx.lineWidth = 1.8;
-    drawHeart(24 + i * (heartSize * 2.8), fs + 18, heartSize);
   }
-}
+  window.addEventListener('resize', measure);
+  window.addEventListener('orientationchange', () => setTimeout(measure, 100));
 
-function drawHeart(cx, cy, size) {
-  ctx.save(); ctx.translate(cx, cy);
-  ctx.beginPath();
-  ctx.moveTo(0, size * 0.3);
-  ctx.bezierCurveTo(-size, -size * 0.3, -size, size * 0.5, 0, size);
-  ctx.bezierCurveTo( size,  size * 0.5,  size, -size * 0.3, 0, size * 0.3);
-  ctx.stroke();
-  ctx.restore();
-}
+  // ── Button bindings ──────────────────────────────────────────────────
+  function bindButton(el, fn) {
+    el.addEventListener('click', fn);
+    el.addEventListener('touchend', (e) => { e.preventDefault(); fn(); }, { passive: false });
+  }
+  bindButton(startBtn,   startGame);
+  bindButton(restartBtn, startGame);
 
-function drawStart() {
-  drawStars();
-  const cx = W() / 2, cy = H() / 2;
-  const titleFs = Math.max(22, Math.min(36, W() * 0.09));
-  const subFs   = Math.max(13, Math.min(18, W() * 0.045));
+  // ── Input — drag to move, tap to shoot ───────────────────────────────
+  let dragStartX = 0;
+  let dragStartPlayerX = 0;
+  let pointerDown = false;
+  let didDrag = false;
 
-  ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-  ctx.font = `bold ${titleFs}px monospace`;
-  ctx.fillText('لعبة الرماية', cx, cy - 80);
+  function onPointerDown(x, y) {
+    if (!running) return;
+    pointerDown = true;
+    didDrag = false;
+    dragStartX = x;
+    dragStartPlayerX = player.x;
+  }
+  function onPointerMove(x, y) {
+    if (!running || !pointerDown) return;
+    const dx = x - dragStartX;
+    if (Math.abs(dx) > 4) didDrag = true;
+    player.x = Math.min(Math.max(dragStartPlayerX + dx, 30), W - 30);
+  }
+  function onPointerUp(x, y) {
+    if (!running) return;
+    pointerDown = false;
+    if (!didDrag) shoot();
+  }
 
-  ctx.font = `${subFs}px monospace`;
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.fillText('حرّك المدفع يميناً ويساراً', cx, cy - 30);
-  ctx.fillText('أسقط الأعداء قبل أن يصلوا للأسفل', cx, cy);
+  // Touch
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    onPointerDown(t.clientX, t.clientY);
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    onPointerMove(t.clientX, t.clientY);
+  }, { passive: false });
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    onPointerUp(t.clientX, t.clientY);
+  }, { passive: false });
 
-  const btnW = Math.min(160, W() * 0.42);
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-  ctx.strokeRect(cx - btnW/2, cy + 40, btnW, 52);
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${Math.max(16,Math.min(22,W()*0.055))}px monospace`;
-  ctx.fillText('ابدأ', cx, cy + 74);
-}
+  // Mouse (for desktop testing)
+  canvas.addEventListener('mousedown',  (e) => onPointerDown(e.clientX, e.clientY));
+  canvas.addEventListener('mousemove',  (e) => onPointerMove(e.clientX, e.clientY));
+  canvas.addEventListener('mouseup',    (e) => onPointerUp(e.clientX, e.clientY));
+  canvas.addEventListener('mouseleave', (e) => { pointerDown = false; });
 
-function drawGameOver() {
-  drawStars();
-  const cx = W() / 2, cy = H() / 2;
-  ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-  ctx.font = `bold ${Math.max(24,Math.min(38,W()*0.09))}px monospace`;
-  ctx.fillText('انتهت اللعبة', cx, cy - 80);
-  ctx.font = `${Math.max(16,Math.min(26,W()*0.065))}px monospace`;
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText('النقاط: ' + score, cx, cy - 30);
+  // ── Game state ───────────────────────────────────────────────────────
+  function startGame() {
+    measure();
+    player = { x: W / 2, y: H - 80, size: 18, cooldown: 0 };
+    bullets = [];
+    enemies = [];
+    particles = [];
+    score = 0;
+    lives = 3;
+    timeLeft = 60;
+    lastSpawn = 0;
+    running = true;
+    pointerDown = false;
+    didDrag = false;
 
-  const btnW = Math.min(180, W() * 0.46);
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-  ctx.strokeRect(cx - btnW/2, cy + 30, btnW, 52);
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${Math.max(14,Math.min(20,W()*0.05))}px monospace`;
-  ctx.fillText('العب مجدداً', cx, cy + 64);
-}
+    livesEl.textContent = lives;
+    scoreEl.textContent = '0';
+    startView.classList.add('hidden');
+    endView.classList.add('hidden');
 
-function draw() {
-  ctx.clearRect(0, 0, W(), H());
-  if (state === 'start')    { drawStart();    return; }
-  if (state === 'gameover') { drawGameOver(); return; }
-  drawStars();
-  drawBullets();
-  drawEnemies();
-  drawExplosions();
-  drawPlayer();
-  drawHUD();
-}
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      if (timeLeft <= 0) endGame('انتهى الوقت!');
+    }, 1000);
 
-// ─────────────────────────────────────────────
-//  Loop
-// ─────────────────────────────────────────────
-function loop() {
-  if (state === 'playing') update();
+    lastTime = performance.now();
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function endGame(reason) {
+    running = false;
+    clearInterval(timerInterval);
+    timerInterval = null;
+    endTitle.textContent = reason;
+    finalEl.textContent = score;
+    endView.classList.remove('hidden');
+  }
+
+  function shoot() {
+    if (!player || player.cooldown > 0) return;
+    bullets.push({ x: player.x, y: player.y - 20, vy: -560 });
+    player.cooldown = 0.18;
+  }
+
+  function spawnEnemy() {
+    const r = 18 + Math.random() * 14;
+    enemies.push({
+      x: 40 + Math.random() * (W - 80),
+      y: -r,
+      r: r,
+      vy: 70 + Math.random() * 80 + Math.min(60, (60 - timeLeft) * 1.5),
+      vx: (Math.random() - 0.5) * 30,
+    });
+  }
+
+  function spawnParticles(x, y, count, color) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 80 + Math.random() * 140;
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 0.5 + Math.random() * 0.3,
+        maxLife: 0.8,
+        color: color || '#fff',
+        size: 2 + Math.random() * 2,
+      });
+    }
+  }
+
+  // ── Update / Draw ────────────────────────────────────────────────────
+  function loop(now) {
+    if (!running) return;
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+
+    update(dt, now);
+    draw();
+
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function update(dt, now) {
+    // Player cooldown
+    if (player.cooldown > 0) player.cooldown -= dt;
+
+    // Bullets
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      b.y += b.vy * dt;
+      if (b.y < -10) bullets.splice(i, 1);
+    }
+
+    // Spawn enemies — faster cadence as time runs out
+    const spawnRate = Math.max(0.6, 1.4 - (60 - timeLeft) * 0.012);
+    if ((now - lastSpawn) / 1000 > spawnRate) {
+      spawnEnemy();
+      lastSpawn = now;
+    }
+
+    // Enemies
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      e.y += e.vy * dt;
+      e.x += e.vx * dt;
+      if (e.x < e.r) { e.x = e.r; e.vx *= -1; }
+      if (e.x > W - e.r) { e.x = W - e.r; e.vx *= -1; }
+
+      // Enemy reached bottom — lose life
+      if (e.y - e.r > H) {
+        enemies.splice(i, 1);
+        loseLife();
+        continue;
+      }
+
+      // Enemy hits player
+      if (player) {
+        const dx = e.x - player.x;
+        const dy = e.y - player.y;
+        if (dx * dx + dy * dy < (e.r + player.size) * (e.r + player.size)) {
+          enemies.splice(i, 1);
+          spawnParticles(e.x, e.y, 14, '#ff4d4d');
+          loseLife();
+          continue;
+        }
+      }
+
+      // Bullets vs enemy
+      for (let j = bullets.length - 1; j >= 0; j--) {
+        const b = bullets[j];
+        const ddx = b.x - e.x;
+        const ddy = b.y - e.y;
+        if (ddx * ddx + ddy * ddy < e.r * e.r) {
+          bullets.splice(j, 1);
+          enemies.splice(i, 1);
+          spawnParticles(e.x, e.y, 12, '#fff');
+          score += Math.round(e.r);
+          scoreEl.textContent = score;
+          break;
+        }
+      }
+    }
+
+    // Particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.94;
+      p.vy *= 0.94;
+      p.life -= dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  function loseLife() {
+    lives--;
+    livesEl.textContent = lives;
+    spawnParticles(player.x, player.y, 18, '#ff4d4d');
+    if (lives <= 0) endGame('انتهت الأرواح!');
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Subtle background stars
+    drawStars();
+
+    // Particles
+    for (const p of particles) {
+      const alpha = Math.max(0, p.life / p.maxLife);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = alpha;
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+
+    // Enemies (white outlined circles)
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2.5;
+    for (const e of enemies) {
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Bullets (small white rectangles)
+    ctx.fillStyle = '#fff';
+    for (const b of bullets) {
+      ctx.fillRect(b.x - 2, b.y - 8, 4, 12);
+    }
+
+    // Player (white outlined triangle)
+    if (player) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y - player.size);
+      ctx.lineTo(player.x - player.size, player.y + player.size);
+      ctx.lineTo(player.x + player.size, player.y + player.size);
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
+
+  // Tiny twinkly stars in the background
+  const stars = [];
+  function initStars() {
+    stars.length = 0;
+    const count = 40;
+    for (let i = 0; i < count; i++) {
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        s: Math.random() * 1.6,
+        a: 0.2 + Math.random() * 0.6,
+      });
+    }
+  }
+  function drawStars() {
+    ctx.fillStyle = '#fff';
+    for (const st of stars) {
+      ctx.globalAlpha = st.a;
+      ctx.fillRect(st.x, st.y, st.s, st.s);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────
+  measure();
+  setTimeout(() => { measure(); initStars(); }, 100);
+  setTimeout(() => { measure(); initStars(); }, 500);
+  initStars();
+  // Draw the static stars on the start screen so it's not pure black
   draw();
-  animId = requestAnimationFrame(loop);
-}
-
-loop();
+})();
 </script>
 </body>
 </html>
