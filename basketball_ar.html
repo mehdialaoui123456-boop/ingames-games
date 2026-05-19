@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>كرة السلة</title>
+<style>
+* {
+  margin: 0; padding: 0; box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  touch-action: none; position: fixed; inset: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+  background: #1a0a3d;
+}
+.hidden { display: none !important; }
+
+/* ===== SCREENS ===== */
+#screen-start, #screen-game, #screen-end {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+
+/* ===== START SCREEN ===== */
+#screen-start {
+  background: linear-gradient(160deg, #1a0a3d 0%, #0d3b6e 60%, #0a5a2f 100%);
+}
+.court-lines {
+  position: absolute; inset: 0; overflow: hidden; opacity: 0.08;
+}
+.court-lines::before {
+  content: "";
+  position: absolute;
+  width: 200px; height: 200px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.court-lines::after {
+  content: "";
+  position: absolute;
+  width: 100%; height: 3px;
+  background: #fff;
+  top: 50%; left: 0;
+}
+.start-content {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 18px;
+  padding: 24px;
+}
+.game-title {
+  font-size: 52px; font-weight: 900;
+  color: #FFD700;
+  text-shadow: 0 4px 20px rgba(255,165,0,0.6), 0 0 60px rgba(255,165,0,0.2);
+  letter-spacing: 2px;
+  line-height: 1.1;
+  text-align: center;
+}
+.game-subtitle {
+  font-size: 20px; color: #a8d8ff;
+  font-weight: 600; text-align: center;
+}
+.ball-hero { font-size: 80px; animation: bounce-hero 1.2s ease-in-out infinite; }
+@keyframes bounce-hero {
+  0%,100% { transform: translateY(0) rotate(-5deg); }
+  50% { transform: translateY(-18px) rotate(5deg); }
+}
+.how-to {
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  border-radius: 20px;
+  padding: 16px 22px;
+  color: #e0f0ff;
+  font-size: 15px;
+  line-height: 1.8;
+  text-align: center;
+  max-width: 320px;
+}
+.how-to strong { color: #FFD700; font-size: 16px; display: block; margin-bottom: 6px; }
+.btn-start {
+  background: linear-gradient(135deg, #FF8C00, #FF5500);
+  color: #fff;
+  font-size: 22px; font-weight: 900;
+  padding: 18px 56px;
+  border: none; border-radius: 50px;
+  box-shadow: 0 8px 0 #8B2500, 0 12px 30px rgba(255,85,0,0.4);
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.08s, box-shadow 0.08s;
+  position: relative;
+  min-height: 64px;
+}
+.btn-start:active {
+  transform: translateY(5px);
+  box-shadow: 0 3px 0 #8B2500, 0 6px 15px rgba(255,85,0,0.3);
+}
+
+/* ===== GAME SCREEN ===== */
+#screen-game {
+  background: linear-gradient(180deg, #1a3a5c 0%, #0d5c3a 100%);
+}
+#game-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+}
+.hud {
+  position: absolute; top: 14px; left: 14px; right: 14px;
+  display: flex; justify-content: space-between; align-items: center;
+  z-index: 10; pointer-events: none;
+}
+.hud-badge {
+  background: rgba(0,0,0,0.6);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  border-radius: 50px;
+  padding: 8px 20px;
+  color: #fff; font-size: 17px; font-weight: 700;
+  min-width: 80px; text-align: center;
+}
+.hud-badge span { color: #FFD700; }
+#combo-display {
+  position: absolute; top: 70px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 22px; font-weight: 900;
+  color: #FFD700;
+  text-shadow: 0 2px 10px rgba(255,200,0,0.8);
+  z-index: 10; pointer-events: none;
+  opacity: 0; transition: opacity 0.3s;
+}
+
+/* ===== END SCREEN ===== */
+#screen-end {
+  background: linear-gradient(160deg, #1a0a3d 0%, #0d3b6e 60%, #0a5a2f 100%);
+}
+.end-content {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 20px;
+  padding: 24px;
+}
+.end-title {
+  font-size: 38px; font-weight: 900;
+  color: #FFD700; text-align: center;
+  text-shadow: 0 3px 15px rgba(255,165,0,0.5);
+}
+.score-card {
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  border-radius: 24px;
+  padding: 28px 48px;
+  text-align: center;
+}
+.score-label { font-size: 16px; color: #a8d8ff; margin-bottom: 8px; }
+.score-final { font-size: 72px; font-weight: 900; color: #FFD700; line-height: 1; }
+.score-made { font-size: 18px; color: #a8d8ff; margin-top: 8px; }
+.score-made span { color: #7fff7f; font-weight: 700; }
+.star-row { font-size: 36px; letter-spacing: 4px; }
+.btn-replay {
+  background: linear-gradient(135deg, #FF8C00, #FF5500);
+  color: #fff;
+  font-size: 22px; font-weight: 900;
+  padding: 18px 56px;
+  border: none; border-radius: 50px;
+  box-shadow: 0 8px 0 #8B2500, 0 12px 30px rgba(255,85,0,0.4);
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 64px;
+}
+.btn-replay:active {
+  transform: translateY(5px);
+  box-shadow: 0 3px 0 #8B2500, 0 6px 15px rgba(255,85,0,0.3);
+}
+
+/* score pop */
+.score-pop {
+  position: absolute; z-index: 20;
+  font-size: 26px; font-weight: 900;
+  pointer-events: none;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  animation: pop-up 0.9s ease-out forwards;
+}
+@keyframes pop-up {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  60%  { opacity: 1; transform: translateY(-50px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-90px) scale(0.9); }
+}
+</style>
+</head>
+<body>
+
+<!-- START SCREEN -->
+<div id="screen-start">
+  <div class="court-lines"></div>
+  <div class="start-content">
+    <div class="ball-hero">🏀</div>
+    <div class="game-title">كرة<br>السلة</div>
+    <div class="game-subtitle">اسدد واحرز النقاط!</div>
+    <div class="how-to">
+      <strong>🏆 كيف تلعب؟</strong>
+      اضغط على الكرة لرميها نحو السلة 🏀<br>
+      الكرات المتحركة تُعطيك نقاطاً أكثر!<br>
+      اجمع أكبر قدر من النقاط في <strong>30 ثانية</strong>
+    </div>
+    <button class="btn-start" id="btn-start">ابدأ اللعبة</button>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="screen-game" class="hidden">
+  <div class="hud">
+    <div class="hud-badge">⏱ <span id="hud-time">30</span></div>
+    <div class="hud-badge">🏆 <span id="hud-score">0</span></div>
+  </div>
+  <div id="combo-display"></div>
+  <canvas id="game-canvas"></canvas>
+</div>
+
+<!-- END SCREEN -->
+<div id="screen-end" class="hidden">
+  <div class="end-content">
+    <div class="end-title" id="end-title">انتهت اللعبة!</div>
+    <div class="star-row" id="star-row">⭐⭐⭐</div>
+    <div class="score-card">
+      <div class="score-label">نقاطك النهائية</div>
+      <div class="score-final" id="end-score">0</div>
+      <div class="score-made">تسجيلات: <span id="end-made">0</span></div>
+    </div>
+    <button class="btn-replay" id="btn-replay">العب مرة أخرى 🔄</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---- UTILS ---- */
+  const $ = id => document.getElementById(id);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+  /* ---- SCREENS ---- */
+  const screens = {
+    start: $('screen-start'),
+    game:  $('screen-game'),
+    end:   $('screen-end')
+  };
+  function showScreen(name) {
+    Object.values(screens).forEach(s => s.classList.add('hidden'));
+    screens[name].classList.remove('hidden');
+  }
+
+  /* ---- CANVAS / SIZING ---- */
+  const canvas = $('game-canvas');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0;
+
+  function resize() {
+    const r = canvas.getBoundingClientRect();
+    W = r.width  || canvas.offsetWidth  || window.innerWidth;
+    H = r.height || canvas.offsetHeight || window.innerHeight;
+    canvas.width  = W;
+    canvas.height = H;
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', resize);
+
+  /* ---- GAME STATE ---- */
+  let score = 0, madeCount = 0, combo = 0;
+  let timeLeft = 30;
+  let gameRunning = false;
+  let rafId = null;
+  let lastTs = 0, timerAcc = 0;
+
+  /* ---- BASKET ---- */
+  // basket = hoop drawn at top centre
+  let basket = { x: 0, y: 0, w: 90, rimH: 14, netH: 50 };
+
+  /* ---- BALLS ---- */
+  // Each ball: { x, y, r, vx, vy, state, alpha, scoreVal, color, moving }
+  let balls = [];
+  let spawnTimer = 0;
+  const SPAWN_INTERVAL = 1.2; // seconds
+
+  /* ---- PROJECTILES ---- */
+  // thrown ball arcing toward basket
+  let projectiles = [];
+
+  /* ---- PARTICLES ---- */
+  let particles = [];
+
+  /* ---- BALL COLORS ---- */
+  const BALL_COLORS = [
+    { body: '#FF6B1A', stripe: '#CC4400' },  // classic orange
+    { body: '#e63950', stripe: '#9b1c2e' },  // red
+    { body: '#3fa7e8', stripe: '#1a6aaa' },  // blue
+    { body: '#9b59f7', stripe: '#5b1faa' },  // purple
+    { body: '#f5c518', stripe: '#c08000' },  // gold
+  ];
+
+  /* ---- DRAW HELPERS ---- */
+  function drawBall(x, y, r, color, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 4;
+    // body
+    const g = ctx.createRadialGradient(x - r*0.3, y - r*0.3, r*0.1, x, y, r);
+    g.addColorStop(0, lighten(color.body, 40));
+    g.addColorStop(0.5, color.body);
+    g.addColorStop(1, darken(color.body, 30));
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    // stripes
+    ctx.strokeStyle = color.stripe;
+    ctx.lineWidth = r * 0.12;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - r, y);
+    ctx.lineTo(x + r, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x, y + r);
+    ctx.stroke();
+    // shine
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(x - r*0.25, y - r*0.3, r*0.22, r*0.15, -0.4, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function lighten(hex, amt) {
+    return adjustColor(hex, amt);
+  }
+  function darken(hex, amt) {
+    return adjustColor(hex, -amt);
+  }
+  function adjustColor(hex, amt) {
+    let c = parseInt(hex.slice(1), 16);
+    let r = clamp(((c >> 16) & 0xff) + amt, 0, 255);
+    let g = clamp(((c >> 8)  & 0xff) + amt, 0, 255);
+    let b = clamp(( c        & 0xff) + amt, 0, 255);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function drawBasket() {
+    const bx = basket.x, by = basket.y, bw = basket.w;
+    // backboard
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(bx - 55, by - 60, 110, 40, 6);
+    ctx.fill(); ctx.stroke();
+    // inner box
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(bx - 22, by - 50, 44, 28);
+    ctx.stroke();
+    // pole
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(bx + 45, by - 60, 8, 80);
+    // rim
+    ctx.shadowColor = '#FF6B1A';
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = '#FF8C00';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(bx - bw/2, by);
+    ctx.lineTo(bx + bw/2, by);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // rim ends (3D dots)
+    [bx - bw/2, bx + bw/2].forEach(rx => {
+      ctx.beginPath();
+      ctx.arc(rx, by, 5, 0, Math.PI*2);
+      ctx.fillStyle = '#CC5500';
+      ctx.fill();
+    });
+    // net
+    const nx = bx - bw/2, nw = bw, ntop = by, nbot = by + basket.netH;
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i <= 5; i++) {
+      const t = i / 5;
+      const tx = nx + t * nw;
+      const bx2 = nx + (nw * 0.15) + t * (nw * 0.7);
+      ctx.beginPath();
+      ctx.moveTo(tx, ntop);
+      ctx.lineTo(bx2, nbot);
+      ctx.stroke();
+    }
+    for (let j = 1; j <= 3; j++) {
+      const t = j / 4;
+      const y = ntop + t * basket.netH;
+      const shrink = t * 0.15 * nw;
+      ctx.beginPath();
+      ctx.moveTo(nx + shrink, y);
+      ctx.lineTo(nx + nw - shrink, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawCourt() {
+    // gradient floor
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#0d2a4a');
+    grad.addColorStop(1, '#063020');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // floor lines
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 2;
+    // 3-point arc (decorative)
+    ctx.beginPath();
+    ctx.arc(W/2, H + 60, H * 0.65, Math.PI * 1.1, Math.PI * 1.9);
+    ctx.stroke();
+    // lane rectangle
+    ctx.strokeRect(W/2 - 70, H * 0.1, 140, H * 0.55);
+    // centre circle
+    ctx.beginPath();
+    ctx.arc(W/2, H * 0.6, 55, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawFloor() {
+    // shiny floor strip at bottom
+    ctx.save();
+    const g = ctx.createLinearGradient(0, H * 0.85, 0, H);
+    g.addColorStop(0, 'rgba(180,100,20,0)');
+    g.addColorStop(1, 'rgba(180,100,20,0.18)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, H * 0.85, W, H * 0.15);
+    ctx.restore();
+  }
+
+  /* ---- SPAWN BALL ---- */
+  function spawnBall() {
+    const moving = Math.random() < 0.5;
+    const r = rnd(28, 36);
+    const margin = r + 20;
+    const y = rnd(H * 0.5, H * 0.82);
+    const x = moving ? rnd(margin, W - margin) : rnd(margin, W - margin);
+    const color = BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)];
+    const vx = moving ? (Math.random() < 0.5 ? 1 : -1) * rnd(60, 130) : 0;
+    const scoreVal = moving ? 3 : 2;
+    balls.push({ x, y, r, vx, vy: 0, state: 'idle', alpha: 1, scoreVal, color, moving, bobT: Math.random() * Math.PI * 2, origY: y });
+  }
+
+  /* ---- THROW BALL ---- */
+  function throwBall(ball) {
+    // parabolic arc from ball position to basket
+    const tx = basket.x, ty = basket.y;
+    // store arc params
+    const proj = {
+      x: ball.x, y: ball.y,
+      sx: ball.x, sy: ball.y,
+      ex: tx, ey: ty,
+      r: ball.r, color: ball.color,
+      t: 0, dur: 0.55 + Math.random() * 0.15,
+      peaked: false,
+      scored: false,
+    };
+    projectiles.push(proj);
+  }
+
+  /* ---- PARTICLES ---- */
+  function spawnParticles(x, y, color) {
+    for (let i = 0; i < 14; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spd = rnd(80, 250);
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * spd,
+        vy: Math.sin(angle) * spd,
+        r: rnd(4, 10),
+        alpha: 1,
+        color: [color.body, '#FFD700', '#fff'][Math.floor(Math.random()*3)],
+        life: rnd(0.5, 0.9)
+      });
+    }
+  }
+
+  function spawnScorePop(x, y, pts) {
+    const el = document.createElement('div');
+    el.className = 'score-pop';
+    el.textContent = pts >= 3 ? `+${pts} 🔥` : `+${pts}`;
+    el.style.left = x + 'px';
+    el.style.top  = y + 'px';
+    el.style.color = pts >= 3 ? '#FFD700' : '#7fff7f';
+    el.style.transform = 'translateX(-50%)';
+    screens.game.appendChild(el);
+    setTimeout(() => el.remove(), 900);
+  }
+
+  /* ---- COMBO ---- */
+  const comboEl = $('combo-display');
+  function showCombo(c) {
+    if (c < 2) { comboEl.style.opacity = '0'; return; }
+    const labels = ['','','🔥 ×2 مذهل!','⚡ ×3 رائع!','💥 ×4 أسطوري!','🌟 ×5 خارق!'];
+    comboEl.textContent = labels[Math.min(c, labels.length-1)] || `🌟 ×${c} وحش!`;
+    comboEl.style.opacity = '1';
+    clearTimeout(comboEl._t);
+    comboEl._t = setTimeout(() => { comboEl.style.opacity = '0'; }, 1200);
+  }
+
+  /* ---- INPUT ---- */
+  function onTap(cx, cy) {
+    if (!gameRunning) return;
+    // check balls
+    for (let i = balls.length - 1; i >= 0; i--) {
+      const b = balls[i];
+      if (b.state !== 'idle') continue;
+      const dx = cx - b.x, dy = cy - b.y;
+      if (Math.sqrt(dx*dx + dy*dy) < b.r + 18) {
+        b.state = 'thrown';
+        throwBall(b);
+        balls.splice(i, 1);
+        return;
+      }
+    }
+  }
+
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const rect = canvas.getBoundingClientRect();
+    onTap(t.clientX - rect.left, t.clientY - rect.top);
+  }, { passive: false });
+
+  canvas.addEventListener('mousedown', e => {
+    const rect = canvas.getBoundingClientRect();
+    onTap(e.clientX - rect.left, e.clientY - rect.top);
+  });
+
+  /* ---- TIMER ---- */
+  let timerInterval = null;
+  function startTimer() {
+    timerLeft_inner = 30;
+    $('hud-time').textContent = '30';
+    timerInterval = setInterval(() => {
+      timerLeft_inner--;
+      $('hud-time').textContent = timerLeft_inner;
+      if (timerLeft_inner <= 0) endGame();
+    }, 1000);
+  }
+  let timerLeft_inner = 30;
+
+  /* ---- GAME LOOP ---- */
+  function gameLoop(ts) {
+    if (!gameRunning) return;
+    const dt = clamp((ts - lastTs) / 1000, 0, 0.05);
+    lastTs = ts;
+
+    // spawn
+    spawnTimer += dt;
+    if (spawnTimer >= SPAWN_INTERVAL && balls.length < 4) {
+      spawnTimer = 0;
+      spawnBall();
+    }
+
+    ctx.clearRect(0, 0, W, H);
+    drawCourt();
+    drawFloor();
+    drawBasket();
+
+    // update + draw balls
+    for (let i = balls.length - 1; i >= 0; i--) {
+      const b = balls[i];
+      if (b.state === 'idle') {
+        // bob
+        b.bobT += dt * 2.5;
+        b.y = b.origY + Math.sin(b.bobT) * 5;
+        // move
+        if (b.moving) {
+          b.x += b.vx * dt;
+          if (b.x < b.r + 10) { b.x = b.r + 10; b.vx = Math.abs(b.vx); }
+          if (b.x > W - b.r - 10) { b.x = W - b.r - 10; b.vx = -Math.abs(b.vx); }
+        }
+        // glow ring for moving balls
+        if (b.moving) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r + 8, 0, Math.PI*2);
+          ctx.strokeStyle = 'rgba(255,220,50,0.35)';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          // label
+          ctx.fillStyle = '#FFD700';
+          ctx.font = `bold ${b.r * 0.6}px system-ui`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.fillText('+3', b.x, b.y + b.r + 4);
+          ctx.restore();
+        }
+        drawBall(b.x, b.y, b.r, b.color);
+      }
+    }
+
+    // update + draw projectiles
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+      const p = projectiles[i];
+      p.t += dt;
+      const progress = clamp(p.t / p.dur, 0, 1);
+      // quadratic bezier arc
+      const cpX = (p.sx + p.ex) / 2 + (Math.random() < 0.01 ? 0 : 0);
+      const arcH = -Math.min(W, H) * 0.45;
+      const cpY = Math.min(p.sy, p.ey) + arcH;
+      const t = progress;
+      const mx = (1-t)*(1-t)*p.sx + 2*(1-t)*t*cpX + t*t*p.ex;
+      const my = (1-t)*(1-t)*p.sy + 2*(1-t)*t*cpY + t*t*p.ey;
+      // spin
+      ctx.save();
+      ctx.translate(mx, my);
+      ctx.rotate(progress * Math.PI * 3);
+      drawBall(0, 0, p.r, p.color);
+      ctx.restore();
+
+      // check if passed through hoop (progress ~0.95-1)
+      if (!p.scored && progress >= 0.9) {
+        p.scored = true;
+        combo++;
+        const pts = (p.color === BALL_COLORS[4] ? 3 : 2) + (combo >= 2 ? combo - 1 : 0);
+        score += pts;
+        madeCount++;
+        $('hud-score').textContent = score;
+        showCombo(combo);
+        spawnParticles(p.ex, p.ey, p.color);
+        spawnScorePop(p.ex, p.ey - 20, pts);
+      }
+
+      if (progress >= 1) {
+        projectiles.splice(i, 1);
+      }
+    }
+
+    // update + draw particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 400 * dt;
+      p.life -= dt;
+      p.alpha = clamp(p.life / 0.5, 0, 1);
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    rafId = requestAnimationFrame(gameLoop);
+  }
+
+  /* ---- START GAME ---- */
+  function startGame() {
+    score = 0; madeCount = 0; combo = 0;
+    balls = []; projectiles = []; particles = [];
+    spawnTimer = 0.8; // spawn quickly at start
+    gameRunning = true;
+    $('hud-score').textContent = '0';
+    comboEl.style.opacity = '0';
+    showScreen('game');
+    resize();
+    // basket in upper third
+    basket.x = W / 2;
+    basket.y = H * 0.2;
+    startTimer();
+    lastTs = performance.now();
+    rafId = requestAnimationFrame(gameLoop);
+  }
+
+  /* ---- END GAME ---- */
+  function endGame() {
+    gameRunning = false;
+    clearInterval(timerInterval);
+    cancelAnimationFrame(rafId);
+    // stars
+    let stars = '⭐';
+    if (score >= 30) stars = '⭐⭐⭐';
+    else if (score >= 15) stars = '⭐⭐';
+    $('star-row').textContent = stars;
+    $('end-score').textContent = score;
+    $('end-made').textContent = madeCount;
+    let title = 'انتهت اللعبة!';
+    if (score >= 40) title = '🏆 أسطوري!';
+    else if (score >= 25) title = '🔥 رائع جداً!';
+    else if (score >= 12) title = '⭐ أداء جيد!';
+    $('end-title').textContent = title;
+    showScreen('end');
+  }
+
+  /* ---- BUTTON BINDINGS ---- */
+  function bindBtn(id, fn) {
+    const el = $(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, { passive: false });
+    el.addEventListener('mousedown', fn);
+  }
+  bindBtn('btn-start',  startGame);
+  bindBtn('btn-replay', startGame);
+
+  /* ---- INITIAL RESIZE HACKS ---- */
+  resize();
+  setTimeout(resize, 100);
+  setTimeout(resize, 500);
+
+  showScreen('start');
+
+})();
+</script>
+</body>
+</html>
