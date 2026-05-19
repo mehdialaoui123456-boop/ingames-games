@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>لعبة الذاكرة</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none; -webkit-user-select: none;
+      -webkit-touch-callout: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+    background: linear-gradient(160deg, #4a2b7c 0%, #6a3d9c 50%, #5a3580 100%);
+    color: #fff;
+    touch-action: manipulation;
+    position: fixed;
+    inset: 0;
+  }
+  #game { position: absolute; inset: 0; overflow: hidden; }
+
+  /* HUD */
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 14px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .pill {
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 17px;
+    font-weight: 800;
+    display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  /* Board */
+  #board {
+    position: absolute;
+    top: 80px; bottom: 30px;
+    left: 16px; right: 16px;
+    display: grid;
+    gap: 10px;
+    align-content: center;
+    justify-content: center;
+  }
+
+  .card {
+    perspective: 700px;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    cursor: pointer;
+    position: relative;
+  }
+  .card-inner {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transition: transform 0.45s cubic-bezier(.4, .8, .4, 1);
+  }
+  .card.flipped .card-inner { transform: rotateY(180deg); }
+  .card.matched .card-inner {
+    transform: rotateY(180deg) scale(0.94);
+    transition: transform 0.5s ease;
+  }
+  .card.matched .face-front {
+    box-shadow: 0 0 0 3px #FFD93D, 0 4px 16px rgba(255,217,61,0.4);
+  }
+  .face {
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 38px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .face-back {
+    background: linear-gradient(135deg, #2d1a5e, #1a0d3d);
+    border: 2px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.4);
+    font-size: 26px;
+    font-weight: 900;
+  }
+  .face-back::after {
+    content: "?";
+    position: absolute;
+  }
+  .face-front {
+    background: linear-gradient(135deg, #fff5e6, #ffe0b3);
+    transform: rotateY(180deg);
+    color: #1a0d3d;
+  }
+
+  /* Overlays */
+  .overlay {
+    position: absolute; inset: 0;
+    background: rgba(20,10,40,0.85);
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    z-index: 100;
+    text-align: center;
+    padding: 24px;
+    backdrop-filter: blur(4px);
+  }
+  .overlay h1 { font-size: 36px; margin-bottom: 12px; }
+  .overlay p { font-size: 16px; margin-bottom: 24px; opacity: 0.85; line-height: 1.6; max-width: 280px; }
+  .stat-row { display: flex; gap: 26px; margin-bottom: 22px; }
+  .stat { text-align: center; }
+  .stat-label { font-size: 12px; opacity: 0.7; margin-bottom: 4px; }
+  .stat-value { font-size: 26px; font-weight: 800; color: #FFD93D; }
+  .big-score { font-size: 64px; font-weight: 900; margin: 6px 0 22px; color: #FFD93D; text-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  .btn {
+    background: linear-gradient(135deg, #FFD93D, #FF9F45);
+    color: #2d1a5e;
+    border: none;
+    font-family: inherit;
+    font-size: 19px;
+    font-weight: 900;
+    padding: 14px 42px;
+    border-radius: 999px;
+    box-shadow: 0 6px 0 #b87f00, 0 8px 16px rgba(0,0,0,0.3);
+    transition: transform 80ms, box-shadow 80ms;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 3px 0 #b87f00; }
+  .hint { font-size: 13px; opacity: 0.7; margin-top: 14px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="hud">
+    <div class="pill">⏱️ <span id="time">60</span></div>
+    <div class="pill">🔄 <span id="moves">0</span></div>
+    <div class="pill">✓ <span id="pairs">0</span>/<span id="totalPairs">8</span></div>
+  </div>
+
+  <div id="board"></div>
+
+  <div id="start" class="overlay">
+    <h1>🧠 لعبة الذاكرة</h1>
+    <p>اقلب البطاقات وابحث عن الأزواج المتطابقة<br>كل زوج صحيح يمنحك نقاطاً<br>أكمل اللعبة قبل نفاد الوقت!</p>
+    <button class="btn" id="startBtn">ابدأ اللعب</button>
+    <div class="hint">٦٠ ثانية — ٨ أزواج</div>
+  </div>
+
+  <div id="end" class="overlay hidden">
+    <h1 id="endTitle">أحسنت! 🎉</h1>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-label">الحركات</div>
+        <div class="stat-value" id="finalMoves">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">الوقت</div>
+        <div class="stat-value" id="finalTime">0</div>
+      </div>
+    </div>
+    <div class="big-score" id="finalScore">0</div>
+    <button class="btn" id="restartBtn">العب مرة أخرى</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ── DOM ────────────────────────────────────────────────────────────
+  const game       = document.getElementById('game');
+  const board      = document.getElementById('board');
+  const timeEl     = document.getElementById('time');
+  const movesEl    = document.getElementById('moves');
+  const pairsEl    = document.getElementById('pairs');
+  const totalEl    = document.getElementById('totalPairs');
+  const finalEl    = document.getElementById('finalScore');
+  const finalMoves = document.getElementById('finalMoves');
+  const finalTime  = document.getElementById('finalTime');
+  const endTitle   = document.getElementById('endTitle');
+  const startView  = document.getElementById('start');
+  const endView    = document.getElementById('end');
+  const startBtn   = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+
+  // ── Config ─────────────────────────────────────────────────────────
+  const ROUND_TIME = 60;
+  const SYMBOLS = ['🍎','🍌','🍉','🍇','🍓','🥝','🍒','🍍','🥥','🥑','🍑','🍋'];
+  const ROWS = 4, COLS = 4; // 16 cards = 8 pairs
+
+  // ── State ──────────────────────────────────────────────────────────
+  let cards = [];          // {el, symbol, matched, flipped}
+  let firstPick = null;
+  let lockBoard = false;
+  let moves = 0;
+  let matchedPairs = 0;
+  let score = 0;
+  let timeLeft = ROUND_TIME;
+  let running = false;
+  let timerInterval = null;
+
+  // ── Buttons ────────────────────────────────────────────────────────
+  function bindButton(el, fn) {
+    el.addEventListener('click', fn);
+    el.addEventListener('touchend', (e) => { e.preventDefault(); fn(); }, { passive: false });
+  }
+  bindButton(startBtn, startGame);
+  bindButton(restartBtn, startGame);
+
+  // ── Setup ──────────────────────────────────────────────────────────
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function buildBoard() {
+    board.innerHTML = '';
+    cards = [];
+    const totalPairs = (ROWS * COLS) / 2;
+    totalEl.textContent = totalPairs;
+    pairsEl.textContent = '0';
+
+    board.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+    board.style.gridTemplateRows    = `repeat(${ROWS}, 1fr)`;
+
+    const pool = shuffle([...SYMBOLS].slice(0, totalPairs).flatMap(s => [s, s]));
+
+    for (let i = 0; i < pool.length; i++) {
+      const symbol = pool[i];
+      const cardEl = document.createElement('div');
+      cardEl.className = 'card';
+      cardEl.innerHTML = `
+        <div class="card-inner">
+          <div class="face face-back"></div>
+          <div class="face face-front">${symbol}</div>
+        </div>`;
+      const card = { el: cardEl, symbol, matched: false, flipped: false };
+      cards.push(card);
+
+      const onTap = (e) => {
+        e.preventDefault();
+        handlePick(card);
+      };
+      cardEl.addEventListener('touchstart', onTap, { passive: false });
+      cardEl.addEventListener('click', (e) => {
+        // mousedown fires alongside touchstart on some browsers — guard via flipped state
+        if (card.flipped) return;
+        onTap(e);
+      });
+
+      board.appendChild(cardEl);
+    }
+  }
+
+  // ── Gameplay ───────────────────────────────────────────────────────
+  function handlePick(card) {
+    if (!running || lockBoard) return;
+    if (card.flipped || card.matched) return;
+    if (firstPick === card) return;
+
+    card.flipped = true;
+    card.el.classList.add('flipped');
+
+    if (!firstPick) {
+      firstPick = card;
+      return;
+    }
+
+    // Second pick
+    moves++;
+    movesEl.textContent = moves;
+
+    if (firstPick.symbol === card.symbol) {
+      // Match
+      card.matched = true;
+      firstPick.matched = true;
+      card.el.classList.add('matched');
+      firstPick.el.classList.add('matched');
+      matchedPairs++;
+      pairsEl.textContent = matchedPairs;
+      score += 100;
+      firstPick = null;
+
+      if (matchedPairs === (ROWS * COLS) / 2) {
+        winGame();
+      }
+    } else {
+      // No match — flip back after a short delay
+      lockBoard = true;
+      const a = firstPick, b = card;
+      firstPick = null;
+      setTimeout(() => {
+        a.flipped = false; b.flipped = false;
+        a.el.classList.remove('flipped');
+        b.el.classList.remove('flipped');
+        lockBoard = false;
+      }, 800);
+    }
+  }
+
+  function startGame() {
+    moves = 0; matchedPairs = 0; score = 0;
+    timeLeft = ROUND_TIME;
+    firstPick = null;
+    lockBoard = false;
+    running = true;
+
+    movesEl.textContent = '0';
+    pairsEl.textContent = '0';
+    timeEl.textContent  = ROUND_TIME;
+    startView.classList.add('hidden');
+    endView.classList.add('hidden');
+
+    buildBoard();
+
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      timeEl.textContent = timeLeft;
+      if (timeLeft <= 0) endGame('انتهى الوقت!');
+    }, 1000);
+  }
+
+  function endGame(title) {
+    running = false;
+    lockBoard = true;
+    clearInterval(timerInterval);
+    timerInterval = null;
+    // Final score = base + time bonus - moves penalty (never below 0)
+    const timeBonus = timeLeft * 10;
+    const efficiency = Math.max(0, (ROWS * COLS) - moves) * 15;
+    const total = score + timeBonus + efficiency;
+    score = total;
+    endTitle.textContent = title;
+    finalEl.textContent  = score;
+    finalMoves.textContent = moves;
+    finalTime.textContent  = (ROUND_TIME - timeLeft) + 'ث';
+    endView.classList.remove('hidden');
+  }
+
+  function winGame() {
+    endGame('أحسنت! 🎉');
+  }
+})();
+</script>
+</body>
+</html>
