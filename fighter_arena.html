@@ -194,8 +194,8 @@
 
   <div class="controls">
     <div class="ctrl-group">
-      <div class="btn-c" id="leftBtn">◀</div>
       <div class="btn-c" id="rightBtn">▶</div>
+      <div class="btn-c" id="leftBtn">◀</div>
     </div>
     <div class="ctrl-group">
       <div class="btn-c block" id="blockBtn">🛡️</div>
@@ -779,17 +779,22 @@
     const headR = 16;
     const headY = headR + 4;
 
-    // Legs (animated walk)
+    // Legs (animated walk) — hide the front leg during a kick
     const legSwing = Math.sin(f.walkPhase) * 12;
+    const kickingNow = f.action === 'kick';
     ctx.fillStyle = f.color;
-    // Back leg
+    // Back leg always drawn
     ctx.fillRect(-10, headY + headR / 2 + bodyH, 9, 30 + legSwing);
-    // Front leg
-    ctx.fillRect( 1, headY + headR / 2 + bodyH, 9, 30 - legSwing);
+    // Front leg only when not kicking
+    if (!kickingNow) {
+      ctx.fillRect( 1, headY + headR / 2 + bodyH, 9, 30 - legSwing);
+    }
     // Feet
     ctx.fillStyle = '#1a0a1f';
     ctx.fillRect(-12, headY + headR / 2 + bodyH + 26 + legSwing, 13, 6);
-    ctx.fillRect( -1, headY + headR / 2 + bodyH + 26 - legSwing, 13, 6);
+    if (!kickingNow) {
+      ctx.fillRect( -1, headY + headR / 2 + bodyH + 26 - legSwing, 13, 6);
+    }
 
     // Torso
     const torsoGrad = ctx.createLinearGradient(-bodyW / 2, 0, bodyW / 2, 0);
@@ -828,19 +833,39 @@
     // Front arm
     drawArm(armFrontX, headY + headR / 2 + 4, armFrontAngle, armFrontExtend, f.color);
 
-    // Leg kick — replace front leg with extended kick
+    // Extended kick leg — drawn from the hip, rotating forward
     if (f.action === 'kick') {
       const prog = 1 - f.actionTimer / 0.42;
+      // Ease in-out so the kick snaps out and back smoothly
       const ext = Math.sin(prog * Math.PI);
+      // Pivot at the hip (just below the torso)
+      const hipX = 4;
+      const hipY = headY + headR / 2 + bodyH + 2;
       ctx.save();
-      ctx.translate(2, headY + headR / 2 + bodyH + 4);
-      ctx.rotate(-Math.PI / 2 - ext * 0.4);
-      // Erase the previous leg area by drawing background — too risky.
-      // Instead just draw a bigger extended leg on top.
+      ctx.translate(hipX, hipY);
+      // Start angle pointing down (PI/2), rotate up to horizontal (0)
+      // Negative direction in canvas coords = up. Forward = +X (after facing flip).
+      const angle = Math.PI / 2 - ext * (Math.PI / 2 + 0.15);
+      ctx.rotate(angle);
+      const legLen = 40 + ext * 8;
+      // Thigh + shin (slightly tapered)
       ctx.fillStyle = f.color;
-      ctx.fillRect(0, -5, 36 + ext * 18, 10);
+      ctx.fillRect(-5, 0, 10, legLen);
+      // Knee highlight
+      ctx.fillStyle = shade(f.color, -0.25);
+      ctx.fillRect(-5, legLen / 2 - 1, 10, 2);
+      // Foot at the end (perpendicular to the leg)
       ctx.fillStyle = '#1a0a1f';
-      ctx.fillRect(36 + ext * 18 - 4, -7, 8, 14);
+      ctx.fillRect(-3, legLen - 3, 14, 7);
+      // Motion line behind the foot
+      if (ext > 0.4) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, legLen - 14);
+        ctx.lineTo(0, legLen - 26);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
