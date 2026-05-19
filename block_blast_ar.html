@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>بلاست البلوكات</title>
+<style>
+* {
+  margin: 0; padding: 0; box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  touch-action: none;
+  position: fixed; inset: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+  background: linear-gradient(145deg, #ffecd2 0%, #fcb69f 50%, #ff9a9e 100%);
+}
+
+.hidden { display: none !important; }
+
+/* ===== SCREENS ===== */
+.screen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 20px;
+}
+
+/* ===== START SCREEN ===== */
+#startScreen {
+  background: linear-gradient(160deg, #667eea 0%, #764ba2 100%);
+  gap: 18px;
+}
+.game-logo {
+  font-size: 52px;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+  animation: bounce 1.2s ease-in-out infinite alternate;
+}
+@keyframes bounce {
+  from { transform: translateY(0px); }
+  to   { transform: translateY(-10px); }
+}
+.game-title {
+  font-size: 34px; font-weight: 900; color: #fff;
+  text-shadow: 0 4px 0 rgba(0,0,0,0.25);
+  letter-spacing: 1px;
+}
+.game-subtitle {
+  font-size: 15px; color: rgba(255,255,255,0.8);
+  text-align: center; line-height: 1.6;
+  background: rgba(255,255,255,0.15);
+  border-radius: 16px; padding: 14px 20px;
+  max-width: 300px;
+}
+.how-to {
+  background: rgba(255,255,255,0.18);
+  border-radius: 20px; padding: 16px 22px;
+  color: #fff; font-size: 14px; line-height: 1.9;
+  max-width: 300px; text-align: center;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+.how-to .how-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+
+/* ===== BUTTONS ===== */
+.btn-primary {
+  background: #ffdd57; color: #4a3000;
+  font-size: 20px; font-weight: 800;
+  border: none; border-radius: 50px;
+  padding: 16px 52px;
+  box-shadow: 0 6px 0 #c8a700, 0 8px 20px rgba(0,0,0,0.25);
+  cursor: pointer; transition: transform 0.08s, box-shadow 0.08s;
+  position: relative;
+}
+.btn-primary:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #c8a700, 0 4px 10px rgba(0,0,0,0.2);
+}
+.btn-secondary {
+  background: #43e97b; color: #003a15;
+  font-size: 18px; font-weight: 800;
+  border: none; border-radius: 50px;
+  padding: 14px 44px;
+  box-shadow: 0 6px 0 #1aaa52, 0 8px 20px rgba(0,0,0,0.2);
+  cursor: pointer; transition: transform 0.08s, box-shadow 0.08s;
+}
+.btn-secondary:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #1aaa52, 0 4px 10px rgba(0,0,0,0.15);
+}
+
+/* ===== GAME SCREEN ===== */
+#gameScreen {
+  background: linear-gradient(160deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+  padding: 0;
+  justify-content: flex-start;
+}
+
+/* HUD */
+#hud {
+  width: 100%; display: flex;
+  justify-content: space-between; align-items: center;
+  padding: 10px 14px; flex-shrink: 0;
+}
+.hud-pill {
+  background: rgba(0,0,0,0.6); border-radius: 50px;
+  padding: 7px 16px; color: #fff;
+  font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; gap: 6px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.hud-pill span.val { font-size: 17px; font-weight: 900; color: #ffdd57; }
+
+/* GRID AREA */
+#boardWrap {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  width: 100%; overflow: hidden;
+  padding: 4px 10px 6px;
+}
+#gameCanvas {
+  border-radius: 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(255,255,255,0.08);
+  display: block;
+  touch-action: none;
+}
+
+/* PIECE TRAY */
+#tray {
+  width: 100%; display: flex;
+  justify-content: space-around; align-items: center;
+  padding: 8px 10px 10px;
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.35);
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.tray-slot {
+  width: 33.33%; display: flex;
+  align-items: center; justify-content: center;
+  position: relative;
+}
+.piece-canvas {
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  touch-action: none;
+}
+
+/* ===== END SCREEN ===== */
+#endScreen {
+  background: linear-gradient(160deg, #f093fb 0%, #f5576c 100%);
+  gap: 18px;
+}
+.end-icon { font-size: 64px; }
+.end-title { font-size: 30px; font-weight: 900; color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,0.2); }
+.score-box {
+  background: rgba(255,255,255,0.25);
+  border-radius: 24px; padding: 18px 40px;
+  text-align: center; color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+}
+.score-label { font-size: 15px; opacity: 0.9; }
+.score-big { font-size: 52px; font-weight: 900; line-height: 1.1; text-shadow: 0 4px 0 rgba(0,0,0,0.2); }
+.score-lines { font-size: 14px; opacity: 0.85; margin-top: 4px; }
+
+/* Combo flash overlay */
+#comboFlash {
+  position: absolute; inset: 0; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 99; opacity: 0; transition: opacity 0.15s;
+}
+#comboFlash .combo-text {
+  font-size: 48px; font-weight: 900;
+  color: #ffdd57; text-shadow: 0 0 20px #ff6b00, 0 4px 0 rgba(0,0,0,0.4);
+  transform: scale(0.5);
+  transition: transform 0.15s;
+}
+</style>
+</head>
+<body>
+
+<!-- START SCREEN -->
+<div id="startScreen" class="screen">
+  <div class="game-logo">🟦</div>
+  <div class="game-title">بلاست البلوكات</div>
+  <div class="game-subtitle">املأ الصفوف والأعمدة لتفجيرها واجمع أكبر نقاط!</div>
+  <div class="how-to">
+    <div class="how-title">🎮 كيف تلعب؟</div>
+    اسحب القطع إلى اللوحة<br>
+    املأ صفاً كاملاً أو عموداً كاملاً<br>
+    ستنفجر تلقائياً 💥<br>
+    الكومبو يضاعف النقاط! 🔥
+  </div>
+  <button class="btn-primary" id="btnStart">ابدأ اللعبة</button>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="gameScreen" class="screen hidden">
+  <div id="hud">
+    <div class="hud-pill">⭐ <span class="val" id="scoreVal">0</span></div>
+    <div class="hud-pill">⏱ <span class="val" id="timerVal">60</span></div>
+    <div class="hud-pill">🔥 <span class="val" id="comboVal">×1</span></div>
+  </div>
+  <div id="boardWrap">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+  <div id="tray">
+    <div class="tray-slot" id="slot0"><canvas class="piece-canvas" id="pc0"></canvas></div>
+    <div class="tray-slot" id="slot1"><canvas class="piece-canvas" id="pc1"></canvas></div>
+    <div class="tray-slot" id="slot2"><canvas class="piece-canvas" id="pc2"></canvas></div>
+  </div>
+  <div id="comboFlash"><div class="combo-text" id="comboText"></div></div>
+</div>
+
+<!-- END SCREEN -->
+<div id="endScreen" class="screen hidden">
+  <div class="end-icon" id="endIcon">🏆</div>
+  <div class="end-title" id="endTitle">انتهت اللعبة!</div>
+  <div class="score-box">
+    <div class="score-label">مجموع نقاطك</div>
+    <div class="score-big" id="finalScore">0</div>
+    <div class="score-lines" id="finalLines">0 صف/عمود مُفجَّر</div>
+  </div>
+  <button class="btn-secondary" id="btnReplay">العب مرة أخرى</button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── DOM refs ──────────────────────────────────────────────
+  const startScreen = document.getElementById('startScreen');
+  const gameScreen  = document.getElementById('gameScreen');
+  const endScreen   = document.getElementById('endScreen');
+  const btnStart    = document.getElementById('btnStart');
+  const btnReplay   = document.getElementById('btnReplay');
+  const scoreVal    = document.getElementById('scoreVal');
+  const timerVal    = document.getElementById('timerVal');
+  const comboVal    = document.getElementById('comboVal');
+  const finalScore  = document.getElementById('finalScore');
+  const finalLines  = document.getElementById('finalLines');
+  const endIcon     = document.getElementById('endIcon');
+  const endTitle    = document.getElementById('endTitle');
+  const comboFlash  = document.getElementById('comboFlash');
+  const comboText   = document.getElementById('comboText');
+  const canvas      = document.getElementById('gameCanvas');
+  const ctx         = canvas.getContext('2d');
+  const traySlots   = [0,1,2].map(i => document.getElementById('slot'+i));
+  const pcs         = [0,1,2].map(i => document.getElementById('pc'+i));
+  const pcsCtx      = pcs.map(p => p.getContext('2d'));
+
+  // ── Constants ─────────────────────────────────────────────
+  const COLS = 9, ROWS = 9;
+  const GAME_DURATION = 45; // seconds
+  const COLORS = [
+    '#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff',
+    '#5f27cd','#1dd1a1','#ff9f43','#ee5a24','#0abde3'
+  ];
+  const DARK = {
+    '#ff6b6b':'#c0392b','#feca57':'#e1b000','#48dbfb':'#0289ad',
+    '#ff9ff3':'#cc3fb5','#54a0ff':'#2980b9',
+    '#5f27cd':'#341f97','#1dd1a1':'#10a37f','#ff9f43':'#cc7a00',
+    '#ee5a24':'#b03a1c','#0abde3':'#087ea4'
+  };
+
+  // Piece shapes: array of [row,col] offsets from top-left
+  const SHAPES = [
+    [[0,0],[0,1],[0,2]],                         // I-3H
+    [[0,0],[1,0],[2,0]],                         // I-3V
+    [[0,0],[0,1],[0,2],[0,3]],                   // I-4H
+    [[0,0],[1,0],[2,0],[3,0]],                   // I-4V
+    [[0,0],[0,1],[1,0],[1,1]],                   // 2×2
+    [[0,0],[0,1],[1,1]],                         // L
+    [[0,1],[1,0],[1,1]],                         // J-mini
+    [[0,0],[1,0],[1,1],[2,1]],                   // S-V
+    [[0,1],[1,0],[1,1],[2,0]],                   // Z-V
+    [[0,0],[0,1],[0,2],[1,1]],                   // T
+    [[0,0],[1,0],[1,1],[1,2]],                   // L-big
+    [[0,2],[1,0],[1,1],[1,2]],                   // J-big
+    [[0,0]],                                      // 1×1
+    [[0,0],[0,1]],                               // 1×2H
+    [[0,0],[1,0]],                               // 1×2V
+    [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]],       // 2×3
+    [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]], // 3×3
+  ];
+
+  // ── State ─────────────────────────────────────────────────
+  let board, tray, score, linesCleared, combo, timeLeft;
+  let cellSize, boardOffX, boardOffY;
+  let dragging = null; // { slotIdx, piece, offsetX, offsetY, x, y }
+  let ghostCell = null; // {r,c} top-left of valid placement
+  let animFx = []; // [{r,c,alpha,t}]
+  let timerInterval = null;
+  let lastTs = null;
+  let rafId = null;
+  let gameOver = false;
+
+  // ── Layout ────────────────────────────────────────────────
+  function measure() {
+    const wrap = document.getElementById('boardWrap');
+    const hud  = document.getElementById('hud');
+    const tray = document.getElementById('tray');
+    const W = wrap.clientWidth  || window.innerWidth;
+    const H = wrap.clientHeight || (window.innerHeight - hud.clientHeight - tray.clientHeight);
+    const maxCell = Math.floor(Math.min(W - 20, H - 20) / COLS);
+    cellSize = Math.max(28, Math.min(maxCell, 48));
+    const bw = cellSize * COLS;
+    const bh = cellSize * ROWS;
+    canvas.width  = bw;
+    canvas.height = bh;
+    boardOffX = 0;
+    boardOffY = 0;
+    redrawTray();
+  }
+
+  function trayCell() {
+    return Math.max(14, Math.floor(cellSize * 0.6));
+  }
+
+  // ── Piece helpers ─────────────────────────────────────────
+  function makePiece() {
+    const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    return { shape, color };
+  }
+
+  function pieceSize(shape) {
+    let maxR = 0, maxC = 0;
+    shape.forEach(([r,c]) => { maxR = Math.max(maxR,r); maxC = Math.max(maxC,c); });
+    return { rows: maxR+1, cols: maxC+1 };
+  }
+
+  function drawCell(ctx2d, x, y, size, color, alpha=1) {
+    const r = Math.round(size * 0.18);
+    ctx2d.save();
+    ctx2d.globalAlpha = alpha;
+    // Shadow
+    ctx2d.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx2d.shadowBlur = Math.round(size * 0.25);
+    ctx2d.shadowOffsetY = Math.round(size * 0.1);
+    ctx2d.fillStyle = color;
+    roundRect(ctx2d, x+1, y+1, size-2, size-2, r);
+    ctx2d.fill();
+    ctx2d.shadowColor = 'transparent';
+    // Highlight
+    const grad = ctx2d.createLinearGradient(x, y, x, y+size*0.5);
+    grad.addColorStop(0, 'rgba(255,255,255,0.38)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx2d.fillStyle = grad;
+    roundRect(ctx2d, x+2, y+2, size-4, size*0.5-1, r);
+    ctx2d.fill();
+    ctx2d.restore();
+  }
+
+  function roundRect(ctx2d, x, y, w, h, r) {
+    ctx2d.beginPath();
+    ctx2d.moveTo(x+r, y);
+    ctx2d.lineTo(x+w-r, y);
+    ctx2d.quadraticCurveTo(x+w, y, x+w, y+r);
+    ctx2d.lineTo(x+w, y+h-r);
+    ctx2d.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+    ctx2d.lineTo(x+r, y+h);
+    ctx2d.quadraticCurveTo(x, y+h, x, y+h-r);
+    ctx2d.lineTo(x, y+r);
+    ctx2d.quadraticCurveTo(x, y, x+r, y);
+    ctx2d.closePath();
+  }
+
+  // ── Draw board ────────────────────────────────────────────
+  function drawBoard() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Grid background
+    ctx.fillStyle = '#0d1b2a';
+    roundRect(ctx, 0, 0, canvas.width, canvas.height, 16);
+    ctx.fill();
+
+    // Grid lines
+    for (let r = 0; r <= ROWS; r++) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, r*cellSize);
+      ctx.lineTo(COLS*cellSize, r*cellSize);
+      ctx.stroke();
+    }
+    for (let c = 0; c <= COLS; c++) {
+      ctx.beginPath();
+      ctx.moveTo(c*cellSize, 0);
+      ctx.lineTo(c*cellSize, ROWS*cellSize);
+      ctx.stroke();
+    }
+
+    // Board cells
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (board[r][c]) {
+          drawCell(ctx, c*cellSize, r*cellSize, cellSize, board[r][c]);
+        }
+      }
+    }
+
+    // Ghost
+    if (ghostCell && dragging) {
+      const { shape, color } = dragging.piece;
+      shape.forEach(([dr,dc]) => {
+        const rr = ghostCell.r + dr;
+        const cc = ghostCell.c + dc;
+        if (rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS) {
+          drawCell(ctx, cc*cellSize, rr*cellSize, cellSize, color, 0.38);
+        }
+      });
+    }
+
+    // Explosion fx
+    animFx.forEach(fx => {
+      ctx.save();
+      ctx.globalAlpha = fx.alpha;
+      ctx.fillStyle = '#ffdd57';
+      const s = cellSize * (1 + (1-fx.alpha)*1.5);
+      const xc = (fx.c+0.5)*cellSize;
+      const yc = (fx.r+0.5)*cellSize;
+      ctx.beginPath();
+      ctx.arc(xc, yc, s*0.45, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // Dragging piece (on top)
+    if (dragging) {
+      const { piece, x, y } = dragging;
+      const cs = cellSize;
+      piece.shape.forEach(([dr,dc]) => {
+        drawCell(ctx, x + dc*cs - boardOffX, y + dr*cs - boardOffY, cs, piece.color, 0.9);
+      });
+    }
+  }
+
+  // ── Draw tray ─────────────────────────────────────────────
+  function redrawTray() {
+    const cs = trayCell();
+    pcs.forEach((pc, i) => {
+      const piece = tray[i];
+      if (!piece) {
+        pc.width = cs; pc.height = cs;
+        pcsCtx[i].clearRect(0,0,cs,cs);
+        return;
+      }
+      const sz = pieceSize(piece.shape);
+      const pw = sz.cols * cs;
+      const ph = sz.rows * cs;
+      pc.width = pw; pc.height = ph;
+      pcsCtx[i].clearRect(0,0,pw,ph);
+      piece.shape.forEach(([r,c]) => {
+        drawCell(pcsCtx[i], c*cs, r*cs, cs, piece.color);
+      });
+    });
+  }
+
+  // ── Placement logic ───────────────────────────────────────
+  function canPlace(shape, r0, c0) {
+    return shape.every(([dr,dc]) => {
+      const r = r0+dr, c = c0+dc;
+      return r >= 0 && r < ROWS && c >= 0 && c < COLS && !board[r][c];
+    });
+  }
+
+  function placePiece(shape, color, r0, c0) {
+    shape.forEach(([dr,dc]) => {
+      board[r0+dr][c0+dc] = color;
+    });
+  }
+
+  function clearLines() {
+    let cleared = 0;
+    const clearR = [], clearC = [];
+    for (let r = 0; r < ROWS; r++) {
+      if (board[r].every(v => v)) clearR.push(r);
+    }
+    for (let c = 0; c < COLS; c++) {
+      if (board.every(row => row[c])) clearC.push(c);
+    }
+    // Collect all cells to animate
+    const cells = new Set();
+    clearR.forEach(r => { for(let c=0;c<COLS;c++) cells.add(r+','+c); });
+    clearC.forEach(c => { for(let r=0;r<ROWS;r++) cells.add(r+','+c); });
+    cells.forEach(k => {
+      const [r,c] = k.split(',').map(Number);
+      board[r][c] = null;
+      animFx.push({ r, c, alpha:1, t:0 });
+    });
+    cleared = clearR.length + clearC.length;
+    linesCleared += cleared;
+    if (cleared > 0) {
+      if (cleared >= 2) combo = Math.min(combo + 1, 8);
+      else combo = Math.max(1, combo);
+    } else {
+      combo = Math.max(1, combo - 1);
+    }
+    return cleared;
+  }
+
+  function addScore(cellsPlaced, linesNow) {
+    const base = cellsPlaced * 10 + linesNow * 100;
+    score += base * combo;
+    scoreVal.textContent = score;
+    comboVal.textContent = '×' + combo;
+    if (linesNow >= 2) showCombo(linesNow);
+  }
+
+  function showCombo(n) {
+    const msgs = ['رائع!','ممتاز!','مذهل!','لا يُصدَّق!','عبقري!'];
+    comboText.textContent = (combo>1 ? 'كومبو ×'+combo+' ' : '') + (msgs[Math.min(n-2,4)] || '💥');
+    comboFlash.style.opacity = '1';
+    comboFlash.firstElementChild.style.transform = 'scale(1.1)';
+    setTimeout(() => {
+      comboFlash.style.opacity = '0';
+      comboFlash.firstElementChild.style.transform = 'scale(0.5)';
+    }, 700);
+  }
+
+  // ── Check game over ───────────────────────────────────────
+  function checkGameOver() {
+    // Game over if no piece can be placed anywhere
+    const pieces = tray.filter(Boolean);
+    if (pieces.length === 0) return false;
+    for (const piece of pieces) {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (canPlace(piece.shape, r, c)) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function refillTray() {
+    for (let i = 0; i < 3; i++) {
+      if (!tray[i]) tray[i] = makePiece();
+    }
+    redrawTray();
+  }
+
+  // ── Input ─────────────────────────────────────────────────
+  function getCanvasPos(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function getTrayPiecePos(slotIdx, clientX, clientY) {
+    const rect = pcs[slotIdx].getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function boardCellAt(cx, cy) {
+    const c = Math.floor(cx / cellSize);
+    const r = Math.floor(cy / cellSize);
+    return { r, c };
+  }
+
+  function ghostFromDrag(cx, cy) {
+    if (!dragging) return null;
+    const sz = pieceSize(dragging.piece.shape);
+    const halfC = Math.floor(sz.cols/2);
+    const halfR = Math.floor(sz.rows/2);
+    const cell = boardCellAt(cx, cy);
+    const r0 = cell.r - halfR;
+    const c0 = cell.c - halfC;
+    if (canPlace(dragging.piece.shape, r0, c0)) return { r: r0, c: c0 };
+    // Try nearby offsets
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (canPlace(dragging.piece.shape, r0+dr, c0+dc)) return { r: r0+dr, c: c0+dc };
+      }
+    }
+    return null;
+  }
+
+  // Touch on tray pieces
+  function bindTrayPiece(i) {
+    const pc = pcs[i];
+    const onStart = (e) => {
+      e.preventDefault();
+      if (!tray[i] || gameOver) return;
+      const touch = e.touches ? e.touches[0] : e;
+      const pos = getTrayPiecePos(i, touch.clientX, touch.clientY);
+      const canvasRect = canvas.getBoundingClientRect();
+      dragging = {
+        slotIdx: i,
+        piece: tray[i],
+        x: touch.clientX - canvasRect.left - pos.x,
+        y: touch.clientY - canvasRect.top  - pos.y,
+        offsetX: pos.x,
+        offsetY: pos.y,
+      };
+      ghostCell = null;
+    };
+    pc.addEventListener('touchstart', onStart, { passive: false });
+    pc.addEventListener('mousedown',  onStart, { passive: false });
+  }
+
+  const canvasRect_live = () => canvas.getBoundingClientRect();
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    const touch = e.touches ? e.touches[0] : e;
+    const rect = canvasRect_live();
+    const cx = touch.clientX - rect.left;
+    const cy = touch.clientY - rect.top;
+    dragging.x = cx - dragging.offsetX;
+    dragging.y = cy - dragging.offsetY;
+    // offset to center of piece
+    const sz = pieceSize(dragging.piece.shape);
+    const cxAdj = cx - (dragging.offsetX - sz.cols*cellSize/2);
+    const cyAdj = cy - (dragging.offsetY - sz.rows*cellSize/2);
+    ghostCell = ghostFromDrag(cxAdj, cyAdj);
+  };
+
+  const onEnd = (e) => {
+    if (!dragging) return;
+    const touch = e.changedTouches ? e.changedTouches[0] : e;
+    const rect = canvasRect_live();
+    const cx = touch.clientX - rect.left;
+    const cy = touch.clientY - rect.top;
+    if (ghostCell && canPlace(dragging.piece.shape, ghostCell.r, ghostCell.c)) {
+      placePiece(dragging.piece.shape, dragging.piece.color, ghostCell.r, ghostCell.c);
+      const cellsPlaced = dragging.piece.shape.length;
+      tray[dragging.slotIdx] = null;
+      const linesNow = clearLines();
+      addScore(cellsPlaced, linesNow);
+      // Refill if all empty
+      if (tray.every(p => !p)) {
+        for (let i=0;i<3;i++) tray[i] = makePiece();
+        redrawTray();
+      } else {
+        redrawTray();
+      }
+      if (checkGameOver()) endGame();
+    }
+    dragging = null;
+    ghostCell = null;
+  };
+
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('mousemove', onMove, { passive: false });
+  document.addEventListener('touchend',  onEnd,  { passive: false });
+  document.addEventListener('mouseup',   onEnd,  { passive: false });
+
+  // ── Game loop ─────────────────────────────────────────────
+  function gameLoop(ts) {
+    if (gameOver) return;
+    if (!lastTs) lastTs = ts;
+    const dt = Math.min(ts - lastTs, 50);
+    lastTs = ts;
+
+    // Update fx
+    animFx = animFx.filter(fx => {
+      fx.t += dt;
+      fx.alpha = Math.max(0, 1 - fx.t / 350);
+      return fx.alpha > 0;
+    });
+
+    drawBoard();
+    rafId = requestAnimationFrame(gameLoop);
+  }
+
+  // ── Timer ─────────────────────────────────────────────────
+  function startTimer() {
+    timeLeft = GAME_DURATION;
+    timerVal.textContent = timeLeft;
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      timerVal.textContent = timeLeft;
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        endGame();
+      }
+    }, 1000);
+  }
+
+  // ── Init ──────────────────────────────────────────────────
+  function initGame() {
+    board = Array.from({length:ROWS}, () => Array(COLS).fill(null));
+    tray  = [makePiece(), makePiece(), makePiece()];
+    score = 0; linesCleared = 0; combo = 1;
+    gameOver = false; animFx = []; dragging = null; ghostCell = null;
+    scoreVal.textContent = '0';
+    comboVal.textContent = '×1';
+    pcs.forEach((pc,i) => bindTrayPiece(i));
+    measure();
+    startTimer();
+    lastTs = null;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(gameLoop);
+  }
+
+  function endGame() {
+    gameOver = true;
+    clearInterval(timerInterval);
+    if (rafId) cancelAnimationFrame(rafId);
+    finalScore.textContent = score;
+    finalLines.textContent = linesCleared + ' صف/عمود مُفجَّر';
+    endIcon.textContent  = score > 3000 ? '🏆' : score > 1000 ? '🌟' : '😊';
+    endTitle.textContent = score > 3000 ? 'أسطورة!' : score > 1000 ? 'ممتاز جداً!' : 'انتهت اللعبة!';
+    gameScreen.classList.add('hidden');
+    endScreen.classList.remove('hidden');
+  }
+
+  // ── Navigation ────────────────────────────────────────────
+  function tapBtn(btn, fn) {
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); fn(); }, { passive: false });
+    btn.addEventListener('mousedown',  (e) => { e.preventDefault(); fn(); }, { passive: false });
+  }
+
+  tapBtn(btnStart, () => {
+    startScreen.classList.add('hidden');
+    endScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    initGame();
+  });
+
+  tapBtn(btnReplay, () => {
+    endScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    initGame();
+  });
+
+  // ── Resize ────────────────────────────────────────────────
+  window.addEventListener('resize', measure);
+  window.addEventListener('orientationchange', () => { setTimeout(measure, 100); });
+  setTimeout(measure, 100);
+  setTimeout(measure, 500);
+
+})();
+</script>
+</body>
+</html>
