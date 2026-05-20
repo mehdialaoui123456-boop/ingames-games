@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>البولينج</title>
+<style>
+  * {
+    margin: 0; padding: 0; box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    touch-action: none;
+    position: fixed; inset: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+    background: linear-gradient(160deg, #ffe6f0 0%, #e6f0ff 50%, #e6fff4 100%);
+    color: #2a2a40;
+  }
+
+  #game { position: fixed; inset: 0; overflow: hidden; }
+
+  .screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    gap: 18px;
+  }
+  .hidden { display: none !important; }
+
+  h1 {
+    font-size: 13vw; font-weight: 800;
+    color: #ff5c8a;
+    text-shadow: 0 4px 0 #ffd0e0;
+    line-height: 1.1;
+  }
+  .emoji-big { font-size: 22vw; line-height: 1; }
+
+  .card {
+    background: rgba(255,255,255,0.7);
+    border-radius: 28px;
+    padding: 22px 24px;
+    max-width: 460px;
+    box-shadow: 0 10px 30px rgba(120,120,160,0.18);
+  }
+  .howto { font-size: 5vw; line-height: 1.7; color: #4a4a66; font-weight: 600; }
+
+  .btn {
+    font-family: inherit;
+    font-size: 6.5vw; font-weight: 800;
+    color: #fff;
+    background: #ff5c8a;
+    border: none;
+    border-radius: 999px;
+    padding: 18px 44px;
+    min-width: 60px; min-height: 60px;
+    box-shadow: 0 6px 0 #d63e6c;
+    cursor: pointer;
+    position: relative;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 3px 0 #d63e6c; }
+  .btn.green { background: #34c97a; box-shadow: 0 6px 0 #239e5d; }
+  .btn.green:active { box-shadow: 0 3px 0 #239e5d; }
+
+  /* HUD */
+  #hud {
+    position: absolute; top: 14px; left: 14px; right: 14px;
+    display: flex; justify-content: space-between;
+    pointer-events: none; z-index: 20;
+  }
+  .pill {
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    font-size: 5vw; font-weight: 800;
+    padding: 8px 18px;
+    border-radius: 999px;
+    min-height: 38px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* Lane */
+  #lane {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, #fff7e6 0%, #ffeccc 55%, #f7d9a8 100%);
+  }
+  #laneStrip {
+    position: absolute; top: 0; bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, #ffe3b3, #f0c887);
+    border-left: 4px dashed #e0a85a;
+    border-right: 4px dashed #e0a85a;
+  }
+
+  .pin {
+    position: absolute;
+    width: 7%; max-width: 46px;
+    aspect-ratio: 1 / 1.6;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+  .pin .body {
+    position: absolute; inset: 0;
+    background: #ffffff;
+    border-radius: 50% 50% 42% 42% / 60% 60% 40% 40%;
+    box-shadow: inset 0 -6px 0 rgba(0,0,0,0.06), 0 4px 6px rgba(0,0,0,0.12);
+  }
+  .pin .stripe {
+    position: absolute; top: 22%; left: 0; right: 0; height: 16%;
+    background: #ff5c8a;
+  }
+
+  #ball {
+    position: absolute;
+    width: 13%; max-width: 78px;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #6fb4ff, #2566c9 70%, #173d80);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.28);
+    z-index: 10;
+    will-change: transform;
+  }
+  #ball::after {
+    content: "";
+    position: absolute; top: 26%; left: 30%;
+    width: 14%; height: 14%;
+    background: rgba(20,40,80,0.85);
+    border-radius: 50%;
+    box-shadow: 22px 4px 0 rgba(20,40,80,0.85), 11px 20px 0 rgba(20,40,80,0.85);
+  }
+
+  /* Power meter */
+  #aim {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    z-index: 15;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px; padding-bottom: 18px;
+  }
+  #meterWrap {
+    width: 70%; max-width: 360px; height: 26px;
+    background: rgba(255,255,255,0.8);
+    border-radius: 999px; overflow: hidden;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.15);
+  }
+  #meterFill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #34c97a, #ffd23f, #ff5c8a);
+    border-radius: 999px;
+  }
+  #aimHint {
+    background: rgba(0,0,0,0.6); color: #fff;
+    font-size: 4.5vw; font-weight: 700;
+    padding: 8px 20px; border-radius: 999px;
+  }
+
+  /* floating message */
+  #flash {
+    position: absolute; top: 38%; left: 0; right: 0;
+    text-align: center; z-index: 30;
+    font-size: 16vw; font-weight: 800;
+    color: #ff5c8a; text-shadow: 0 4px 0 #fff;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    transform: scale(0.6);
+  }
+  #flash.show { opacity: 1; transform: scale(1); }
+
+  .stat { font-size: 6vw; font-weight: 700; color: #4a4a66; }
+  .stat b { color: #ff5c8a; font-size: 9vw; }
+</style>
+</head>
+<body>
+<div id="game">
+
+  <!-- START -->
+  <section id="startScreen" class="screen">
+    <div class="emoji-big">🎳</div>
+    <h1>البولينج</h1>
+    <div class="card">
+      <p class="howto">
+        اسحب الكرة لأعلى وأفلتها لترميها 👆<br>
+        صوّب جيداً وأسقط كل الدبابيس!<br>
+        لديك ٥ رميات فقط
+      </p>
+    </div>
+    <button id="startBtn" class="btn">ابدأ اللعب</button>
+  </section>
+
+  <!-- GAME -->
+  <section id="playScreen" class="screen hidden" style="padding:0; display:block;">
+    <div id="lane"><div id="laneStrip"></div></div>
+    <div id="hud">
+      <div class="pill">🎯 <span id="scoreVal">0</span></div>
+      <div class="pill">🎳 <span id="throwsVal">5</span></div>
+    </div>
+    <div id="flash"></div>
+    <div id="ball"></div>
+    <div id="aim">
+      <div id="aimHint">اسحب الكرة وأفلتها</div>
+      <div id="meterWrap"><div id="meterFill"></div></div>
+    </div>
+  </section>
+
+  <!-- END -->
+  <section id="endScreen" class="screen hidden">
+    <div class="emoji-big" id="endEmoji">🏆</div>
+    <h1 id="endTitle">انتهت اللعبة</h1>
+    <div class="card">
+      <p class="stat">مجموع النقاط</p>
+      <p class="stat"><b id="finalScore">0</b></p>
+    </div>
+    <button id="replayBtn" class="btn green">العب مرة أخرى</button>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- elements ----------
+  var game = document.getElementById("game");
+  var startScreen = document.getElementById("startScreen");
+  var playScreen = document.getElementById("playScreen");
+  var endScreen = document.getElementById("endScreen");
+  var startBtn = document.getElementById("startBtn");
+  var replayBtn = document.getElementById("replayBtn");
+  var ball = document.getElementById("ball");
+  var lane = document.getElementById("lane");
+  var laneStrip = document.getElementById("laneStrip");
+  var scoreVal = document.getElementById("scoreVal");
+  var throwsVal = document.getElementById("throwsVal");
+  var flash = document.getElementById("flash");
+  var meterFill = document.getElementById("meterFill");
+  var aimHint = document.getElementById("aimHint");
+  var finalScore = document.getElementById("finalScore");
+  var endEmoji = document.getElementById("endEmoji");
+  var endTitle = document.getElementById("endTitle");
+
+  // ---------- state (declared before measure(), which reads it) ----------
+  var STATE = { READY: 0, DRAG: 1, ROLL: 2, RESET: 3, OVER: 4 };
+  var state = STATE.READY;
+  var score = 0;
+  var throwsLeft = 5;
+  var TOTAL_THROWS = 5;
+
+  var ballX = 0, ballY = 0;     // center position in px
+  var ballR = 0;
+  var ballVX = 0, ballVY = 0;
+  var dragStartX = 0, dragStartY = 0, dragCurX = 0, dragCurY = 0;
+  var dragging = false;
+
+  var pins = []; // {el, x, y, r, alive, vx, vy, fall}
+
+  // ---------- dimensions ----------
+  var W = 0, H = 0;
+  function measure() {
+    W = game.clientWidth || window.innerWidth;
+    H = game.clientHeight || window.innerHeight;
+    // lane strip width relative to container
+    laneStrip.style.width = Math.min(W * 0.62, 420) + "px";
+    layoutBall();
+  }
+  window.addEventListener("resize", measure);
+  window.addEventListener("orientationchange", measure);
+  setTimeout(measure, 100);
+  setTimeout(measure, 500);
+  measure();
+
+  function ballSize() { return Math.min(W * 0.13, 78); }
+
+  function layoutBall() {
+    ballR = ballSize() / 2;
+    if (state === STATE.READY || state === STATE.RESET) {
+      ballX = W / 2;
+      ballY = H - ballR - 70;
+    }
+    drawBall();
+  }
+  function drawBall() {
+    var s = ballR * 2;
+    ball.style.width = s + "px";
+    ball.style.height = s + "px";
+    ball.style.left = (ballX - ballR) + "px";
+    ball.style.top = (ballY - ballR) + "px";
+  }
+
+  // ---------- pins ----------
+  function clearPins() {
+    pins.forEach(function (p) { if (p.el && p.el.parentNode) p.el.parentNode.removeChild(p.el); });
+    pins = [];
+  }
+  function buildPins() {
+    clearPins();
+    var pinW = Math.min(W * 0.07, 46);
+    var pinH = pinW * 1.6;
+    var topY = H * 0.16;
+    var gapX = pinW * 1.25;
+    var gapY = pinH * 0.62;
+    // standard 10-pin triangle: rows of 1,2,3,4 (apex toward player = bottom)
+    var rows = [1, 2, 3, 4];
+    var cx = W / 2;
+    for (var r = 0; r < rows.length; r++) {
+      var count = rows[r];
+      var rowY = topY + r * gapY;
+      var startX = cx - ((count - 1) * gapX) / 2;
+      for (var i = 0; i < count; i++) {
+        var px = startX + i * gapX;
+        var el = document.createElement("div");
+        el.className = "pin";
+        el.innerHTML = '<div class="body"></div><div class="stripe"></div>';
+        el.style.width = pinW + "px";
+        lane.appendChild(el);
+        var pin = { el: el, x: px, y: rowY, r: pinW / 2, h: pinH, alive: true, vx: 0, vy: 0, fall: 0 };
+        pins.push(pin);
+        drawPin(pin);
+      }
+    }
+  }
+  function drawPin(p) {
+    p.el.style.left = (p.x - p.r) + "px";
+    p.el.style.top = (p.y - p.h / 2) + "px";
+    var rot = p.fall;
+    p.el.style.transform = "rotate(" + rot + "deg)";
+    p.el.style.opacity = p.alive ? 1 : Math.max(0, 1 - p.fall / 90);
+  }
+
+  // ---------- screens ----------
+  function show(el) { el.classList.remove("hidden"); }
+  function hide(el) { el.classList.add("hidden"); }
+
+  function startGame() {
+    score = 0;
+    throwsLeft = TOTAL_THROWS;
+    scoreVal.textContent = "0";
+    throwsVal.textContent = String(throwsLeft);
+    hide(startScreen); hide(endScreen); show(playScreen);
+    measure();
+    buildPins();
+    resetBall();
+  }
+
+  function resetBall() {
+    state = STATE.READY;
+    ballVX = 0; ballVY = 0;
+    ballX = W / 2;
+    ballY = H - ballR - 70;
+    drawBall();
+    meterFill.style.width = "0%";
+    aimHint.textContent = "اسحب الكرة وأفلتها";
+  }
+
+  function endGame() {
+    state = STATE.OVER;
+    finalScore.textContent = String(score);
+    if (score >= 40) { endEmoji.textContent = "🏆"; endTitle.textContent = "بطل البولينج!"; }
+    else if (score >= 25) { endEmoji.textContent = "🎉"; endTitle.textContent = "أحسنت!"; }
+    else { endEmoji.textContent = "🎳"; endTitle.textContent = "انتهت اللعبة"; }
+    hide(playScreen); show(endScreen);
+  }
+
+  // ---------- flash message ----------
+  var flashTimer = null;
+  function showFlash(txt) {
+    flash.textContent = txt;
+    flash.classList.add("show");
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { flash.classList.remove("show"); }, 900);
+  }
+
+  // ---------- input (touch first) ----------
+  function getPoint(e) {
+    if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    if (e.changedTouches && e.changedTouches[0]) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+  function rectPoint(e) {
+    var p = getPoint(e);
+    var rect = game.getBoundingClientRect();
+    return { x: p.x - rect.left, y: p.y - rect.top };
+  }
+
+  function onDown(e) {
+    if (state !== STATE.READY) return;
+    e.preventDefault();
+    var p = rectPoint(e);
+    dragging = true;
+    state = STATE.DRAG;
+    dragStartX = p.x; dragStartY = p.y;
+    dragCurX = p.x; dragCurY = p.y;
+    aimHint.textContent = "صوّب وأفلت!";
+  }
+  function onMove(e) {
+    if (!dragging || state !== STATE.DRAG) return;
+    e.preventDefault();
+    var p = rectPoint(e);
+    dragCurX = p.x; dragCurY = p.y;
+    var pull = Math.max(0, dragStartY - dragCurY);
+    var power = Math.min(1, pull / (H * 0.4));
+    meterFill.style.width = (power * 100) + "%";
+    // visual nudge of ball horizontally while aiming
+    var dx = dragCurX - dragStartX;
+    ballX = clamp(W / 2 + dx, ballR + 6, W - ballR - 6);
+    ballY = H - ballR - 70 + Math.min(pull * 0.15, 30);
+    drawBall();
+  }
+  function onUp(e) {
+    if (!dragging || state !== STATE.DRAG) { dragging = false; return; }
+    e.preventDefault();
+    dragging = false;
+    var pull = Math.max(0, dragStartY - dragCurY);
+    var power = Math.min(1, pull / (H * 0.4));
+    if (power < 0.12) {
+      // too weak, cancel back to ready
+      state = STATE.READY;
+      meterFill.style.width = "0%";
+      ballX = W / 2; ballY = H - ballR - 70; drawBall();
+      aimHint.textContent = "اسحب بقوة أكبر";
+      return;
+    }
+    var dx = (dragCurX - dragStartX);
+    // px per frame (~60fps). Strong, consistent launch toward the pins.
+    ballVY = -(power * (H * 0.018) + H * 0.010);  // upward speed (toward pins)
+    ballVX = clamp(dx * 0.10, -W * 0.020, W * 0.020);
+    state = STATE.ROLL;
+    aimHint.textContent = "...";
+  }
+
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  // bind to whole play area for drag, ball for grab
+  function bind(el, down, move, up) {
+    el.addEventListener("touchstart", down, { passive: false });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", up, { passive: false });
+    el.addEventListener("touchcancel", up, { passive: false });
+    el.addEventListener("mousedown", down);
+  }
+  bind(playScreen, onDown, onMove, onUp);
+  // global mouse move/up for desktop testing
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+
+  startBtn.addEventListener("touchstart", function (e) { e.preventDefault(); startGame(); }, { passive: false });
+  startBtn.addEventListener("mousedown", function () { startGame(); });
+  replayBtn.addEventListener("touchstart", function (e) { e.preventDefault(); startGame(); }, { passive: false });
+  replayBtn.addEventListener("mousedown", function () { startGame(); });
+
+  // ---------- physics / collisions ----------
+  function rollUpdate(dt) {
+    var f = dt / 16.6667; // normalize to ~60fps frames
+    ballX += ballVX * f;
+    ballY += ballVY * f;
+
+    // wall bounce
+    if (ballX < ballR + 4) { ballX = ballR + 4; ballVX = -ballVX * 0.6; }
+    if (ballX > W - ballR - 4) { ballX = W - ballR - 4; ballVX = -ballVX * 0.6; }
+
+    // friction
+    ballVX *= Math.pow(0.995, f);
+
+    // collide with pins
+    for (var i = 0; i < pins.length; i++) {
+      var p = pins[i];
+      if (!p.alive) { advanceFallen(p, f); continue; }
+      var dx = p.x - ballX, dy = p.y - ballY;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < ballR + p.r) {
+        knock(p, ballVX, ballVY);
+      }
+    }
+
+    drawBall();
+
+    // ball left the top (past the pins) -> resolve the throw
+    if (ballY < -ballR) {
+      finishThrow();
+    }
+  }
+
+  function knock(p, bvx, bvy) {
+    p.alive = false;
+    p.fall = 1;
+    p.vx = (p.x - ballX) * 0.4 + bvx * 2 + (Math.random() - 0.5) * 4;
+    p.vy = bvy * 1.5 - 2;
+    // chain reaction: nudge neighbors slightly
+    for (var j = 0; j < pins.length; j++) {
+      var q = pins[j];
+      if (q.alive && q !== p) {
+        var dx = q.x - p.x, dy = q.y - p.y;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d < p.r * 3.2) {
+          // 60% chance to topple a close neighbor
+          if (Math.random() < 0.6) {
+            q.alive = false; q.fall = 1;
+            q.vx = dx * 0.25 + (Math.random() - 0.5) * 3;
+            q.vy = -1.5;
+          }
+        }
+      }
+    }
+  }
+
+  function advanceFallen(p, f) {
+    if (p.fall <= 0) return;
+    p.x += p.vx * f;
+    p.y += p.vy * f;
+    p.vy += 0.15 * f;
+    p.fall += 7 * f;
+    if (p.fall > 95) p.fall = 95;
+    drawPin(p);
+  }
+
+  var pendingFinish = false;
+  function finishThrow() {
+    if (pendingFinish) return;
+    pendingFinish = true;
+    state = STATE.RESET;
+    // count knocked pins for THIS throw
+    var down = 0;
+    for (var i = 0; i < pins.length; i++) if (!pins[i].alive) down++;
+    var allDown = (down === pins.length && pins.length > 0);
+    if (down > 0) {
+      score += down;
+      scoreVal.textContent = String(score);
+    }
+    if (allDown) { showFlash("سترايك! 🎳"); score += 5; scoreVal.textContent = String(score); }
+    else if (down >= 6) showFlash("رائع! 👏");
+    else if (down > 0) showFlash("+" + down);
+    else showFlash("جرّب مجدداً");
+
+    throwsLeft--;
+    throwsVal.textContent = String(throwsLeft);
+
+    setTimeout(function () {
+      pendingFinish = false;
+      if (throwsLeft <= 0) {
+        endGame();
+      } else {
+        buildPins();
+        resetBall();
+      }
+    }, 1100);
+  }
+
+  // ---------- main loop ----------
+  var last = 0;
+  function loop(ts) {
+    if (!last) last = ts;
+    var dt = ts - last;
+    last = ts;
+    if (dt > 50) dt = 50;
+
+    if (state === STATE.ROLL) {
+      rollUpdate(dt);
+    } else if (state === STATE.RESET) {
+      // keep animating falling pins
+      var f = dt / 16.6667;
+      for (var i = 0; i < pins.length; i++) if (!pins[i].alive) advanceFallen(pins[i], f);
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
