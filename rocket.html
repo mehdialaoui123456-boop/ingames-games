@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>مغامرة الصاروخ</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+  html, body { width:100%; height:100%; overflow:hidden; }
+  body {
+    touch-action:none; position:fixed; inset:0;
+    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+    background: linear-gradient(180deg, #2a1a4a 0%, #4a2a6a 55%, #7a4a8a 100%);
+    color:#fff;
+  }
+  #game { position:fixed; inset:0; overflow:hidden; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  .screen { position:absolute; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:24px; gap:18px; }
+  .hidden { display:none !important; }
+  h1 { font-size:11vw; font-weight:800; color:#ffd23f; text-shadow:0 4px 0 #b8881f; line-height:1.1; }
+  .emoji-big { font-size:20vw; line-height:1; }
+  .card { background:rgba(0,0,0,0.4); border-radius:28px; padding:22px 24px; max-width:460px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.3); }
+  .howto { font-size:5vw; line-height:1.7; color:#ffe9b0; font-weight:600; }
+  .btn { font-family:inherit; font-size:6.5vw; font-weight:800; color:#3a2a10; background:#ffd23f;
+    border:none; border-radius:999px; padding:18px 44px; min-width:60px; min-height:60px;
+    box-shadow:0 6px 0 #c79a1f; cursor:pointer; position:relative; }
+  .btn:active { transform:translateY(3px); box-shadow:0 3px 0 #c79a1f; }
+  .btn.green { background:#34c97a; color:#fff; box-shadow:0 6px 0 #239e5d; }
+  .btn.green:active { box-shadow:0 3px 0 #239e5d; }
+
+  #hud { position:absolute; top:14px; left:14px; right:14px; display:flex; justify-content:space-between;
+    pointer-events:none; z-index:20; }
+  .pill { background:rgba(0,0,0,0.6); color:#fff; font-size:5vw; font-weight:800; padding:8px 18px;
+    border-radius:999px; min-height:38px; display:flex; align-items:center; gap:6px; }
+  .stat { font-size:6vw; font-weight:700; color:#ffe9b0; }
+  .stat b { color:#ffd23f; font-size:9vw; }
+  #sound { position:absolute; bottom:14px; left:14px; z-index:25; background:rgba(0,0,0,0.55);
+    color:#fff; border:none; border-radius:999px; width:52px; height:52px; font-size:24px; }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv"></canvas>
+
+  <section id="startScreen" class="screen">
+    <div class="emoji-big">🚀</div>
+    <h1>مغامرة الصاروخ</h1>
+    <div class="card">
+      <p class="howto">
+        المس واستمر بالضغط للصعود 👆<br>
+        ارفع إصبعك للهبوط<br>
+        تجنّب العوائق واجمع النجوم ⭐
+      </p>
+    </div>
+    <button id="startBtn" class="btn">ابدأ اللعب</button>
+  </section>
+
+  <div id="hud" class="hidden">
+    <div class="pill">⭐ <span id="coinVal">0</span></div>
+    <div class="pill">📏 <span id="distVal">0</span> م</div>
+  </div>
+
+  <section id="endScreen" class="screen hidden">
+    <div class="emoji-big" id="endEmoji">🏆</div>
+    <h1 id="endTitle">انتهت الرحلة</h1>
+    <div class="card">
+      <p class="stat">المسافة: <b id="finalDist">0</b> م</p>
+      <p class="stat">النجوم: <b id="finalCoin">0</b></p>
+    </div>
+    <button id="replayBtn" class="btn green">العب مرة أخرى</button>
+  </section>
+
+  <button id="sound" class="hidden">🔊</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var game = document.getElementById("game");
+  var cv = document.getElementById("cv");
+  var ctx = cv.getContext("2d");
+  var startScreen = document.getElementById("startScreen");
+  var endScreen = document.getElementById("endScreen");
+  var hud = document.getElementById("hud");
+  var startBtn = document.getElementById("startBtn");
+  var replayBtn = document.getElementById("replayBtn");
+  var coinVal = document.getElementById("coinVal");
+  var distVal = document.getElementById("distVal");
+  var finalDist = document.getElementById("finalDist");
+  var finalCoin = document.getElementById("finalCoin");
+  var endEmoji = document.getElementById("endEmoji");
+  var endTitle = document.getElementById("endTitle");
+  var soundBtn = document.getElementById("sound");
+
+  // ---------- audio ----------
+  var AC=null, soundOn=true, thrustOsc=null, thrustGain=null;
+  function audio(){
+    if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; } }
+    if(AC && AC.state==="suspended") AC.resume();
+    return AC;
+  }
+  function beep(freq,dur,type,vol){
+    if(!soundOn) return; var a=audio(); if(!a) return;
+    var o=a.createOscillator(), g=a.createGain();
+    o.type=type||"square"; o.frequency.value=freq; g.gain.value=vol||0.08;
+    o.connect(g); g.connect(a.destination);
+    var t=a.currentTime; g.gain.setValueAtTime(g.gain.value,t);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur); o.start(t); o.stop(t+dur);
+  }
+  function noiseBurst(dur,vol){
+    if(!soundOn) return; var a=audio(); if(!a) return;
+    var n=Math.floor(a.sampleRate*dur), buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0);
+    for(var i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+    var src=a.createBufferSource(); src.buffer=buf;
+    var g=a.createGain(); g.gain.value=vol||0.12; src.connect(g); g.connect(a.destination); src.start();
+  }
+  function thrustStart(){
+    if(!soundOn) return; var a=audio(); if(!a||thrustOsc) return;
+    thrustOsc=a.createOscillator(); thrustGain=a.createGain();
+    thrustOsc.type="sawtooth"; thrustOsc.frequency.value=90;
+    thrustGain.gain.value=0.0001;
+    thrustOsc.connect(thrustGain); thrustGain.connect(a.destination);
+    thrustOsc.start();
+    thrustGain.gain.exponentialRampToValueAtTime(0.05, a.currentTime+0.05);
+  }
+  function thrustStop(){
+    if(thrustOsc && AC){
+      try{ thrustGain.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime+0.08);
+           thrustOsc.stop(AC.currentTime+0.1);}catch(e){}
+      thrustOsc=null; thrustGain=null;
+    }
+  }
+  function sCoin(){ beep(880,0.08,"triangle",0.10); setTimeout(function(){beep(1175,0.08,"triangle",0.10);},70); }
+  function sCrash(){ noiseBurst(0.3,0.2); beep(110,0.3,"sawtooth",0.12); }
+  function sWin(){ beep(523,0.12,"triangle",0.12); setTimeout(function(){beep(659,0.12,"triangle",0.12);},120); setTimeout(function(){beep(784,0.18,"triangle",0.12);},240); }
+
+  // ---------- dimensions ----------
+  var W=0,H=0,DPR=1;
+  function measure(){
+    W=game.clientWidth||window.innerWidth; H=game.clientHeight||window.innerHeight;
+    DPR=Math.min(window.devicePixelRatio||1,2);
+    cv.width=W*DPR; cv.height=H*DPR; cv.style.width=W+"px"; cv.style.height=H+"px";
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener("resize", measure);
+  window.addEventListener("orientationchange", measure);
+  setTimeout(measure,100); setTimeout(measure,500); measure();
+
+  // ---------- state ----------
+  var running=false, pressing=false;
+  var player={ x:0, y:0, r:22, vy:0 };
+  var GRAV=1500, THRUST=-2600;
+  var obstacles=[]; // {x,y,w,h}
+  var coins=[];     // {x,y,got}
+  var sparks=[];    // {x,y,vx,vy,life}
+  var stars=[];     // bg
+  var dist=0, coinCount=0, speed=0, spawnX=0;
+
+  function resetGame(){
+    player.x=W*0.28; player.y=H*0.5; player.vy=0;
+    obstacles=[]; coins=[]; sparks=[];
+    dist=0; coinCount=0; speed=240; spawnX=W+100; pressing=false;
+    stars=[]; for(var i=0;i<40;i++) stars.push({x:Math.random()*W,y:Math.random()*H,s:Math.random()*2+1});
+    coinVal.textContent="0"; distVal.textContent="0";
+  }
+
+  function show(el){ el.classList.remove("hidden"); }
+  function hide(el){ el.classList.add("hidden"); }
+
+  function startGame(){
+    audio(); measure(); resetGame();
+    hide(startScreen); hide(endScreen); show(hud); show(soundBtn);
+    running=true; last=0; requestAnimationFrame(loop);
+  }
+  function endGame(){
+    running=false; pressing=false; thrustStop();
+    finalDist.textContent=String(Math.floor(dist));
+    finalCoin.textContent=String(coinCount);
+    if(dist>=600){ endEmoji.textContent="🏆"; endTitle.textContent="رحلة أسطورية!"; }
+    else if(dist>=300){ endEmoji.textContent="🎖️"; endTitle.textContent="رحلة رائعة!"; }
+    else { endEmoji.textContent="🚀"; endTitle.textContent="انتهت الرحلة"; }
+    sWin(); hide(hud); show(endScreen);
+  }
+
+  // ---------- input: hold to thrust ----------
+  function down(e){ if(!running) return; e.preventDefault(); pressing=true; thrustStart(); }
+  function up(e){ if(!running) return; if(e&&e.preventDefault) e.preventDefault(); pressing=false; thrustStop(); }
+  game.addEventListener("touchstart", down, { passive:false });
+  game.addEventListener("touchend", up, { passive:false });
+  game.addEventListener("touchcancel", up, { passive:false });
+  game.addEventListener("mousedown", down);
+  window.addEventListener("mouseup", up);
+
+  function bindTap(el, fn){
+    el.addEventListener("touchstart", function(e){ e.preventDefault(); e.stopPropagation(); fn(); }, { passive:false });
+    el.addEventListener("mousedown", function(e){ e.preventDefault(); e.stopPropagation(); fn(); });
+  }
+  bindTap(startBtn, startGame);
+  bindTap(replayBtn, startGame);
+  bindTap(soundBtn, function(){
+    soundOn=!soundOn; soundBtn.textContent=soundOn?"🔊":"🔇";
+    if(!soundOn) thrustStop(); else audio();
+  });
+
+  // ---------- spawning ----------
+  function spawnChunk(){
+    var gap = 150 + Math.random()*60;          // vertical gap to fly through
+    var gy = 80 + Math.random()*(H-160-gap);    // gap top
+    var w = 46 + Math.random()*22;
+    // top obstacle
+    obstacles.push({ x:spawnX, y:0, w:w, h:gy });
+    // bottom obstacle
+    obstacles.push({ x:spawnX, y:gy+gap, w:w, h:H-(gy+gap) });
+    // coins in the gap
+    var cn = 3;
+    for(var i=0;i<cn;i++){
+      coins.push({ x:spawnX + w/2, y: gy + gap*(i+1)/(cn+1), got:false });
+    }
+    spawnX += 230 + Math.random()*90;
+  }
+
+  function update(dt){
+    // physics
+    if(pressing) player.vy += THRUST*dt;
+    player.vy += GRAV*dt;
+    player.vy = Math.max(-560, Math.min(700, player.vy));
+    player.y += player.vy*dt;
+
+    // ceiling / floor = crash
+    if(player.y - player.r < 0){ player.y=player.r; crash(); return; }
+    if(player.y + player.r > H){ player.y=H-player.r; crash(); return; }
+
+    // progress
+    speed += dt*6;
+    var dx = speed*dt;
+    dist += dx*0.05;
+    distVal.textContent = String(Math.floor(dist));
+
+    // scroll world
+    spawnX -= dx;
+    for(var i=obstacles.length-1;i>=0;i--){ obstacles[i].x -= dx; if(obstacles[i].x+obstacles[i].w<-10) obstacles.splice(i,1); }
+    for(var c=coins.length-1;c>=0;c--){ coins[c].x -= dx; if(coins[c].x<-20) coins.splice(c,1); }
+
+    // keep spawning ahead
+    while(spawnX < W + 200) spawnChunk();
+
+    // collisions with obstacles
+    for(var o=0;o<obstacles.length;o++){
+      var r=obstacles[o];
+      if(player.x+player.r > r.x && player.x-player.r < r.x+r.w &&
+         player.y+player.r > r.y && player.y-player.r < r.y+r.h){
+        crash(); return;
+      }
+    }
+    // coins
+    for(var k=0;k<coins.length;k++){
+      var cc=coins[k];
+      if(!cc.got && Math.abs(cc.x-player.x)<player.r+12 && Math.abs(cc.y-player.y)<player.r+12){
+        cc.got=true; coinCount++; coinVal.textContent=String(coinCount); sCoin();
+      }
+    }
+    coins = coins.filter(function(x){ return !x.got; });
+
+    // thrust sparks
+    if(pressing){
+      sparks.push({ x:player.x-player.r*0.7, y:player.y+player.r*0.5,
+        vx:-80-Math.random()*60, vy:60+Math.random()*60, life:0.4 });
+    }
+    for(var s=sparks.length-1;s>=0;s--){
+      var sp=sparks[s]; sp.x+=sp.vx*dt; sp.y+=sp.vy*dt; sp.life-=dt;
+      if(sp.life<=0) sparks.splice(s,1);
+    }
+    // bg stars
+    for(var st=0;st<stars.length;st++){ stars[st].x -= dx*0.3; if(stars[st].x<0){ stars[st].x=W; stars[st].y=Math.random()*H; } }
+  }
+
+  function crash(){
+    sCrash();
+    for(var i=0;i<16;i++){ var a=Math.random()*6.28, v=60+Math.random()*160;
+      sparks.push({ x:player.x, y:player.y, vx:Math.cos(a)*v, vy:Math.sin(a)*v, life:0.6 }); }
+    endGame();
+  }
+
+  // ---------- draw ----------
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // stars
+    ctx.fillStyle="rgba(255,255,255,0.7)";
+    for(var i=0;i<stars.length;i++){ ctx.fillRect(stars[i].x,stars[i].y,stars[i].s,stars[i].s); }
+    // obstacles
+    for(var o=0;o<obstacles.length;o++){
+      var r=obstacles[o];
+      ctx.fillStyle="#ff6b3d";
+      ctx.fillRect(r.x,r.y,r.w,r.h);
+      ctx.fillStyle="#d8502a";
+      ctx.fillRect(r.x,r.y,r.w,8);
+      ctx.fillRect(r.x,r.y+r.h-8,r.w,8);
+    }
+    // coins
+    for(var c=0;c<coins.length;c++){
+      var cc=coins[c]; if(cc.got) continue;
+      ctx.fillStyle="#ffd23f"; ctx.beginPath(); ctx.arc(cc.x,cc.y,11,0,6.28); ctx.fill();
+      ctx.fillStyle="#b8881f"; ctx.font="14px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText("★",cc.x,cc.y+1);
+    }
+    // sparks
+    for(var s=0;s<sparks.length;s++){
+      var sp=sparks[s]; ctx.globalAlpha=Math.max(0,sp.life*1.6);
+      ctx.fillStyle="#ffb13d"; ctx.beginPath(); ctx.arc(sp.x,sp.y,3,0,6.28); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // player rocket
+    if(running){
+      ctx.save(); ctx.translate(player.x,player.y);
+      var tilt = Math.max(-0.4, Math.min(0.5, player.vy/900));
+      ctx.rotate(tilt);
+      ctx.fillStyle="#e8eef7";
+      ctx.beginPath();
+      ctx.moveTo(player.r,0);
+      ctx.lineTo(-player.r*0.6,-player.r*0.7);
+      ctx.lineTo(-player.r,-player.r*0.3);
+      ctx.lineTo(-player.r,player.r*0.3);
+      ctx.lineTo(-player.r*0.6,player.r*0.7);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#1f8fe0"; ctx.beginPath(); ctx.arc(player.r*0.1,0,player.r*0.28,0,6.28); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ---------- loop ----------
+  var last=0;
+  function loop(ts){
+    if(!running) return;
+    if(!last) last=ts;
+    var dt=(ts-last)/1000; last=ts;
+    if(dt>0.05) dt=0.05;
+    update(dt);
+    if(running) draw();
+    if(running) requestAnimationFrame(loop);
+  }
+
+})();
+</script>
+</body>
+</html>

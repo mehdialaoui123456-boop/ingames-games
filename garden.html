@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>حماة الحديقة</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+  html, body { width:100%; height:100%; overflow:hidden; }
+  body {
+    touch-action:none; position:fixed; inset:0;
+    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+    background: linear-gradient(180deg, #d9f7c4 0%, #c2efa6 100%);
+    color:#234016;
+  }
+  #game { position:fixed; inset:0; overflow:hidden; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  .screen { position:absolute; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:24px; gap:18px; }
+  .hidden { display:none !important; }
+  h1 { font-size:11vw; font-weight:800; color:#2f8f2f; text-shadow:0 4px 0 #bfe8bf; line-height:1.1; }
+  .emoji-big { font-size:20vw; line-height:1; }
+  .card { background:rgba(255,255,255,0.78); border-radius:28px; padding:22px 24px; max-width:480px;
+    box-shadow:0 10px 30px rgba(80,120,60,0.18); }
+  .howto { font-size:4.6vw; line-height:1.7; color:#3a6020; font-weight:600; }
+  .btn { font-family:inherit; font-size:6.5vw; font-weight:800; color:#fff; background:#3aaa3a;
+    border:none; border-radius:999px; padding:18px 44px; min-width:60px; min-height:60px;
+    box-shadow:0 6px 0 #2c802c; cursor:pointer; position:relative; }
+  .btn:active { transform:translateY(3px); box-shadow:0 3px 0 #2c802c; }
+
+  #hud { position:absolute; top:12px; left:12px; right:12px; display:flex; justify-content:space-between;
+    pointer-events:none; z-index:20; }
+  .pill { background:rgba(0,0,0,0.6); color:#fff; font-size:4.6vw; font-weight:800; padding:8px 16px;
+    border-radius:999px; min-height:38px; display:flex; align-items:center; gap:6px; }
+
+  /* shop bar at bottom */
+  #shop { position:absolute; left:0; right:0; bottom:0; z-index:22;
+    display:flex; gap:8px; justify-content:center; padding:10px;
+    background:rgba(255,255,255,0.55); backdrop-filter:blur(2px); }
+  .shopItem { background:#fff; border-radius:18px; padding:8px 10px; min-width:64px; min-height:64px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow:0 4px 0 #cdddc0; position:relative; }
+  .shopItem.sel { outline:4px solid #3aaa3a; }
+  .shopItem.broke { opacity:0.45; }
+  .shopItem .ic { font-size:7vw; line-height:1; }
+  .shopItem .pr { font-size:3.6vw; font-weight:800; color:#c79a1f; margin-top:2px; }
+  .shopItem::before { content:""; position:absolute; inset:-10px; } /* bigger hit area */
+
+  .stat { font-size:6vw; font-weight:700; color:#3a6020; }
+  .stat b { color:#3aaa3a; font-size:9vw; }
+  #sound { position:absolute; top:60px; left:12px; z-index:25; background:rgba(0,0,0,0.55);
+    color:#fff; border:none; border-radius:999px; width:48px; height:48px; font-size:22px; }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv"></canvas>
+
+  <section id="startScreen" class="screen">
+    <div class="emoji-big">🌻</div>
+    <h1>حماة الحديقة</h1>
+    <div class="card">
+      <p class="howto">
+        اختر نباتاً من الأسفل ثم المس الشبكة لزرعه 🌱<br>
+        🌻 تنتج الشمس · 🌵 تطلق الأشواك · 🥔 جدار صلب<br>
+        امنع الوحوش 👾 من عبور الحديقة!
+      </p>
+    </div>
+    <button id="startBtn" class="btn">ابدأ اللعب</button>
+  </section>
+
+  <div id="hud" class="hidden">
+    <div class="pill">☀️ <span id="sunVal">50</span></div>
+    <div class="pill">🌊 موجة <span id="waveVal">1</span></div>
+  </div>
+
+  <div id="shop" class="hidden">
+    <div class="shopItem" data-plant="sun"><div class="ic">🌻</div><div class="pr">٢٥ ☀️</div></div>
+    <div class="shopItem" data-plant="pea"><div class="ic">🌵</div><div class="pr">٥٠ ☀️</div></div>
+    <div class="shopItem" data-plant="wall"><div class="ic">🥔</div><div class="pr">٥٠ ☀️</div></div>
+  </div>
+
+  <section id="endScreen" class="screen hidden">
+    <div class="emoji-big" id="endEmoji">🏆</div>
+    <h1 id="endTitle">انتهت اللعبة</h1>
+    <div class="card">
+      <p class="stat">وصلت إلى الموجة</p>
+      <p class="stat"><b id="finalWave">1</b></p>
+    </div>
+    <button id="replayBtn" class="btn">العب مرة أخرى</button>
+  </section>
+
+  <button id="sound" class="hidden">🔊</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var game=document.getElementById("game");
+  var cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+  var startScreen=document.getElementById("startScreen");
+  var endScreen=document.getElementById("endScreen");
+  var hud=document.getElementById("hud"), shop=document.getElementById("shop");
+  var startBtn=document.getElementById("startBtn"), replayBtn=document.getElementById("replayBtn");
+  var sunVal=document.getElementById("sunVal"), waveVal=document.getElementById("waveVal");
+  var finalWave=document.getElementById("finalWave");
+  var endEmoji=document.getElementById("endEmoji"), endTitle=document.getElementById("endTitle");
+  var soundBtn=document.getElementById("sound");
+
+  // ---------- audio ----------
+  var AC=null, soundOn=true;
+  function audio(){ if(!AC){ try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){AC=null;} } if(AC&&AC.state==="suspended")AC.resume(); return AC; }
+  function beep(f,d,t,v){ if(!soundOn)return; var a=audio(); if(!a)return;
+    var o=a.createOscillator(),g=a.createGain(); o.type=t||"square"; o.frequency.value=f; g.gain.value=v||0.08;
+    o.connect(g); g.connect(a.destination); var tt=a.currentTime; g.gain.setValueAtTime(g.gain.value,tt);
+    g.gain.exponentialRampToValueAtTime(0.0001,tt+d); o.start(tt); o.stop(tt+d); }
+  function noiseBurst(d,v){ if(!soundOn)return; var a=audio(); if(!a)return;
+    var n=Math.floor(a.sampleRate*d),buf=a.createBuffer(1,n,a.sampleRate),dd=buf.getChannelData(0);
+    for(var i=0;i<n;i++)dd[i]=(Math.random()*2-1)*(1-i/n);
+    var s=a.createBufferSource(); s.buffer=buf; var g=a.createGain(); g.gain.value=v||0.12; s.connect(g); g.connect(a.destination); s.start(); }
+  function sPlant(){ beep(330,0.1,"triangle",0.10); }
+  function sShoot(){ beep(620,0.06,"square",0.05); }
+  function sSun(){ beep(880,0.08,"triangle",0.09); setTimeout(function(){beep(1175,0.08,"triangle",0.09);},60); }
+  function sChomp(){ noiseBurst(0.12,0.12); beep(140,0.12,"sawtooth",0.08); }
+  function sDie(){ beep(200,0.2,"sawtooth",0.12); }
+  function sWave(){ beep(294,0.15,"square",0.1); setTimeout(function(){beep(392,0.2,"square",0.1);},140); }
+  function sLose(){ beep(300,0.2,"sawtooth",0.12); setTimeout(function(){beep(200,0.3,"sawtooth",0.12);},160); }
+
+  // ---------- dims & grid ----------
+  var W=0,H=0,DPR=1;
+  var ROWS=5, COLS=6;
+  var gridX=0, gridY=0, cellW=0, cellH=0;
+  function measure(){
+    W=game.clientWidth||window.innerWidth; H=game.clientHeight||window.innerHeight;
+    DPR=Math.min(window.devicePixelRatio||1,2);
+    cv.width=W*DPR; cv.height=H*DPR; cv.style.width=W+"px"; cv.style.height=H+"px";
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    var top=58, bottom=92;
+    gridX=6; gridY=top;
+    cellW=(W-12)/COLS; cellH=(H-top-bottom)/ROWS;
+  }
+  window.addEventListener("resize", measure);
+  window.addEventListener("orientationchange", measure);
+  setTimeout(measure,100); setTimeout(measure,500); measure();
+
+  // ---------- state ----------
+  var running=false;
+  var sun=50, wave=1, selected=null;
+  var plants=[];   // {row,col,type,hp,cd,x,y}
+  var zombies=[];  // {row,x,hp,sp,eat}
+  var shots=[];    // {x,y,row,sp}
+  var suns=[];     // {x,y,vy,life,val,fromSky}
+  var fx=[];       // particles
+  var spawnTimer=0, skyTimer=0, zombiesThisWave=0, zombiesSpawned=0, waveBreak=0;
+  var COST={ sun:25, pea:50, wall:50 };
+
+  function resetGame(){
+    sun=50; wave=1; selected=null;
+    plants=[]; zombies=[]; shots=[]; suns=[]; fx=[];
+    spawnTimer=2; skyTimer=5; zombiesSpawned=0; waveBreak=0;
+    zombiesThisWave=4;
+    sunVal.textContent="50"; waveVal.textContent="1";
+    updateShop();
+  }
+
+  function show(el){ el.classList.remove("hidden"); }
+  function hide(el){ el.classList.add("hidden"); }
+
+  function startGame(){
+    audio(); measure(); resetGame();
+    hide(startScreen); hide(endScreen); show(hud); show(shop); show(soundBtn);
+    running=true; last=0; requestAnimationFrame(loop);
+  }
+  function endGame(win){
+    running=false;
+    finalWave.textContent=String(wave);
+    if(win){ endEmoji.textContent="🏆"; endTitle.textContent="انتصرت! حديقة آمنة"; }
+    else { endEmoji.textContent="👾"; endTitle.textContent="اخترقت الوحوش!"; sLose(); }
+    hide(hud); hide(shop); show(endScreen);
+  }
+
+  // ---------- shop ----------
+  var shopItems=Array.prototype.slice.call(shop.querySelectorAll(".shopItem"));
+  function updateShop(){
+    shopItems.forEach(function(it){
+      var t=it.getAttribute("data-plant");
+      if(sun<COST[t]) it.classList.add("broke"); else it.classList.remove("broke");
+      if(selected===t) it.classList.add("sel"); else it.classList.remove("sel");
+    });
+  }
+  shopItems.forEach(function(it){
+    var fn=function(e){ e.preventDefault(); e.stopPropagation();
+      var t=it.getAttribute("data-plant");
+      selected = (selected===t)? null : t;
+      updateShop();
+    };
+    it.addEventListener("touchstart", fn, { passive:false });
+    it.addEventListener("mousedown", fn);
+  });
+
+  // ---------- input on grid ----------
+  function rectPoint(e){
+    var p=(e.touches&&e.touches[0])?e.touches[0]:(e.changedTouches&&e.changedTouches[0])?e.changedTouches[0]:e;
+    var r=game.getBoundingClientRect(); return { x:p.clientX-r.left, y:p.clientY-r.top };
+  }
+  function tapWorld(e){
+    if(!running) return;
+    var p=rectPoint(e);
+    // collect falling suns first
+    for(var i=suns.length-1;i>=0;i--){
+      var s=suns[i];
+      if(Math.abs(s.x-p.x)<28 && Math.abs(s.y-p.y)<28){
+        sun+=s.val; sunVal.textContent=String(sun); suns.splice(i,1); sSun(); updateShop(); return;
+      }
+    }
+    // plant placement
+    if(p.y < gridY || p.y > gridY+cellH*ROWS) return;
+    if(!selected) return;
+    var col=Math.floor((p.x-gridX)/cellW), row=Math.floor((p.y-gridY)/cellH);
+    if(col<0||col>=COLS||row<0||row>=ROWS) return;
+    // occupied?
+    for(var k=0;k<plants.length;k++) if(plants[k].row===row && plants[k].col===col) return;
+    if(sun < COST[selected]) return;
+    sun -= COST[selected]; sunVal.textContent=String(sun);
+    var px=gridX+col*cellW+cellW/2, py=gridY+row*cellH+cellH/2;
+    var hp = selected==="wall"?6:3;
+    plants.push({ row:row, col:col, type:selected, hp:hp, cd:0, x:px, y:py });
+    sPlant(); updateShop();
+  }
+  game.addEventListener("touchstart", function(e){
+    // ignore taps on shop / buttons (they handle themselves)
+    if(e.target.closest && (e.target.closest("#shop")||e.target.closest(".btn")||e.target.closest("#sound"))) return;
+    e.preventDefault(); tapWorld(e);
+  }, { passive:false });
+  game.addEventListener("mousedown", function(e){
+    if(e.target.closest && (e.target.closest("#shop")||e.target.closest(".btn")||e.target.closest("#sound"))) return;
+    tapWorld(e);
+  });
+
+  function bindTap(el, fn){
+    el.addEventListener("touchstart", function(e){ e.preventDefault(); e.stopPropagation(); fn(); }, { passive:false });
+    el.addEventListener("mousedown", function(e){ e.preventDefault(); e.stopPropagation(); fn(); });
+  }
+  bindTap(startBtn, startGame);
+  bindTap(replayBtn, startGame);
+  bindTap(soundBtn, function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?"🔊":"🔇"; if(soundOn)audio(); });
+
+  // ---------- spawning ----------
+  function spawnZombie(){
+    var row=Math.floor(Math.random()*ROWS);
+    var hp = 3 + Math.floor(wave*0.6);
+    var sp = 16 + wave*1.5;
+    zombies.push({ row:row, x:W+30, hp:hp, sp:sp, eat:null, t:0 });
+  }
+  function dropSky(){
+    var x=cellW + Math.random()*(W-2*cellW);
+    suns.push({ x:x, y:-20, vy:55, life:9, val:25, target: gridY+Math.random()*cellH*ROWS });
+  }
+
+  function update(dt){
+    // sky sun
+    skyTimer-=dt; if(skyTimer<=0){ dropSky(); skyTimer=6+Math.random()*3; }
+
+    // wave spawning
+    if(waveBreak>0){
+      waveBreak-=dt;
+      if(waveBreak<=0){ wave++; if(wave>6){ endGame(true); return; }
+        waveVal.textContent=String(wave); zombiesThisWave=3+wave*2; zombiesSpawned=0; spawnTimer=1.5; sWave(); }
+    } else {
+      spawnTimer-=dt;
+      if(spawnTimer<=0 && zombiesSpawned<zombiesThisWave){
+        spawnZombie(); zombiesSpawned++;
+        spawnTimer=Math.max(1.2, 3.2 - wave*0.2);
+      }
+      // wave cleared?
+      if(zombiesSpawned>=zombiesThisWave && zombies.length===0){ waveBreak=3; }
+    }
+
+    // plants behave
+    for(var i=0;i<plants.length;i++){
+      var pl=plants[i]; pl.cd-=dt;
+      if(pl.type==="sun" && pl.cd<=0){
+        suns.push({ x:pl.x, y:pl.y, vy:0, life:9, val:25, ground:true });
+        pl.cd=6; sSun();
+      }
+      if(pl.type==="pea" && pl.cd<=0){
+        // shoot only if a zombie is ahead in this row
+        var has=false;
+        for(var z=0;z<zombies.length;z++) if(zombies[z].row===pl.row && zombies[z].x>pl.x){ has=true; break; }
+        if(has){ shots.push({ x:pl.x+cellW*0.3, y:pl.y, row:pl.row, sp:320 }); pl.cd=1.1; sShoot(); }
+      }
+    }
+
+    // suns fall / expire
+    for(var s=suns.length-1;s>=0;s--){
+      var su=suns[s];
+      if(!su.ground){ su.y += su.vy*dt; if(su.target && su.y>=su.target){ su.y=su.target; su.vy=0; su.ground=true; } }
+      su.life-=dt; if(su.life<=0) suns.splice(s,1);
+    }
+
+    // shots move
+    for(var sh=shots.length-1;sh>=0;sh--){
+      var st=shots[sh]; st.x += st.sp*dt;
+      if(st.x>W+20){ shots.splice(sh,1); continue; }
+      for(var z2=0;z2<zombies.length;z2++){
+        var zo=zombies[z2];
+        if(zo.row===st.row && Math.abs(zo.x-st.x)<22){
+          zo.hp--; spark(st.x,st.y,"#7ad84a");
+          shots.splice(sh,1);
+          if(zo.hp<=0){ explode(zo.x,zo.y); sDie(); zombies.splice(z2,1); }
+          break;
+        }
+      }
+    }
+
+    // zombies move / eat
+    for(var z3=zombies.length-1;z3>=0;z3--){
+      var zb=zombies[z3]; zb.t+=dt;
+      // find plant in same cell ahead
+      var target=null;
+      for(var p2=0;p2<plants.length;p2++){
+        var pp=plants[p2];
+        if(pp.row===zb.row && Math.abs(pp.x-zb.x)<cellW*0.5){ target=pp; break; }
+      }
+      if(target){
+        target.hp -= dt*2;
+        if(Math.floor(zb.t*4)%2===0 && Math.random()<0.06) sChomp();
+        if(target.hp<=0){
+          plants.splice(plants.indexOf(target),1);
+        }
+      } else {
+        zb.x -= zb.sp*dt;
+      }
+      if(zb.x < gridX-10){ endGame(false); return; }
+    }
+
+    // fx
+    for(var f=fx.length-1;f>=0;f--){ var ff=fx[f]; ff.x+=ff.vx*dt; ff.y+=ff.vy*dt; ff.vy+=300*dt; ff.life-=dt; if(ff.life<=0) fx.splice(f,1); }
+  }
+
+  function spark(x,y,c){ for(var i=0;i<5;i++){ var a=Math.random()*6.28,v=30+Math.random()*60;
+    fx.push({x:x,y:y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:0.3,c:c||"#fff"}); } }
+  function explode(x,y){ for(var i=0;i<10;i++){ var a=Math.random()*6.28,v=40+Math.random()*90;
+    fx.push({x:x,y:y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:0.5,c:"#9b6b3d"}); } }
+
+  // ---------- draw ----------
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // grid
+    for(var r=0;r<ROWS;r++){
+      for(var c=0;c<COLS;c++){
+        var x=gridX+c*cellW, y=gridY+r*cellH;
+        ctx.fillStyle = ((r+c)%2===0)? "rgba(120,200,90,0.55)":"rgba(150,215,110,0.55)";
+        ctx.fillRect(x,y,cellW-2,cellH-2);
+      }
+    }
+    // plants
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    for(var i=0;i<plants.length;i++){
+      var pl=plants[i];
+      var em = pl.type==="sun"?"🌻":pl.type==="pea"?"🌵":"🥔";
+      ctx.font=Math.floor(cellH*0.55)+"px system-ui";
+      ctx.fillText(em, pl.x, pl.y);
+      // hp bar
+      var maxhp = pl.type==="wall"?6:3;
+      ctx.fillStyle="rgba(0,0,0,0.2)"; ctx.fillRect(pl.x-18, pl.y+cellH*0.32, 36, 5);
+      ctx.fillStyle="#3aaa3a"; ctx.fillRect(pl.x-18, pl.y+cellH*0.32, 36*Math.max(0,pl.hp)/maxhp, 5);
+    }
+    // shots
+    ctx.fillStyle="#5fbf2f";
+    for(var s=0;s<shots.length;s++){ ctx.beginPath(); ctx.arc(shots[s].x,shots[s].y,7,0,6.28); ctx.fill(); }
+    // zombies
+    for(var z=0;z<zombies.length;z++){
+      var zb=zombies[z];
+      var zy=gridY+zb.row*cellH+cellH/2;
+      ctx.font=Math.floor(cellH*0.55)+"px system-ui";
+      ctx.fillText("👾", zb.x, zy + Math.sin(zb.t*6)*2);
+    }
+    // suns
+    for(var su=0;su<suns.length;su++){
+      var so=suns[su];
+      ctx.font="26px system-ui"; ctx.fillText("☀️", so.x, so.y);
+    }
+    // fx
+    for(var f=0;f<fx.length;f++){ var ff=fx[f]; ctx.globalAlpha=Math.max(0,ff.life*2);
+      ctx.fillStyle=ff.c; ctx.beginPath(); ctx.arc(ff.x,ff.y,3,0,6.28); ctx.fill(); }
+    ctx.globalAlpha=1;
+
+    if(running) updateShop();
+  }
+
+  // ---------- loop ----------
+  var last=0;
+  function loop(ts){
+    if(!running) return;
+    if(!last) last=ts;
+    var dt=(ts-last)/1000; last=ts;
+    if(dt>0.05) dt=0.05;
+    update(dt);
+    if(running) draw();
+    if(running) requestAnimationFrame(loop);
+  }
+
+})();
+</script>
+</body>
+</html>
