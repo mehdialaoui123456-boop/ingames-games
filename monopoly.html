@@ -174,7 +174,7 @@ const CHANCE=[
 
 // ── State ──
 const cv=document.getElementById('bc'),cx=cv.getContext('2d');
-let W,H,BS;
+let W,H,BS,DPR=1;
 const P=[
   {pos:0,money:1500,col:'#d4af55',props:[],jail:false,jt:0,dead:false},
   {pos:0,money:1500,col:'#6aade4',props:[],jail:false,jt:0,dead:false}
@@ -187,15 +187,18 @@ let cellCoords=[]; // precomputed {x,y,w,h,side} for each space
 function measure(){
   const cw=window.innerWidth||document.documentElement.clientWidth;
   const ch=window.innerHeight||document.documentElement.clientHeight;
+  DPR=window.devicePixelRatio||1;
   const topH=40,botH=130;
   const avail=Math.min(cw-8,(ch-topH-botH-8));
   BS=Math.min(avail,420);BS=Math.floor(BS);
-  cv.width=BS;cv.height=BS;
+  cv.style.width=BS+'px';cv.style.height=BS+'px';
+  cv.width=Math.floor(BS*DPR);cv.height=Math.floor(BS*DPR);
+  cx.setTransform(DPR,0,0,DPR,0,0);
   calcCoords();
 }
 function calcCoords(){
   cellCoords=[];
-  const corner=Math.floor(BS*.135); // corner cell size
+  const corner=Math.floor(BS*.155); // corner cell size — bigger for readable text
   const inner=BS-corner*2;
   const cellW=inner/(SIDE-1);
   for(let i=0;i<TOT;i++){
@@ -344,25 +347,26 @@ function drawCell(i){
   if(sp.t!=='p'){
     // special cells: icon + name
     if(sp.icon){
-      const iconS=isC?Math.floor(Math.min(w,h)*.22):Math.floor(Math.min(w,h)*.28);
+      const iconS=isC?Math.floor(Math.min(w,h)*.24):Math.floor(Math.min(w,h)*.32);
       cx.font=`${iconS}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
-      cx.fillText(sp.icon,centerX,centerY-(isC?h*.12:h*.08));
+      cx.fillText(sp.icon,centerX,centerY-(isC?h*.14:h*.1));
     }
-    cx.fillStyle='rgba(255,255,255,.55)';
-    const fs=Math.max(6,Math.min(w,h)*.14);
-    cx.font=`600 ${fs}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
-    wrapText(cx,sp.n,centerX,centerY+(isC?h*.14:h*.18),w-8,fs+1);
+    cx.fillStyle='rgba(255,255,255,.8)';
+    const fs=Math.max(8,Math.min(w,h)*.17);
+    cx.font=`700 ${fs}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
+    wrapText(cx,sp.n,centerX,centerY+(isC?h*.14:h*.18),w-6,fs+2);
   }else{
     // property cell: name + price
-    cx.fillStyle=owned>=0?'rgba(255,255,255,.75)':'rgba(255,255,255,.5)';
-    const fs=Math.max(5.5,Math.min(w,h)*.125);
-    cx.font=`600 ${fs}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
-    wrapText(cx,sp.n,centerX,centerY-h*.05,w-6,fs+1);
+    cx.fillStyle=owned>=0?'rgba(255,255,255,.95)':'rgba(255,255,255,.75)';
+    const fs=Math.max(7.5,Math.min(w,h)*.155);
+    cx.font=`700 ${fs}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
+    wrapText(cx,sp.n,centerX,centerY-h*.06,w-4,fs+1.5);
     // price
     if(sp.pr){
-      cx.fillStyle=owned>=0?P[owned].col:'rgba(212,175,85,.45)';
-      cx.font=`700 ${Math.max(6,fs*.9)}px system-ui`;
-      cx.fillText(wn(sp.pr),centerX,centerY+h*.24);
+      cx.fillStyle=owned>=0?P[owned].col:'#d4af55';
+      const pfs=Math.max(8,fs*1.05);
+      cx.font=`800 ${pfs}px system-ui`;
+      cx.fillText(wn(sp.pr),centerX,centerY+h*.26);
     }
   }
   cx.restore();
