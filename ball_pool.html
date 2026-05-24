@@ -129,65 +129,137 @@ class Table{
   calc(){
     const cw=window.innerWidth||document.documentElement.clientWidth;
     const ch=window.innerHeight||document.documentElement.clientHeight;
-    // vertical table: width ~ phone width, height ~ 2x width
-    const pad=12;
     const hudTop=52, hudBot=28;
-    const availW=cw-pad*2;
-    const availH=ch-hudTop-hudBot-pad*2;
-    let tw=Math.min(availW, 380);
-    let th=tw*1.85;
-    if(th>availH){th=availH;tw=th/1.85;}
+    // Leave generous horizontal padding so the cue stick can extend outside the table
+    const cueSpace=52; // px each side for stick pull
+    const padH=cueSpace;
+    const padV=16;
+    const availW=cw-padH*2;
+    const availH=ch-hudTop-hudBot-padV*2;
+    let tw=Math.min(availW, 320);
+    let th=tw*1.9;
+    if(th>availH){th=availH;tw=th/1.9;}
     tw=Math.floor(tw);th=Math.floor(th);
-    this.railW=Math.max(14,Math.round(tw*0.045));
-    BR=Math.max(7,Math.round(tw*0.032));
-    PR=Math.max(10,Math.round(tw*0.055));
+    // Much thicker rails — real pool table feel
+    this.railW=Math.max(22,Math.round(tw*0.075));
+    BR=Math.max(7,Math.round(tw*0.034));
+    PR=Math.max(11,Math.round(tw*0.056));
     this.x=Math.floor((cw-tw)/2);
-    this.y=Math.floor(hudTop+(availH-th)/2+pad);
+    this.y=Math.floor(hudTop+(availH-th)/2+padV);
     this.w=tw;this.h=th;
     this.px=this.x+this.railW;this.py=this.y+this.railW;
     this.pw=tw-this.railW*2;this.ph=th-this.railW*2;
-    const px=this.px,py=this.py,pw=this.pw,ph=this.ph,co=4;
+    const px=this.px,py=this.py,pw=this.pw,ph=this.ph;
+    // Corner pockets sit on the inner corners; side pockets exactly at vertical midpoint
+    const co=PR*0.3; // small inset for corner pockets
     this.pockets=[
-      new V(px+co,py+co),new V(px+pw/2,py-2),new V(px+pw-co,py+co),
-      new V(px+co,py+ph-co),new V(px+pw/2,py+ph+2),new V(px+pw-co,py+ph-co)
+      // top corners
+      new V(px+co, py+co),
+      new V(px+pw-co, py+co),
+      // side pockets — exactly at vertical center of the play field
+      new V(px-this.railW*0.15, py+ph/2),
+      new V(px+pw+this.railW*0.15, py+ph/2),
+      // bottom corners
+      new V(px+co, py+ph-co),
+      new V(px+pw-co, py+ph-co)
     ];
-    // head string at 25% from bottom (cue ball area)
+    // head string at 75% down (cue ball area near bottom)
     this.headY=py+ph*0.75;
-    // foot spot at 25% from top (rack area)
+    // foot spot at 28% from top (rack area)
     this.footX=px+pw/2;
     this.footY=py+ph*0.28;
   }
   draw(ctx){
     const rw=this.railW;
-    ctx.fillStyle='#3a2010';rr(ctx,this.x-3,this.y-3,this.w+6,this.h+6,10);ctx.fill();
-    ctx.fillStyle='#4a2810';rr(ctx,this.x,this.y,this.w,this.h,8);ctx.fill();
-    ctx.fillStyle='#0d7a42';rr(ctx,this.px,this.py,this.pw,this.ph,3);ctx.fill();
-    // felt lines
-    ctx.strokeStyle='rgba(0,0,0,0.05)';ctx.lineWidth=.5;
-    for(let i=0;i<this.ph;i+=7){ctx.beginPath();ctx.moveTo(this.px,this.py+i);ctx.lineTo(this.px+this.pw,this.py+i);ctx.stroke();}
-    // cushions
-    const cw2=5,px=this.px,py=this.py,pw=this.pw,ph=this.ph,mg=PR+5;
-    ctx.fillStyle='#2e6a28';
-    // left
-    ctx.fillRect(px,py+mg,cw2,ph/2-mg*2+mg/2);
-    ctx.fillRect(px,py+ph/2+mg/2,cw2,ph/2-mg*2+mg/2);
-    // right
-    ctx.fillRect(px+pw-cw2,py+mg,cw2,ph/2-mg*2+mg/2);
-    ctx.fillRect(px+pw-cw2,py+ph/2+mg/2,cw2,ph/2-mg*2+mg/2);
-    // top
-    ctx.fillRect(px+mg,py,pw-mg*2,cw2);
-    // bottom
-    ctx.fillRect(px+mg,py+ph-cw2,pw-mg*2,cw2);
-    // head string
-    ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.lineWidth=1;ctx.setLineDash([3,4]);
-    ctx.beginPath();ctx.moveTo(px+4,this.headY);ctx.lineTo(px+pw-4,this.headY);ctx.stroke();
+    const px=this.px,py=this.py,pw=this.pw,ph=this.ph;
+    const PR2=PR;
+
+    // ── Outer wood frame (dark walnut) ──
+    ctx.fillStyle='#2a1508';
+    rr(ctx,this.x-4,this.y-4,this.w+8,this.h+8,14);ctx.fill();
+
+    // ── Rail body (rich mahogany) ──
+    const railGrad=ctx.createLinearGradient(this.x,this.y,this.x+rw,this.y);
+    railGrad.addColorStop(0,'#5c2e0a');railGrad.addColorStop(.4,'#7a3f10');railGrad.addColorStop(1,'#4a2008');
+    ctx.fillStyle=railGrad;
+    rr(ctx,this.x,this.y,this.w,this.h,10);ctx.fill();
+
+    // Rail wood grain highlight
+    ctx.strokeStyle='rgba(255,200,120,0.07)';ctx.lineWidth=1;
+    for(let i=0;i<3;i++){
+      rr(ctx,this.x+i*3+1,this.y+i*3+1,this.w-i*6-2,this.h-i*6-2,10-i);ctx.stroke();
+    }
+
+    // ── Felt playing surface ──
+    const feltGrad=ctx.createLinearGradient(px,py,px,py+ph);
+    feltGrad.addColorStop(0,'#0f8a4a');feltGrad.addColorStop(.5,'#0d7a42');feltGrad.addColorStop(1,'#0b6a38');
+    ctx.fillStyle=feltGrad;
+    rr(ctx,px,py,pw,ph,4);ctx.fill();
+
+    // Subtle felt texture lines
+    ctx.strokeStyle='rgba(0,0,0,0.04)';ctx.lineWidth=.5;
+    for(let i=0;i<ph;i+=6){ctx.beginPath();ctx.moveTo(px,py+i);ctx.lineTo(px+pw,py+i);ctx.stroke();}
+
+    // ── Cushion rubber bands (bright green) ──
+    const mg=PR2+4; // gap around pockets
+    const cw2=Math.max(6,rw*0.22); // cushion thickness
+    ctx.fillStyle='#1a9450';
+    ctx.shadowColor='rgba(0,150,60,0.3)';ctx.shadowBlur=4;
+    // top cushion (one strip, full width minus corners)
+    ctx.fillRect(px+mg, py, pw-mg*2, cw2);
+    // bottom cushion
+    ctx.fillRect(px+mg, py+ph-cw2, pw-mg*2, cw2);
+    // left cushion — two halves split at side pocket
+    const midGap=PR2+6;
+    ctx.fillRect(px, py+mg, cw2, ph/2-mg-midGap);
+    ctx.fillRect(px, py+ph/2+midGap, cw2, ph/2-mg-midGap);
+    // right cushion — two halves
+    ctx.fillRect(px+pw-cw2, py+mg, cw2, ph/2-mg-midGap);
+    ctx.fillRect(px+pw-cw2, py+ph/2+midGap, cw2, ph/2-mg-midGap);
+    ctx.shadowBlur=0;
+
+    // Cushion bevel highlight
+    ctx.strokeStyle='rgba(100,220,100,0.15)';ctx.lineWidth=1;
+    ctx.strokeRect(px+mg+1, py+1, pw-mg*2-2, cw2-1);
+
+    // ── Head string (dashed) ──
+    ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(px+6,this.headY);ctx.lineTo(px+pw-6,this.headY);ctx.stroke();
     ctx.setLineDash([]);
-    // foot spot
-    ctx.beginPath();ctx.arc(this.footX,this.footY,2.5,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.12)';ctx.fill();
-    // pockets
-    this.pockets.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,PR,0,Math.PI*2);ctx.fillStyle='#080808';ctx.fill();ctx.beginPath();ctx.arc(p.x,p.y,PR-1.5,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;ctx.stroke();});
+
+    // Foot spot dot
+    ctx.beginPath();ctx.arc(this.footX,this.footY,3,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.15)';ctx.fill();
+
+    // ── Pockets ──
+    this.pockets.forEach((p,idx)=>{
+      const isSide=(idx===2||idx===3);
+      const r=isSide?PR2*1.05:PR2; // side pockets slightly larger
+      // Outer leather ring
+      ctx.beginPath();ctx.arc(p.x,p.y,r+3,0,Math.PI*2);
+      ctx.fillStyle='#1a0a02';ctx.fill();
+      // Dark leather rim
+      ctx.beginPath();ctx.arc(p.x,p.y,r+1.5,0,Math.PI*2);
+      const lg=ctx.createRadialGradient(p.x-r*.2,p.y-r*.2,r*.1,p.x,p.y,r+1.5);
+      lg.addColorStop(0,'#3a1a06');lg.addColorStop(1,'#1a0a02');
+      ctx.fillStyle=lg;ctx.fill();
+      // The hole itself
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
+      ctx.fillStyle='#050505';ctx.fill();
+      // Inner glow
+      ctx.beginPath();ctx.arc(p.x,p.y,r-1,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.stroke();
+    });
   }
-  checkPocket(b){for(const p of this.pockets)if(b.pos.dist(p)<PR+1)return true;return false;}
+  checkPocket(b){
+    for(let i=0;i<this.pockets.length;i++){
+      const p=this.pockets[i];
+      const isSide=(i===2||i===3);
+      const r=isSide?PR*1.05:PR;
+      if(b.pos.dist(p)<r+1)return true;
+    }
+    return false;
+  }
   checkCushion(b){
     const px=this.px,py=this.py,pw=this.pw,ph=this.ph,r=BR;let hit=false;
     if(b.pos.x-r<px){b.pos.x=px+r;b.vel.x=-b.vel.x*CUSH_REST;hit=true;}
@@ -443,8 +515,8 @@ function render(){
       const gy=cue.pos.y+Math.sin(ang)*closestDist;
       cx.beginPath();cx.arc(gx,gy,BR,0,Math.PI*2);cx.strokeStyle='rgba(255,255,255,0.15)';cx.lineWidth=1;cx.stroke();
     }
-    // cue stick
-    const stickL=100,gap=BR+4+ratio*30;
+    // cue stick — longer to use the reserved outside space
+    const stickL=130,gap=BR+5+ratio*38;
     const sx=cue.pos.x-Math.cos(ang)*gap,sy=cue.pos.y-Math.sin(ang)*gap;
     const ex=cue.pos.x-Math.cos(ang)*(gap+stickL),ey=cue.pos.y-Math.sin(ang)*(gap+stickL);
     cx.strokeStyle='#c8a86c';cx.lineWidth=4;cx.lineCap='round';cx.beginPath();cx.moveTo(sx,sy);cx.lineTo(ex,ey);cx.stroke();
