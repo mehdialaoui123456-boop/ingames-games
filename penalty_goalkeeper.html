@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>حارس المرمى</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+html,body{width:100%;height:100%;overflow:hidden}
+body{touch-action:none;position:fixed;inset:0;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;background:#0d1b2a;color:#fff}
+
+body::before{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:0.04}
+
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.4s ease,transform 0.4s ease;will-change:opacity,transform}
+.screen.hidden{opacity:0;pointer-events:none;transform:translateY(12px)}
+.screen.visible{opacity:1;pointer-events:auto;transform:translateY(0)}
+
+#startScreen{background:radial-gradient(ellipse at 50% 30%,#162d50 0%,#0d1b2a 70%)}
+.start-glow{position:absolute;top:18%;left:50%;transform:translateX(-50%);width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(245,200,66,0.15) 0%,transparent 70%);pointer-events:none}
+.game-title{font-size:clamp(36px,8vw,56px);font-weight:900;text-align:center;margin-bottom:8px;background:linear-gradient(135deg,#f5c842 0%,#ffad42 50%,#f5c842 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-shadow:none;filter:drop-shadow(0 0 30px rgba(245,200,66,0.3));letter-spacing:-1px;line-height:1.2}
+.game-subtitle{font-size:clamp(14px,3.5vw,18px);color:rgba(255,255,255,0.5);margin-bottom:32px;text-align:center;font-weight:400}
+.instructions-card{background:rgba(255,255,255,0.06);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:20px 24px;margin:0 24px 28px;max-width:340px;text-align:center;line-height:1.8;font-size:clamp(13px,3.2vw,15px);color:rgba(255,255,255,0.7)}
+.instructions-card .emoji-icon{font-size:28px;display:block;margin-bottom:8px}
+
+.btn-primary{position:relative;background:linear-gradient(135deg,#f5c842,#e8a820);color:#0d1b2a;border:none;border-radius:999px;padding:16px 48px;font-size:clamp(18px,4.5vw,22px);font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 6px 0 #b8841a,0 0 30px rgba(245,200,66,0.25);transition:transform 0.12s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.12s ease;-webkit-tap-highlight-color:transparent}
+.btn-primary:active{transform:translateY(3px);box-shadow:0 3px 0 #b8841a,0 0 20px rgba(245,200,66,0.2)}
+
+.btn-secondary{background:rgba(255,255,255,0.08);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:999px;padding:14px 40px;font-size:clamp(16px,4vw,20px);font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 0 rgba(255,255,255,0.05),0 0 20px rgba(79,195,247,0.1);transition:transform 0.12s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.12s ease;-webkit-tap-highlight-color:transparent}
+.btn-secondary:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(255,255,255,0.05)}
+
+#gameScreen{background:#0d1b2a}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;z-index:100;direction:rtl}
+.hud-pill{background:rgba(255,255,255,0.08);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.15);border-radius:999px;padding:6px 16px;font-size:clamp(13px,3vw,15px);font-weight:700;color:#fff;display:flex;align-items:center;gap:6px;font-variant-numeric:lining-nums}
+.hud-pill .label{color:rgba(255,255,255,0.5);font-weight:400}
+.hud-pill .value{color:#f5c842;text-shadow:0 0 10px rgba(245,200,66,0.4)}
+.hud-lives{display:flex;gap:3px}
+.hud-lives .heart{font-size:16px;transition:transform 0.3s ease,opacity 0.3s ease}
+.hud-lives .heart.lost{opacity:0.2;transform:scale(0.7)}
+
+.field-container{position:absolute;inset:0;overflow:hidden}
+.field-bg{position:absolute;inset:0;background:linear-gradient(180deg,#0a4a2e 0%,#0d5e38 40%,#0f6b40 100%)}
+.field-lines{position:absolute;inset:0;pointer-events:none}
+
+.goal{position:absolute;border:4px solid rgba(255,255,255,0.9);border-bottom:none;border-radius:8px 8px 0 0;background:rgba(0,0,0,0.15)}
+.goal-net{position:absolute;inset:4px;background:repeating-linear-gradient(90deg,rgba(255,255,255,0.08) 0px,rgba(255,255,255,0.08) 1px,transparent 1px,transparent 18px),repeating-linear-gradient(0deg,rgba(255,255,255,0.08) 0px,rgba(255,255,255,0.08) 1px,transparent 1px,transparent 18px)}
+
+/* Force LTR on zones grid so column order matches JS index math */
+.zones-container{position:absolute;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:3px;padding:3px;direction:ltr}
+.zone{position:relative;border:2px solid transparent;border-radius:12px;cursor:pointer;transition:background 0.15s ease,border-color 0.15s ease,transform 0.12s cubic-bezier(0.34,1.56,0.64,1);background:rgba(255,255,255,0.03)}
+.zone::before{content:"";position:absolute;inset:-12px;z-index:1}
+.zone:active{transform:scale(0.95)}
+.zone.highlight{background:rgba(79,195,247,0.15);border-color:rgba(79,195,247,0.4)}
+.zone.correct{background:rgba(0,229,176,0.25);border-color:rgba(0,229,176,0.6)}
+.zone.wrong{background:rgba(255,107,107,0.25);border-color:rgba(255,107,107,0.6)}
+.zone-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(22px,5vw,32px);opacity:0.35;pointer-events:none;color:rgba(255,255,255,0.5)}
+.zone.highlight .zone-label{opacity:0.7}
+
+.ball{position:absolute;z-index:50;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.45))}
+.ball svg{width:100%;height:100%;display:block}
+
+.keeper{position:absolute;z-index:40}
+.keeper-inner{width:100%;height:100%;position:relative;display:flex;align-items:flex-end;justify-content:center}
+.keeper-inner svg{height:88%;flex-shrink:0}
+.glove-svg{transition:none}
+
+.result-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity 0.3s ease}
+.result-text{font-size:clamp(28px,7vw,42px);font-weight:900;text-shadow:0 0 30px currentColor;transform:scale(0.5);transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1)}
+.result-overlay.show{opacity:1}
+.result-overlay.show .result-text{transform:scale(1)}
+.result-save{color:#00e5b0}
+.result-goal{color:#ff6b6b}
+
+.level-banner{position:absolute;top:20%;left:50%;transform:translateX(-50%) scale(0.8);background:rgba(245,200,66,0.15);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(245,200,66,0.3);border-radius:16px;padding:10px 28px;font-size:clamp(16px,4vw,20px);font-weight:800;color:#f5c842;text-shadow:0 0 15px rgba(245,200,66,0.4);opacity:0;transition:opacity 0.3s ease,transform 0.3s cubic-bezier(0.34,1.56,0.64,1);z-index:300;pointer-events:none;white-space:nowrap}
+.level-banner.show{opacity:1;transform:translateX(-50%) scale(1)}
+
+.countdown-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:250;pointer-events:none}
+.countdown-num{font-size:clamp(60px,15vw,100px);font-weight:900;color:#f5c842;text-shadow:0 0 40px rgba(245,200,66,0.5);opacity:0;transform:scale(2);transition:opacity 0.2s ease,transform 0.3s cubic-bezier(0.34,1.56,0.64,1)}
+.countdown-num.pop{opacity:1;transform:scale(1)}
+
+#endScreen{background:radial-gradient(ellipse at 50% 40%,#162d50 0%,#0d1b2a 70%)}
+.end-card{background:rgba(255,255,255,0.06);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,0.1);border-radius:24px;padding:32px 28px;max-width:340px;width:calc(100% - 48px);text-align:center}
+.end-label{font-size:clamp(14px,3.5vw,16px);color:rgba(255,255,255,0.4);margin-bottom:4px;font-weight:400}
+.end-title{font-size:clamp(22px,5.5vw,28px);font-weight:800;margin-bottom:20px;color:rgba(255,255,255,0.9)}
+.end-score{font-size:clamp(52px,14vw,80px);font-weight:900;background:linear-gradient(135deg,#f5c842,#ffad42);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;margin-bottom:6px;font-variant-numeric:lining-nums}
+.end-detail{font-size:clamp(13px,3vw,15px);color:rgba(255,255,255,0.4);margin-bottom:24px;font-variant-numeric:lining-nums}
+
+.stars-row{display:flex;justify-content:center;gap:8px;margin-bottom:28px}
+.star-item{width:clamp(36px,9vw,48px);height:clamp(36px,9vw,48px);position:relative;transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);transform:scale(0.6);opacity:0.25}
+.star-item.earned{transform:scale(1);opacity:1}
+.star-item svg{width:100%;height:100%}
+.star-item.earned svg{filter:drop-shadow(0 0 8px rgba(245,200,66,0.5))}
+
+.particle{position:fixed;width:8px;height:8px;border-radius:50%;pointer-events:none;z-index:9000;will-change:transform,opacity}
+
+.shake{animation:shakeAnim 0.4s ease}
+@keyframes shakeAnim{0%,100%{transform:translateX(0)}15%{transform:translateX(-6px)}30%{transform:translateX(6px)}45%{transform:translateX(-4px)}60%{transform:translateX(4px)}75%{transform:translateX(-2px)}90%{transform:translateX(2px)}}
+
+.streak-badge{position:absolute;top:50px;left:50%;transform:translateX(-50%);background:rgba(245,200,66,0.12);border:1px solid rgba(245,200,66,0.25);border-radius:999px;padding:4px 14px;font-size:clamp(12px,2.8vw,14px);font-weight:700;color:#f5c842;opacity:0;transition:opacity 0.3s ease,transform 0.3s ease;z-index:100;white-space:nowrap;font-variant-numeric:lining-nums}
+.streak-badge.show{opacity:1}
+
+/* Target indicator arrow */
+.target-arrow{position:absolute;z-index:55;pointer-events:none;opacity:0;transition:opacity 0.2s ease;font-size:24px;text-shadow:0 0 12px rgba(255,107,107,0.6)}
+.target-arrow.show{opacity:1}
+</style>
+</head>
+<body>
+<svg style="position:absolute;width:0;height:0">
+<filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+</svg>
+
+<!-- Start Screen -->
+<div id="startScreen" class="screen visible">
+  <div class="start-glow"></div>
+  <div class="game-title">حارس المرمى</div>
+  <div class="game-subtitle">⚽ تحدّي صد الكرات</div>
+  <div class="instructions-card">
+    <span class="emoji-icon">🧤</span>
+    المهاجم سيسدد الكرة نحو المرمى<br>
+    اضغط على المنطقة الصحيحة لصد الكرة!<br>
+    لديك 3 فرص — لا تدع الكرة تمر
+  </div>
+  <button id="btnStart" class="btn-primary">ابدأ اللعب</button>
+</div>
+
+<!-- Game Screen -->
+<div id="gameScreen" class="screen hidden">
+  <div class="field-container" id="fieldContainer">
+    <div class="field-bg"></div>
+    <div class="field-lines" id="fieldLines"></div>
+    <div class="goal" id="goal">
+      <div class="goal-net"></div>
+    </div>
+    <div class="zones-container" id="zonesContainer"></div>
+    <div class="ball" id="ball">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="bG" cx="38%" cy="32%" r="58%">
+            <stop offset="0%" stop-color="#fff"/>
+            <stop offset="45%" stop-color="#f2f2f2"/>
+            <stop offset="100%" stop-color="#c8c8c8"/>
+          </radialGradient>
+        </defs>
+        <circle cx="50" cy="50" r="48" fill="url(#bG)" stroke="#aaa" stroke-width="1.2"/>
+        <!-- Classic pentagon patches -->
+        <polygon points="50,15 59,26 55,37 45,37 41,26" fill="#1a1a1a"/>
+        <polygon points="24,40 33,32 42,37 39,48 28,49" fill="#1a1a1a"/>
+        <polygon points="76,40 67,32 58,37 61,48 72,49" fill="#1a1a1a"/>
+        <polygon points="32,70 39,60 50,57 61,60 68,70" fill="#1a1a1a" opacity="0.6"/>
+        <polygon points="22,57 28,49 39,51 36,63 25,64" fill="#1a1a1a" opacity="0.45"/>
+        <polygon points="78,57 72,49 61,51 64,63 75,64" fill="#1a1a1a" opacity="0.45"/>
+        <!-- Seam lines -->
+        <line x1="41" y1="26" x2="33" y2="32" stroke="#bbb" stroke-width="0.6"/>
+        <line x1="59" y1="26" x2="67" y2="32" stroke="#bbb" stroke-width="0.6"/>
+        <line x1="45" y1="37" x2="39" y2="48" stroke="#bbb" stroke-width="0.6"/>
+        <line x1="55" y1="37" x2="61" y2="48" stroke="#bbb" stroke-width="0.6"/>
+        <line x1="28" y1="49" x2="22" y2="57" stroke="#bbb" stroke-width="0.5" opacity="0.6"/>
+        <line x1="72" y1="49" x2="78" y2="57" stroke="#bbb" stroke-width="0.5" opacity="0.6"/>
+        <line x1="50" y1="57" x2="50" y2="78" stroke="#bbb" stroke-width="0.5" opacity="0.3"/>
+        <!-- Highlight -->
+        <ellipse cx="38" cy="30" rx="12" ry="8" fill="rgba(255,255,255,0.4)" transform="rotate(-25 38 30)"/>
+      </svg>
+    </div>
+    <div class="keeper" id="keeper">
+      <div class="keeper-inner" id="keeperInner">
+        <!-- Left glove SVG — injected by JS based on dive direction -->
+        <svg id="gloveL" class="glove-svg" viewBox="0 0 60 80" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="gWL" x1="0" y1="0" x2="0.3" y2="1">
+              <stop offset="0%" stop-color="#fff"/>
+              <stop offset="100%" stop-color="#dce0e5"/>
+            </linearGradient>
+          </defs>
+          <!-- Wrist strap -->
+          <rect x="10" y="58" width="40" height="16" rx="5" fill="#2196F3" stroke="#1565C0" stroke-width="1"/>
+          <rect x="14" y="61" width="12" height="4" rx="2" fill="rgba(255,255,255,0.5)"/>
+          <!-- Palm -->
+          <path d="M12,32 Q10,55 14,58 L46,58 Q50,55 48,32 Q47,28 42,26 L18,26 Q13,28 12,32Z" fill="url(#gWL)" stroke="#bfc4ca" stroke-width="1"/>
+          <!-- Fingers (spread, left hand) -->
+          <rect x="10" y="6" width="9" height="24" rx="4.5" fill="url(#gWL)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <rect x="20" y="1" width="9" height="28" rx="4.5" fill="url(#gWL)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <rect x="30" y="3" width="9" height="26" rx="4.5" fill="url(#gWL)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <rect x="40" y="9" width="8.5" height="21" rx="4.2" fill="url(#gWL)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <!-- Thumb (left side, out) -->
+          <ellipse cx="6" cy="38" rx="6" ry="4.5" fill="url(#gWL)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <!-- Grip pads -->
+          <rect x="16" y="36" width="8" height="5" rx="2.5" fill="rgba(33,150,243,0.25)"/>
+          <rect x="26" y="34" width="8" height="5" rx="2.5" fill="rgba(33,150,243,0.25)"/>
+          <rect x="36" y="36" width="8" height="5" rx="2.5" fill="rgba(33,150,243,0.25)"/>
+          <rect x="18" y="44" width="24" height="4" rx="2" fill="rgba(33,150,243,0.15)"/>
+          <!-- Knuckle shadows -->
+          <ellipse cx="14.5" cy="28" rx="4" ry="2" fill="rgba(0,0,0,0.06)"/>
+          <ellipse cx="24.5" cy="27" rx="4" ry="2" fill="rgba(0,0,0,0.06)"/>
+          <ellipse cx="34.5" cy="27" rx="4" ry="2" fill="rgba(0,0,0,0.06)"/>
+          <ellipse cx="44" cy="29" rx="3.5" ry="2" fill="rgba(0,0,0,0.06)"/>
+        </svg>
+        <!-- Right glove SVG (mirrored design, fist pose) -->
+        <svg id="gloveR" class="glove-svg" viewBox="0 0 60 80" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="gWR" x1="0.7" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#fff"/>
+              <stop offset="100%" stop-color="#dce0e5"/>
+            </linearGradient>
+          </defs>
+          <!-- Wrist strap -->
+          <rect x="10" y="58" width="40" height="16" rx="5" fill="#2196F3" stroke="#1565C0" stroke-width="1"/>
+          <rect x="34" y="61" width="12" height="4" rx="2" fill="rgba(255,255,255,0.5)"/>
+          <!-- Palm (slightly closed) -->
+          <path d="M12,30 Q10,54 14,58 L46,58 Q50,54 48,30 Q47,25 42,23 L18,23 Q13,25 12,30Z" fill="url(#gWR)" stroke="#bfc4ca" stroke-width="1"/>
+          <!-- Fingers (curled, right hand) -->
+          <rect x="11" y="10" width="9" height="18" rx="4.5" fill="url(#gWR)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <rect x="21" y="6" width="9" height="20" rx="4.5" fill="url(#gWR)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <rect x="31" y="8" width="9" height="18" rx="4.5" fill="url(#gWR)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <rect x="41" y="13" width="8.5" height="15" rx="4.2" fill="url(#gWR)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <!-- Thumb (right side, wrapped) -->
+          <ellipse cx="54" cy="36" rx="6" ry="4.5" fill="url(#gWR)" stroke="#bfc4ca" stroke-width="0.8"/>
+          <!-- Knuckle ridge -->
+          <ellipse cx="30" cy="24" rx="18" ry="3.5" fill="rgba(0,0,0,0.07)"/>
+          <!-- Grip pads -->
+          <rect x="16" y="34" width="8" height="5" rx="2.5" fill="rgba(33,150,243,0.25)"/>
+          <rect x="26" y="32" width="8" height="5" rx="2.5" fill="rgba(33,150,243,0.25)"/>
+          <rect x="36" y="34" width="8" height="5" rx="2.5" fill="rgba(33,150,243,0.25)"/>
+          <rect x="18" y="42" width="24" height="4" rx="2" fill="rgba(33,150,243,0.15)"/>
+          <rect x="20" y="49" width="20" height="3" rx="1.5" fill="rgba(33,150,243,0.1)"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div class="hud" id="hud">
+    <div class="hud-pill"><span class="label">تصديات</span> <span class="value" id="hudScore">0</span></div>
+    <div class="hud-pill hud-lives" id="hudLives"></div>
+  </div>
+  <div class="streak-badge" id="streakBadge"></div>
+  <div class="result-overlay" id="resultOverlay"><div class="result-text" id="resultText"></div></div>
+  <div class="level-banner" id="levelBanner">مستوى جديد! 🔥</div>
+  <div class="countdown-overlay" id="countdownOverlay"><div class="countdown-num" id="countdownNum"></div></div>
+</div>
+
+<!-- End Screen -->
+<div id="endScreen" class="screen hidden">
+  <div class="end-card">
+    <div class="end-label">انتهت المباراة</div>
+    <div class="end-title">النتيجة النهائية</div>
+    <div class="end-score" id="endScore">0</div>
+    <div class="end-detail" id="endDetail"></div>
+    <div class="stars-row" id="starsRow"></div>
+    <button id="btnReplay" class="btn-secondary">العب مرة أخرى</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+// ===== AUDIO =====
+var audioCtx=null;
+function initAudio(){
+  try{
+    if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+  }catch(e){}
+}
+
+function playSound(type){
+  try{
+    if(!audioCtx)return;
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    var now=audioCtx.currentTime;
+    var g=audioCtx.createGain();
+    g.connect(audioCtx.destination);
+    var o;
+    switch(type){
+      case'save':
+        o=audioCtx.createOscillator();o.type='sine';o.frequency.setValueAtTime(880,now);
+        o.frequency.exponentialRampToValueAtTime(1320,now+0.08);
+        g.gain.setValueAtTime(0.25,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.15);
+        o.connect(g);o.start(now);o.stop(now+0.15);break;
+      case'goal':
+        o=audioCtx.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(300,now);
+        o.frequency.exponentialRampToValueAtTime(100,now+0.3);
+        g.gain.setValueAtTime(0.2,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.35);
+        o.connect(g);o.start(now);o.stop(now+0.35);break;
+      case'levelup':
+        [523,659,784].forEach(function(f,i){
+          var oo=audioCtx.createOscillator();var gg=audioCtx.createGain();
+          oo.type='sine';oo.frequency.setValueAtTime(f,now+i*0.08);
+          gg.gain.setValueAtTime(0.15,now+i*0.08);gg.gain.exponentialRampToValueAtTime(0.001,now+i*0.08+0.2);
+          oo.connect(gg);gg.connect(audioCtx.destination);oo.start(now+i*0.08);oo.stop(now+i*0.08+0.2);
+        });break;
+      case'gameover':
+        [440,349,262,196].forEach(function(f,i){
+          var oo=audioCtx.createOscillator();var gg=audioCtx.createGain();
+          oo.type='sine';oo.frequency.setValueAtTime(f,now+i*0.12);
+          gg.gain.setValueAtTime(0.18,now+i*0.12);gg.gain.exponentialRampToValueAtTime(0.001,now+i*0.12+0.25);
+          oo.connect(gg);gg.connect(audioCtx.destination);oo.start(now+i*0.12);oo.stop(now+i*0.12+0.25);
+        });break;
+      case'kick':
+        o=audioCtx.createOscillator();o.type='triangle';o.frequency.setValueAtTime(200,now);
+        o.frequency.exponentialRampToValueAtTime(80,now+0.1);
+        g.gain.setValueAtTime(0.3,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.12);
+        o.connect(g);o.start(now);o.stop(now+0.12);break;
+      case'countdown':
+        o=audioCtx.createOscillator();o.type='sine';o.frequency.setValueAtTime(660,now);
+        g.gain.setValueAtTime(0.15,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.1);
+        o.connect(g);o.start(now);o.stop(now+0.1);break;
+      case'whistle':
+        o=audioCtx.createOscillator();o.type='sine';o.frequency.setValueAtTime(1800,now);
+        o.frequency.setValueAtTime(2200,now+0.15);o.frequency.setValueAtTime(1800,now+0.3);
+        g.gain.setValueAtTime(0.12,now);g.gain.exponentialRampToValueAtTime(0.001,now+0.45);
+        o.connect(g);o.start(now);o.stop(now+0.45);break;
+    }
+  }catch(e){}
+}
+
+// ===== UTILS =====
+function n$(s){return ''+s;}
+function $(id){return document.getElementById(id);}
+function showScreen(id){
+  ['startScreen','gameScreen','endScreen'].forEach(function(s){
+    var el=$(s);
+    if(s===id){el.classList.remove('hidden');el.classList.add('visible');}
+    else{el.classList.add('hidden');el.classList.remove('visible');}
+  });
+}
+
+function spawnParticles(x,y,color,count){
+  count=count||8;
+  for(var i=0;i<count;i++){
+    var p=document.createElement('div');
+    p.className='particle';
+    p.style.left=x+'px';p.style.top=y+'px';
+    p.style.background=color;
+    var angle=Math.random()*Math.PI*2;
+    var dist=40+Math.random()*60;
+    var dx=Math.cos(angle)*dist;
+    var dy=Math.sin(angle)*dist;
+    p.style.transition='transform 0.6s ease-out, opacity 0.6s ease-out';
+    document.body.appendChild(p);
+    requestAnimationFrame(function(pp,ddx,ddy){return function(){
+      pp.style.transform='translate('+ddx+'px,'+ddy+'px) scale(0.2)';pp.style.opacity='0';
+    }}(p,dx,dy));
+    setTimeout(function(pp){return function(){if(pp.parentNode)pp.parentNode.removeChild(pp);}}(p),700);
+  }
+}
+
+// ===== GAME STATE =====
+var state={
+  score:0,
+  lives:3,
+  maxLives:3,
+  streak:0,
+  bestStreak:0,
+  round:0,
+  difficulty:1,
+  ballSpeed:420,
+  reactionWindow:1300,
+  phase:'idle',
+  targetZone:-1,
+  playerZone:-1,
+  ballStartX:0,ballStartY:0,
+  ballTargetX:0,ballTargetY:0,
+  ballFlyT:0,
+  ballFlyDur:0,
+  keeperHomeX:0,keeperHomeY:0,
+  keeperCurX:0,keeperCurY:0,
+  keeperTargetX:0,keeperTargetY:0,
+  keeperDiveT:0,
+  keeperDiving:false,
+  diveDirection:'center', // 'left','center','right'
+  containerW:0,containerH:0,
+  goalX:0,goalY:0,goalW:0,goalH:0,
+  // zoneCenters[i] = {x, y} in field-container coordinates
+  zoneCenters:[],
+  zonesEnabled:false,
+  inputLocked:false,
+  _reactionTimeout:null
+};
+
+// ===== DOM REFS =====
+var field=$('fieldContainer');
+var goalEl=$('goal');
+var zonesEl=$('zonesContainer');
+var ballEl=$('ball');
+var keeperEl=$('keeper');
+var zoneEls=[];
+
+// ===== LAYOUT =====
+// Key fix: we measure actual zone positions from their bounding rects
+// relative to the field container, so RTL/LTR CSS ordering doesn't matter.
+
+function measureContainer(){
+  var w=field.clientWidth||window.innerWidth;
+  var h=field.clientHeight||window.innerHeight;
+  state.containerW=w;state.containerH=h;
+  return{w:w,h:h};
+}
+
+function layoutField(){
+  var dim=measureContainer();
+  var w=dim.w, h=dim.h;
+
+  // Goal sizing & positioning (absolute px, no transform)
+  var gw=Math.min(w*0.82,360);
+  var gh=Math.min(h*0.28,200);
+  var gx=Math.round((w-gw)/2);
+  var gy=Math.round(h*0.06);
+  goalEl.style.width=gw+'px';
+  goalEl.style.height=gh+'px';
+  goalEl.style.top=gy+'px';
+  goalEl.style.left=gx+'px';
+  goalEl.style.transform='none';
+  state.goalX=gx;state.goalY=gy;state.goalW=gw;state.goalH=gh;
+
+  // Zones container exactly overlaps goal
+  zonesEl.style.left=gx+'px';
+  zonesEl.style.top=gy+'px';
+  zonesEl.style.width=gw+'px';
+  zonesEl.style.height=gh+'px';
+
+  // Ball size & start position
+  var ballSize=Math.min(w*0.1,44);
+  state.ballStartX=w/2-ballSize/2;
+  state.ballStartY=h*0.75;
+  ballEl.style.width=ballSize+'px';
+  ballEl.style.height=ballSize+'px';
+
+  // Keeper size — wider to show two gloves side by side
+  var kw=Math.min(w*0.26,100);
+  var kh=Math.round(kw*0.9);
+  keeperEl.style.width=kw+'px';
+  keeperEl.style.height=kh+'px';
+  state.keeperHomeX=w/2-kw/2;
+  state.keeperHomeY=gy+gh-kh+4;
+
+  // After layout, measure actual zone cell positions from DOM
+  // This is the critical fix: we read getBoundingClientRect of each
+  // zone cell, so it doesn't matter what CSS direction does to the grid.
+  requestAnimationFrame(function(){
+    measureZoneCenters();
+  });
+
+  drawFieldLines(w,h);
+}
+
+function measureZoneCenters(){
+  var fieldRect=field.getBoundingClientRect();
+  state.zoneCenters=[];
+  for(var i=0;i<zoneEls.length;i++){
+    var r=zoneEls[i].getBoundingClientRect();
+    state.zoneCenters.push({
+      x: (r.left + r.width/2) - fieldRect.left,
+      y: (r.top + r.height/2) - fieldRect.top
+    });
+  }
+}
+
+function drawFieldLines(w,h){
+  var fl=$('fieldLines');
+  fl.innerHTML='<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" xmlns="http://www.w3.org/2000/svg">'+
+    '<line x1="0" y1="'+h*0.5+'" x2="'+w+'" y2="'+h*0.5+'" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>'+
+    '<circle cx="'+w/2+'" cy="'+h*0.5+'" r="'+w*0.15+'" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2"/>'+
+    '<circle cx="'+w/2+'" cy="'+h*0.5+'" r="4" fill="rgba(255,255,255,0.1)"/>'+
+    '<rect x="'+(w/2-w*0.3)+'" y="0" width="'+w*0.6+'" height="'+h*0.38+'" rx="4" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2"/>'+
+    '<circle cx="'+w/2+'" cy="'+h*0.75+'" r="4" fill="rgba(255,255,255,0.12)"/>'+
+    '</svg>';
+}
+
+function buildZones(){
+  zonesEl.innerHTML='';
+  zoneEls=[];
+  // Labels: top-left, top-center, top-right, bottom-left, bottom-center, bottom-right
+  var labels=['↖','⬆','↗','↙','⬇','↘'];
+  for(var i=0;i<6;i++){
+    var z=document.createElement('div');
+    z.className='zone';
+    z.dataset.index=''+i;
+    var lab=document.createElement('div');
+    lab.className='zone-label';
+    lab.textContent=labels[i];
+    z.appendChild(lab);
+    zonesEl.appendChild(z);
+    zoneEls.push(z);
+  }
+}
+
+function buildLives(){
+  var el=$('hudLives');
+  el.innerHTML='';
+  for(var i=0;i<state.maxLives;i++){
+    var span=document.createElement('span');
+    span.className='heart'+(i>=state.lives?' lost':'');
+    span.textContent='❤️';
+    el.appendChild(span);
+  }
+}
+
+// ===== TOUCH =====
+function addTouch(el,cb){
+  el.addEventListener('touchstart',function(e){
+    e.preventDefault();
+    initAudio();
+    cb(e);
+  },{passive:false});
+  el.addEventListener('mousedown',function(e){
+    initAudio();
+    cb(e);
+  });
+}
+
+function initZoneInput(){
+  zoneEls.forEach(function(z,i){
+    addTouch(z,function(){
+      if(!state.zonesEnabled||state.inputLocked)return;
+      state.playerZone=i;
+      state.zonesEnabled=false;
+      state.inputLocked=true;
+      onPlayerDive(i);
+    });
+  });
+}
+
+// ===== GAME FLOW =====
+function startGame(){
+  initAudio();
+  state.score=0;state.lives=3;state.streak=0;state.bestStreak=0;
+  state.round=0;state.difficulty=1;
+  state.ballSpeed=420;state.reactionWindow=1300;
+  state.phase='idle';
+  $('hudScore').textContent=n$(0);
+  buildLives();
+  showScreen('gameScreen');
+
+  // Layout and wait for zone measurement before starting
+  layoutField();
+  resetPositions();
+  setTimeout(function(){
+    measureZoneCenters();
+    startRound();
+  },600);
+}
+
+function resetPositions(){
+  // Ball to penalty spot
+  ballEl.style.left=state.ballStartX+'px';
+  ballEl.style.top=state.ballStartY+'px';
+  ballEl.style.transform='scale(1)';
+  ballEl.style.opacity='1';
+
+  // Keeper to center of goal line
+  state.keeperCurX=state.keeperHomeX;
+  state.keeperCurY=state.keeperHomeY;
+  state.keeperDiving=false;
+  state.diveDirection='center';
+  keeperEl.style.left=state.keeperHomeX+'px';
+  keeperEl.style.top=state.keeperHomeY+'px';
+  keeperEl.style.transform='none';
+  // Reset glove poses
+  var glL=$('gloveL');
+  var glR=$('gloveR');
+  if(glL) glL.style.transform='none';
+  if(glR) glR.style.transform='none';
+
+  // Clear zone highlights
+  zoneEls.forEach(function(z){z.className='zone';});
+}
+
+function startRound(){
+  state.round++;
+  resetPositions();
+  state.phase='countdown';
+  state.inputLocked=true;
+  state.zonesEnabled=false;
+  state.playerZone=-1;
+  state.targetZone=-1;
+
+  // Difficulty scaling every 5 saves
+  var lvl=Math.floor(state.score/5)+1;
+  if(lvl>state.difficulty){
+    state.difficulty=lvl;
+    if(state.difficulty<=8){
+      state.ballSpeed=Math.max(200,420-state.difficulty*28);
+      state.reactionWindow=Math.max(650,1300-state.difficulty*75);
+      if(state.difficulty>1){
+        showLevelBanner();
+        playSound('levelup');
+      }
+    }
+  }
+
+  showCountdown(3);
+}
+
+function showCountdown(num){
+  var el=$('countdownNum');
+  el.textContent=num>0?n$(num):'!';
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+  playSound('countdown');
+
+  if(num>0){
+    setTimeout(function(){
+      el.classList.remove('pop');
+      setTimeout(function(){showCountdown(num-1);},150);
+    },500);
+  }else{
+    setTimeout(function(){
+      el.classList.remove('pop');
+      kickBall();
+    },400);
+  }
+}
+
+function kickBall(){
+  // Pick random target zone
+  state.targetZone=Math.floor(Math.random()*6);
+
+  // Ensure we have valid zone centers
+  if(state.zoneCenters.length<6) measureZoneCenters();
+
+  var tz=state.zoneCenters[state.targetZone];
+  var bs=parseInt(ballEl.style.width)||40;
+
+  state.ballTargetX=tz.x-bs/2;
+  state.ballTargetY=tz.y-bs/2;
+  state.ballFlyT=0;
+  state.ballFlyDur=state.ballSpeed;
+  state.phase='flying';
+  state.zonesEnabled=true;
+  state.inputLocked=false;
+  playSound('kick');
+
+  // Highlight all zones so player knows they can tap
+  zoneEls.forEach(function(z){z.classList.add('highlight');});
+
+  // Auto-timeout if player doesn't react in time
+  state._reactionTimeout=setTimeout(function(){
+    if(state.phase==='flying' && state.playerZone===-1){
+      state.zonesEnabled=false;
+      state.inputLocked=true;
+      state.playerZone=-2; // missed / no input
+    }
+  },state.reactionWindow+state.ballFlyDur);
+}
+
+function onPlayerDive(zoneIndex){
+  clearTimeout(state._reactionTimeout);
+
+  var kw=parseInt(keeperEl.style.width)||60;
+  var kh=parseInt(keeperEl.style.height)||72;
+  var tz=state.zoneCenters[zoneIndex];
+
+  // Set keeper dive target (center keeper on the zone center)
+  state.keeperTargetX=tz.x-kw/2;
+  state.keeperTargetY=tz.y-kh/2+8;
+  state.keeperDiveT=0;
+  state.keeperDiving=true;
+
+  // Determine dive direction for glove orientation
+  var dx=state.keeperTargetX-state.keeperHomeX;
+  if(dx<-15) state.diveDirection='left';
+  else if(dx>15) state.diveDirection='right';
+  else state.diveDirection='center';
+}
+
+function resolveRound(){
+  state.phase='result';
+  state.keeperDiving=false;
+  zoneEls.forEach(function(z){z.classList.remove('highlight');});
+
+  var saved=(state.playerZone===state.targetZone);
+
+  // Highlight the zone the player chose, and the correct zone
+  if(state.playerZone>=0){
+    zoneEls[state.playerZone].classList.add(saved?'correct':'wrong');
+  }
+  if(!saved && state.targetZone>=0){
+    zoneEls[state.targetZone].classList.add('correct');
+  }
+
+  if(saved){
+    state.score++;
+    state.streak++;
+    if(state.streak>state.bestStreak) state.bestStreak=state.streak;
+    $('hudScore').textContent=n$(state.score);
+    showResult('تصدي رائع! 🧤',true);
+    playSound('save');
+    var bRect=ballEl.getBoundingClientRect();
+    spawnParticles(bRect.left+bRect.width/2,bRect.top+bRect.height/2,'#00e5b0',8);
+    updateStreak();
+  }else{
+    state.lives--;
+    state.streak=0;
+    buildLives();
+    showResult('هدف! ⚽',false);
+    playSound('goal');
+    field.classList.add('shake');
+    setTimeout(function(){field.classList.remove('shake');},500);
+    updateStreak();
+  }
+
+  setTimeout(function(){
+    hideResult();
+    if(state.lives<=0){
+      endGame();
+    }else{
+      setTimeout(function(){startRound();},300);
+    }
+  },1400);
+}
+
+function showResult(text,isSave){
+  var ov=$('resultOverlay');
+  var tx=$('resultText');
+  tx.textContent=text;
+  tx.className='result-text '+(isSave?'result-save':'result-goal');
+  ov.classList.add('show');
+}
+function hideResult(){$('resultOverlay').classList.remove('show');}
+
+function showLevelBanner(){
+  var b=$('levelBanner');
+  b.textContent='مستوى '+n$(state.difficulty)+' 🔥';
+  b.classList.add('show');
+  setTimeout(function(){b.classList.remove('show');},1800);
+}
+
+function updateStreak(){
+  var b=$('streakBadge');
+  if(state.streak>=2){
+    b.textContent='🔥 سلسلة '+n$(state.streak);
+    b.classList.add('show');
+  }else{
+    b.classList.remove('show');
+  }
+}
+
+function endGame(){
+  state.phase='done';
+  playSound('gameover');
+  setTimeout(function(){
+    playSound('whistle');
+    showEndScreen();
+  },600);
+}
+
+function showEndScreen(){
+  $('endScore').textContent=n$(state.score);
+  var goalsIn=state.maxLives-state.lives;
+  $('endDetail').textContent=n$(state.score)+' تصدي — '+n$(goalsIn)+' أهداف';
+
+  var stars=0;
+  if(state.score>=3)stars=1;
+  if(state.score>=8)stars=2;
+  if(state.score>=15)stars=3;
+  var sr=$('starsRow');
+  sr.innerHTML='';
+  for(var i=0;i<3;i++){
+    var s=document.createElement('div');
+    s.className='star-item'+(i<stars?' earned':'');
+    s.innerHTML='<svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="'+(i<stars?'#f5c842':'rgba(255,255,255,0.15)')+'" stroke="'+(i<stars?'#e8a820':'rgba(255,255,255,0.1)')+'" stroke-width="1"/></svg>';
+    s.style.transitionDelay=(i*0.15)+'s';
+    sr.appendChild(s);
+  }
+  showScreen('endScreen');
+}
+
+// ===== GAME LOOP =====
+var lastTime=0;
+function gameLoop(ts){
+  if(!lastTime)lastTime=ts;
+  var dt=Math.min(ts-lastTime,50);
+  lastTime=ts;
+
+  if(state.phase==='flying'){
+    // Animate ball from penalty spot to target zone
+    state.ballFlyT+=dt;
+    var progress=Math.min(state.ballFlyT/state.ballFlyDur,1);
+    // Ease-out cubic for natural deceleration
+    var ease=1-Math.pow(1-progress,3);
+
+    var bx=state.ballStartX+(state.ballTargetX-state.ballStartX)*ease;
+    var by=state.ballStartY+(state.ballTargetY-state.ballStartY)*ease;
+    // Ball shrinks as it flies "into the distance" toward goal
+    var sc=1-0.4*ease;
+    ballEl.style.left=bx+'px';
+    ballEl.style.top=by+'px';
+    ballEl.style.transform='scale('+sc.toFixed(3)+')';
+
+    // Animate keeper dive toward chosen zone
+    if(state.keeperDiving){
+      state.keeperDiveT+=dt;
+      var dp=Math.min(state.keeperDiveT/220,1);
+      var de=1-Math.pow(1-dp,2); // ease-out quad
+      var kx=state.keeperCurX+(state.keeperTargetX-state.keeperCurX)*de;
+      var ky=state.keeperCurY+(state.keeperTargetY-state.keeperCurY)*de;
+      keeperEl.style.left=kx+'px';
+      keeperEl.style.top=ky+'px';
+
+      // Body rotation toward dive
+      var dxDir=state.keeperTargetX-state.keeperHomeX;
+      var bodyRot=dxDir<-10?22:dxDir>10?-22:0;
+
+      // Glove directional stretching:
+      // When diving left, left arm extends further left, right tucks
+      // When diving right, right arm extends further right, left tucks
+      var glL=$('gloveL');
+      var glR=$('gloveR');
+      var dir=state.diveDirection;
+
+      if(dir==='left'){
+        // Stretch left glove outward, tuck right closer
+        glL.style.transform='rotate('+(-30*de)+'deg) translateX('+(-8*de)+'px) scale('+(1+0.12*de)+')';
+        glR.style.transform='rotate('+(-10*de)+'deg) translateX('+(-4*de)+'px) scale('+(1-0.05*de)+')';
+        keeperEl.style.transform='rotate('+Math.round(bodyRot*de)+'deg)';
+      }else if(dir==='right'){
+        // Stretch right glove outward, tuck left closer
+        glR.style.transform='rotate('+(30*de)+'deg) translateX('+(8*de)+'px) scale('+(1+0.12*de)+')';
+        glL.style.transform='rotate('+(10*de)+'deg) translateX('+(4*de)+'px) scale('+(1-0.05*de)+')';
+        keeperEl.style.transform='rotate('+Math.round(bodyRot*de)+'deg)';
+      }else{
+        // Center dive — both arms raise up
+        glL.style.transform='translateY('+(-6*de)+'px) scale('+(1+0.05*de)+')';
+        glR.style.transform='translateY('+(-6*de)+'px) scale('+(1+0.05*de)+')';
+        keeperEl.style.transform='none';
+      }
+    }
+
+    // Resolve when ball arrives
+    if(progress>=1){
+      resolveRound();
+    }
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);
+
+// ===== INIT =====
+function init(){
+  buildZones();
+  initZoneInput();
+  layoutField();
+
+  addTouch($('btnStart'),function(){startGame();});
+  addTouch($('btnReplay'),function(){startGame();});
+
+  window.addEventListener('resize',function(){layoutField();});
+  window.addEventListener('orientationchange',function(){setTimeout(layoutField,200);});
+  setTimeout(layoutField,100);
+  setTimeout(layoutField,500);
+
+  // Noise texture
+  var style=document.createElement('style');
+  style.textContent='body::before{filter:url(#noise);background:#fff;width:100%;height:100%;}';
+  document.head.appendChild(style);
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>
