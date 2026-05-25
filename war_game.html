@@ -22,8 +22,9 @@ canvas{display:block;position:fixed;inset:0}
 /* ── HUD ── */
 #hud-tr{position:absolute;top:12px;right:12px}
 #hud-tl{position:absolute;top:12px;left:12px}
+#hud-bottom{position:absolute;bottom:155px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
 .hl{font-size:8px;letter-spacing:2px;color:rgba(0,255,229,.45);margin-bottom:2px}
-.hbg{width:min(130px,28vw);height:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:2px;overflow:hidden;margin-bottom:6px}
+.hbg{width:min(200px,55vw);height:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-bottom:2px}
 .hf{height:100%;border-radius:2px;transition:width .1s}
 #hfhp{background:linear-gradient(90deg,#00ffe5,#00b0a0);width:100%}
 #hfam{background:linear-gradient(90deg,#ffe500,#ff7700);width:100%}
@@ -87,15 +88,21 @@ canvas{display:block;position:fixed;inset:0}
     <div class="xl xl-d"></div>
   </div>
   <div id="hud-tr">
-    <div class="hl">الصحة</div>
-    <div class="hbg"><div class="hf" id="hfhp"></div></div>
-    <div class="hl">الطاقة</div>
-    <div class="hbg"><div class="hf" id="hfam"></div></div>
     <div class="hv" id="hpv">100</div>
   </div>
   <div id="hud-tl">
     <div class="hl">النقاط</div>
     <div id="sc">0000</div>
+  </div>
+  <div id="hud-bottom">
+    <div style="display:flex;align-items:center;gap:8px;width:min(200px,55vw)">
+      <span style="font-size:9px;color:rgba(0,255,229,.5);letter-spacing:1px;white-space:nowrap">الصحة</span>
+      <div class="hbg" style="margin:0;flex:1"><div class="hf" id="hfhp"></div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;width:min(200px,55vw)">
+      <span style="font-size:9px;color:rgba(255,229,0,.5);letter-spacing:1px;white-space:nowrap">الطاقة</span>
+      <div class="hbg" style="margin:0;flex:1"><div class="hf" id="hfam"></div></div>
+    </div>
   </div>
   <div id="kf"></div>
   <div id="mm-wrap"><canvas id="mm" width="90" height="90"></canvas></div>
@@ -601,55 +608,57 @@ function updatePlayer(dt) {
   const spd = joyBoost ? 18 : 12;
   let mvx = 0, mvz = 0;
 
+  // Forward = direction camera (and turret) is pointing
+  // camYaw: 0 = looking toward +Z, PI/2 = looking toward +X
+  const fwdX =  Math.sin(camYaw);
+  const fwdZ =  Math.cos(camYaw);
+  const rtX  =  Math.cos(camYaw);
+  const rtZ  = -Math.sin(camYaw);
+
   if (joyActive) {
-    mvx = joyDX * spd;
-    mvz = joyDZ * spd;
+    // Joystick: ny>0 = pushed down = backward, ny<0 = pushed up = forward
+    mvx = rtX * joyDX + fwdX * joyDZ;
+    mvz = rtZ * joyDX + fwdZ * joyDZ;
+    const ml = Math.sqrt(mvx*mvx+mvz*mvz);
+    if (ml > 0.01) { mvx = mvx/ml*spd; mvz = mvz/ml*spd; }
   } else {
-    const sx = -Math.sin(camYaw), sz = -Math.cos(camYaw); // forward
-    const rx = Math.cos(camYaw), rz = Math.sin(camYaw);   // right (note: was wrong before)
-    if (keys['w'] || keys['arrowup'])    { mvx += sx; mvz += sz; }
-    if (keys['s'] || keys['arrowdown'])  { mvx -= sx; mvz -= sz; }
-    if (keys['a'] || keys['arrowleft'])  { mvx -= rx; mvz -= rz; }
-    if (keys['d'] || keys['arrowright']) { mvx += rx; mvz += rz; }
+    if (keys['w'] || keys['arrowup'])    { mvx += fwdX; mvz += fwdZ; }
+    if (keys['s'] || keys['arrowdown'])  { mvx -= fwdX; mvz -= fwdZ; }
+    if (keys['a'] || keys['arrowleft'])  { mvx -= rtX;  mvz -= rtZ;  }
+    if (keys['d'] || keys['arrowright']) { mvx += rtX;  mvz += rtZ;  }
     const ml = Math.sqrt(mvx*mvx+mvz*mvz);
     if (ml > 0.01) { mvx = mvx/ml*spd; mvz = mvz/ml*spd; }
   }
 
-  // Directly integrate player position — no physics friction fighting us
   playerBody.pos.x += mvx * dt;
   playerBody.pos.z += mvz * dt;
-
-  // Face movement direction
-  if (Math.abs(mvx) + Math.abs(mvz) > 0.5) {
-    playerGrp.rotation.y = Math.atan2(mvx, mvz);
-  }
 
   // Arena clamp
   const bd = ARENA - 1.5;
   playerBody.pos.x = Math.max(-bd, Math.min(bd, playerBody.pos.x));
   playerBody.pos.z = Math.max(-bd, Math.min(bd, playerBody.pos.z));
 
-  // Sync mesh — always on ground
+  // Hull always faces camYaw (tank body = aim direction, coupled movement+aim)
   playerGrp.position.set(playerBody.pos.x, 0, playerBody.pos.z);
+  playerGrp.rotation.y = camYaw;
 
-  // Turret always faces camYaw direction
-  turretGrp.rotation.y = camYaw - playerGrp.rotation.y;
+  // Turret is locked to hull (same direction) — no extra rotation needed
+  turretGrp.rotation.y = 0;
   barrelGrp.rotation.x = 0;
 
-  // Camera follows behind camYaw direction
+  // Camera sits behind the aim direction
   const CD = 9, CH = 5.5;
-  const cx = playerBody.pos.x - Math.sin(camYaw) * CD;
-  const cz = playerBody.pos.z - Math.cos(camYaw) * CD;
-  cam.position.x += (cx - cam.position.x) * 0.12;
-  cam.position.y += (CH - cam.position.y) * 0.12;
-  cam.position.z += (cz - cam.position.z) * 0.12;
+  const cx = playerBody.pos.x - fwdX * CD;
+  const cz = playerBody.pos.z - fwdZ * CD;
+  cam.position.x += (cx - cam.position.x) * 0.14;
+  cam.position.y += (CH - cam.position.y) * 0.14;
+  cam.position.z += (cz - cam.position.z) * 0.14;
   cam.lookAt(
-    playerBody.pos.x + Math.sin(camYaw) * 4,
+    playerBody.pos.x + fwdX * 4,
     1.2,
-    playerBody.pos.z + Math.cos(camYaw) * 4
+    playerBody.pos.z + fwdZ * 4
   );
 
-  // Muzzle light decay
   if (muzzleTimer > 0) {
     muzzleTimer -= dt;
     muzzleLight.intensity = 7 * Math.max(0, muzzleTimer / 0.09);
@@ -657,7 +666,6 @@ function updatePlayer(dt) {
     muzzleLight.intensity = 0;
   }
 
-  // Ammo regen
   ammo = Math.min(100, ammo + dt * 6);
   updAmmo();
 }
@@ -869,14 +877,9 @@ function handleJoy(dx, dy) {
   const mx = Math.min(d, JR);
   const nx = dx / Math.max(d, 0.001), ny = dy / Math.max(d, 0.001);
   joyKnob.style.transform = `translate(calc(-50% + ${nx * mx}px), calc(-50% + ${ny * mx}px))`;
-  // nx = right on screen, ny = down on screen (forward for player)
-  // Map through camYaw so joystick up = move in camera forward direction
-  const fwdX = -Math.sin(camYaw), fwdZ = -Math.cos(camYaw);
-  const rtX  =  Math.cos(camYaw), rtZ  =  Math.sin(camYaw);
-  joyDX = rtX * nx + fwdX * ny;
-  joyDZ = rtZ * nx + fwdZ * ny;
-  const jlen = Math.sqrt(joyDX * joyDX + joyDZ * joyDZ);
-  if (jlen > 0.01) { joyDX /= jlen; joyDZ /= jlen; }
+  // Store raw normalized joystick: nx=strafe right, ny=forward (negative=forward on screen)
+  joyDX = -nx;
+  joyDZ = -ny;
   joyBoost = d > JR * 0.88;
 }
 
