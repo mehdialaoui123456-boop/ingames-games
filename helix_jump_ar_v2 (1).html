@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>برج الحلزون</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+html,body { width:100%; height:100%; overflow:hidden; }
+body { touch-action:none; position:fixed; inset:0; background:#070b14; font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif; }
+
+.screen { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:opacity 0.3s ease, transform 0.3s ease; }
+.screen.hidden { opacity:0; pointer-events:none; transform:translateY(12px); }
+
+/* START */
+#start-screen { background:radial-gradient(ellipse 80% 55% at 50% 30%, #0a1f3a 0%, #070b14 70%); }
+.game-title {
+  font-size:clamp(38px,10vw,58px); font-weight:900; text-align:center; line-height:1.05; margin-bottom:10px;
+  background:linear-gradient(135deg,#f5c842,#4fc3f7,#00e5b0);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  filter:drop-shadow(0 0 22px rgba(79,195,247,0.45));
+}
+.game-sub { color:rgba(255,255,255,0.4); font-size:clamp(13px,3.5vw,16px); margin-bottom:36px; }
+.instr-box {
+  background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); border-radius:20px;
+  padding:20px 28px; max-width:300px; width:88%; margin-bottom:36px; backdrop-filter:blur(12px);
+}
+.instr-box p { color:rgba(255,255,255,0.75); font-size:clamp(13px,3.5vw,15px); line-height:1.9; text-align:center; }
+.instr-box span { color:#f5c842; font-weight:700; }
+.btn {
+  border:none; border-radius:999px; padding:15px 52px; cursor:pointer; font-weight:800;
+  font-size:clamp(16px,4.5vw,19px); transition:transform 0.12s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.12s;
+  min-width:180px; text-align:center;
+}
+.btn-gold { background:linear-gradient(135deg,#f5c842,#ffaa00); color:#070b14; box-shadow:0 6px 0 #a07000,0 0 28px rgba(245,200,66,0.4); }
+.btn-gold:active { transform:translateY(3px); box-shadow:0 3px 0 #a07000; }
+.btn-blue { background:linear-gradient(135deg,#4fc3f7,#0097d4); color:#fff; box-shadow:0 6px 0 #005f90,0 0 28px rgba(79,195,247,0.4); }
+.btn-blue:active { transform:translateY(3px); box-shadow:0 3px 0 #005f90; }
+
+/* GAME */
+#game-screen { background:#070b14; }
+#hud {
+  position:absolute; top:0; left:0; right:0; z-index:50;
+  display:flex; justify-content:space-between; align-items:center; padding:10px 14px; pointer-events:none;
+}
+.pill {
+  background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
+  border-radius:999px; padding:6px 16px; font-size:clamp(13px,3.5vw,16px);
+  color:#fff; font-weight:700; display:flex; align-items:center; gap:6px; font-variant-numeric:lining-nums;
+}
+.pill .lbl { color:rgba(255,255,255,0.45); font-weight:400; font-size:0.82em; }
+#score-val { color:#f5c842; text-shadow:0 0 10px rgba(245,200,66,0.6); font-variant-numeric:lining-nums; }
+.heart { font-size:15px; transition:transform 0.2s, opacity 0.2s; }
+.heart.gone { opacity:0.18; transform:scale(0.65); }
+#canvas-wrap { position:absolute; inset:0; }
+#gc { display:block; }
+
+#lvl-flash {
+  position:absolute; inset:0; pointer-events:none; z-index:60;
+  display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;
+}
+#lvl-flash.show { opacity:1; }
+#lvl-text {
+  background:rgba(79,195,247,0.15); border:1px solid rgba(79,195,247,0.4);
+  border-radius:20px; padding:12px 30px; color:#4fc3f7;
+  font-size:clamp(17px,5vw,23px); font-weight:800; text-shadow:0 0 16px rgba(79,195,247,0.8); backdrop-filter:blur(8px);
+}
+.pt { position:absolute; border-radius:50%; pointer-events:none; z-index:55; animation:pout 0.55s ease-out forwards; }
+@keyframes pout { 0%{transform:translate(0,0) scale(1);opacity:1} 100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0} }
+
+/* END */
+#end-screen { background:radial-gradient(ellipse 80% 55% at 50% 35%, #0a1a30 0%, #070b14 70%); }
+.end-title { font-size:clamp(24px,7vw,36px); font-weight:900; color:#ff6b6b; text-shadow:0 0 20px rgba(255,107,107,0.5); margin-bottom:6px; }
+.end-sub { color:rgba(255,255,255,0.35); font-size:clamp(12px,3.5vw,15px); margin-bottom:26px; }
+.score-big {
+  font-size:clamp(64px,20vw,96px); font-weight:900; line-height:1; font-variant-numeric:lining-nums;
+  background:linear-gradient(135deg,#f5c842,#ffaa00); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  filter:drop-shadow(0 0 24px rgba(245,200,66,0.5)); margin-bottom:4px;
+}
+.score-lbl { color:rgba(255,255,255,0.35); font-size:clamp(12px,3.5vw,15px); margin-bottom:26px; }
+.stars { display:flex; gap:10px; justify-content:center; margin-bottom:32px; }
+.star svg { width:44px; height:44px; transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1), filter 0.4s; }
+.star.on svg { filter:drop-shadow(0 0 10px rgba(245,200,66,0.9)); transform:scale(1.2); }
+.best { color:rgba(255,255,255,0.3); font-size:clamp(12px,3vw,14px); margin-top:16px; font-variant-numeric:lining-nums; }
+</style>
+</head>
+<body>
+
+<!-- START -->
+<div id="start-screen" class="screen">
+  <div class="game-title">برج<br>الحلزون</div>
+  <div class="game-sub">لعبة الانعكاسات السريعة</div>
+  <div class="instr-box">
+    <p>
+      <span>اسحب يميناً أو يساراً</span> لتدوير البرج<br>
+      دع الكرة تسقط عبر <span>الفجوات البيضاء</span><br>
+      تجنب الحلقات <span>الحمراء</span> أو تخسر حياة<br>
+      اكسر عدة حلقات = <span>مكافأة!</span>
+    </p>
+  </div>
+  <button class="btn btn-gold" id="btn-start">ابدأ اللعبة</button>
+</div>
+
+<!-- GAME -->
+<div id="game-screen" class="screen hidden">
+  <div id="hud">
+    <div class="pill"><span class="lbl">النقاط</span><span id="score-val">0</span></div>
+    <div class="pill" id="hearts-wrap">
+      <span class="heart" id="h0">❤️</span>
+      <span class="heart" id="h1">❤️</span>
+      <span class="heart" id="h2">❤️</span>
+    </div>
+  </div>
+  <div id="canvas-wrap"><canvas id="gc"></canvas></div>
+  <div id="lvl-flash"><div id="lvl-text">مستوى جديد! 🚀</div></div>
+</div>
+
+<!-- END -->
+<div id="end-screen" class="screen hidden">
+  <div class="end-title">انتهت اللعبة</div>
+  <div class="end-sub">أحسنت المحاولة!</div>
+  <div class="score-big" id="end-score">0</div>
+  <div class="score-lbl">نقطة</div>
+  <div class="stars" id="stars"></div>
+  <button class="btn btn-blue" id="btn-replay">العب مرة أخرى</button>
+  <div class="best" id="best-lbl"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ─── AUDIO ─── */
+let AC = null;
+function getAC(){
+  try{
+    if(!AC) AC=new(window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended') AC.resume();
+    return AC;
+  }catch(e){return null;}
+}
+function sPop(){try{
+  const c=getAC();if(!c)return;
+  const o=c.createOscillator(),g=c.createGain();
+  o.connect(g);g.connect(c.destination);
+  o.frequency.setValueAtTime(700,c.currentTime);
+  o.frequency.exponentialRampToValueAtTime(1100,c.currentTime+0.08);
+  g.gain.setValueAtTime(0.22,c.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.12);
+  o.start();o.stop(c.currentTime+0.13);
+}catch(e){}}
+function sBuzz(){try{
+  const c=getAC();if(!c)return;
+  const o=c.createOscillator(),g=c.createGain();
+  o.type='sawtooth';o.connect(g);g.connect(c.destination);
+  o.frequency.setValueAtTime(110,c.currentTime);
+  o.frequency.exponentialRampToValueAtTime(55,c.currentTime+0.28);
+  g.gain.setValueAtTime(0.28,c.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.3);
+  o.start();o.stop(c.currentTime+0.32);
+}catch(e){}}
+function sLvl(){try{
+  const c=getAC();if(!c)return;
+  [440,554,659,880].forEach((f,i)=>{
+    const o=c.createOscillator(),g=c.createGain();
+    o.connect(g);g.connect(c.destination);o.frequency.value=f;
+    const t=c.currentTime+i*0.08;
+    g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+    o.start(t);o.stop(t+0.2);
+  });
+}catch(e){}}
+function sOver(){try{
+  const c=getAC();if(!c)return;
+  [440,330,220,165].forEach((f,i)=>{
+    const o=c.createOscillator(),g=c.createGain();
+    o.connect(g);g.connect(c.destination);o.frequency.value=f;
+    const t=c.currentTime+i*0.13;
+    g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.22);
+    o.start(t);o.stop(t+0.24);
+  });
+}catch(e){}}
+
+/* ─── SCREEN ─── */
+const SS={start:document.getElementById('start-screen'),game:document.getElementById('game-screen'),end:document.getElementById('end-screen')};
+function show(name){Object.entries(SS).forEach(([k,el])=>el.classList.toggle('hidden',k!==name));}
+
+/* ─── CANVAS ─── */
+const canvas=document.getElementById('gc');
+const cx=canvas.getContext('2d');
+const wrap=document.getElementById('canvas-wrap');
+let W=0,H=0;
+function resize(){
+  W=wrap.clientWidth||window.innerWidth;
+  H=wrap.clientHeight||window.innerHeight;
+  canvas.width=W; canvas.height=H;
+}
+resize();
+window.addEventListener('resize',()=>{resize();});
+window.addEventListener('orientationchange',()=>setTimeout(resize,120));
+setTimeout(resize,100); setTimeout(resize,500);
+
+/* ─── CONSTANTS (computed each frame from W/H) ─── */
+// Tower is drawn as a flat oval/ellipse for perspective feel
+// The ring is an ellipse: xR = towerXR(), yR = towerYR() (shallow)
+// The ball falls down the center (x = W/2)
+// A ring has: startAngle (where gap begins), gapAngle (size of gap)
+// Gap detection: the gap is a portion of the 360° ring
+// Ball passes through if the angular position directly "above" the ball center falls inside the gap
+// Since ball is at x = W/2 (center of ellipse), we check which angle(s) map to x=0 (center)
+// For ellipse: x = cx + cos(a)*xR → at cx, cos(a)=0 → a = PI/2 or 3PI/2
+// So the ball always "enters" the ring at angle PI/2 (front-bottom) or 3*PI/2 (front-top)
+// We use a = PI/2 as the "entry point" (top of ellipse in screen, front face)
+// The ball passes if angle PI/2 (adjusted for tower rotation) falls inside the gap arc
+
+const TXR=()=>Math.min(W,H)*0.30;  // ellipse x radius
+const TYR=()=>TXR()*0.22;           // ellipse y radius (flat perspective)
+const RING_H=()=>Math.min(W,H)*0.055;
+const RING_GAP=()=>Math.PI*0.72;    // gap size in radians ~41% of circle
+const RING_SPACE=()=>RING_H()*2.6;
+const BALL_R=()=>Math.min(W,H)*0.042;
+const GRAVITY=()=>0.22+diff*0.045;
+const MAX_VY=()=>14+diff*1.5;
+
+/* ─── STATE ─── */
+let score=0,lives=3,diff=1,lastDiffScore=0,best=parseInt(localStorage.getItem('hxbest')||'0',10);
+let running=false,raf=null;
+let towerRot=0,targetRot=0;  // current tower rotation (radians)
+let ball={y:0,vy:0};
+let camY=0;
+let rings=[];
+
+/* ─── RING FACTORY ─── */
+/*
+  Ring: {
+    worldY   : number  — world Y position of ring center
+    startAngle: number — world angle where gap begins (0 = right)
+    gapSize  : number  — size of gap in radians
+    color    : string
+    isDanger : boolean
+    state    : 'alive' | 'dying'
+    alpha    : 1→0 when dying
+  }
+*/
+const SAFE_COLS=['#4fc3f7','#00e5b0','#a78bfa','#60a5fa','#2dd4bf','#818cf8'];
+const DANGER_COLS=['#ff6b6b','#ff4444','#f87171'];
+
+function makeRing(worldY){
+  const isDanger=Math.random()<(0.12+diff*0.04);
+  return {
+    worldY,
+    startAngle: Math.random()*Math.PI*2,
+    gapSize: RING_GAP() - Math.min(0.25, diff*0.04),
+    color: isDanger ? DANGER_COLS[Math.floor(Math.random()*DANGER_COLS.length)] : SAFE_COLS[Math.floor(Math.random()*SAFE_COLS.length)],
+    isDanger,
+    state:'alive',
+    alpha:1
+  };
+}
+
+function initRings(){
+  rings=[];
+  const sp=RING_SPACE();
+  for(let i=1;i<=12;i++) rings.push(makeRing(sp*i));
+}
+
+/* ─── CORE COLLISION LOGIC ───
+   The tower is rotated by towerRot.
+   A ring's gap starts at (ring.startAngle + towerRot) in world angle.
+   The gap spans [gapStart, gapStart + gapSize].
+
+   The ball falls down the CENTER (x = W/2).
+   The "entry angle" — where the ball would punch through the ring — is always
+   at the TOP of the ellipse as drawn on screen: angle = -PI/2 (pointing straight up).
+
+   So: does the gap contain angle -PI/2?
+   i.e. is (-PI/2) inside [gapStart, gapStart+gapSize] (mod 2PI)?
+*/
+const ENTRY_ANGLE = -Math.PI/2;  // straight up = where ball falls through
+
+function normalise(a){ return ((a%(Math.PI*2))+Math.PI*2)%(Math.PI*2); }
+
+function angleInArc(angle, arcStart, arcSize){
+  // Is 'angle' inside arc [arcStart, arcStart+arcSize] (mod 2PI)?
+  const a = normalise(angle);
+  const s = normalise(arcStart);
+  const rel = normalise(a - s);
+  return rel <= arcSize;
+}
+
+function ballInGap(ring){
+  const gapStart = ring.startAngle + towerRot;
+  return angleInArc(ENTRY_ANGLE, gapStart, ring.gapSize);
+}
+
+/* ─── INPUT ─── */
+let drag=false, lastX=null;
+const SENS=0.0055;
+
+function onTS(e){ e.preventDefault(); getAC(); if(!running)return; drag=true; lastX=e.touches[0].clientX; }
+function onTM(e){ e.preventDefault(); if(!drag||!running)return; const dx=e.touches[0].clientX-lastX; targetRot+=dx*SENS; lastX=e.touches[0].clientX; }
+function onTE(){ drag=false; }
+function onMD(e){ if(!running)return; drag=true; lastX=e.clientX; }
+function onMM(e){ if(!drag||!running)return; const dx=e.clientX-lastX; targetRot+=dx*SENS; lastX=e.clientX; }
+function onMU(){ drag=false; }
+
+canvas.addEventListener('touchstart',onTS,{passive:false});
+canvas.addEventListener('touchmove',onTM,{passive:false});
+canvas.addEventListener('touchend',onTE,{passive:false});
+canvas.addEventListener('mousedown',onMD);
+window.addEventListener('mousemove',onMM);
+window.addEventListener('mouseup',onMU);
+
+/* ─── PARTICLES ─── */
+function particles(screenX,screenY,color,n){
+  for(let i=0;i<n;i++){
+    const p=document.createElement('div');
+    p.className='pt';
+    const sz=4+Math.random()*6;
+    const a=Math.random()*Math.PI*2, d=25+Math.random()*55;
+    p.style.cssText=`width:${sz}px;height:${sz}px;background:${color};left:${screenX}px;top:${screenY}px;--tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px;`;
+    document.getElementById('game-screen').appendChild(p);
+    setTimeout(()=>p.remove(),600);
+  }
+}
+
+/* ─── LEVEL FLASH ─── */
+let flashTO=null;
+function levelFlash(){
+  const el=document.getElementById('lvl-flash');
+  el.classList.add('show');
+  clearTimeout(flashTO);
+  flashTO=setTimeout(()=>el.classList.remove('show'),1300);
+}
+
+/* ─── HUD ─── */
+function updateHUD(){
+  document.getElementById('score-val').textContent=score.toLocaleString('en-US');
+  [0,1,2].forEach(i=>document.getElementById('h'+i).classList.toggle('gone',i>=lives));
+}
+
+/* ─── DRAW ─── */
+function drawBG(){
+  const g=cx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#070b14'); g.addColorStop(1,'#0d1b2a');
+  cx.fillStyle=g; cx.fillRect(0,0,W,H);
+  // subtle shaft
+  cx.save(); cx.globalAlpha=0.06;
+  const xr=TXR();
+  const sg=cx.createLinearGradient(W/2-xr,0,W/2+xr,0);
+  sg.addColorStop(0,'transparent'); sg.addColorStop(0.4,'#4fc3f7'); sg.addColorStop(0.6,'#4fc3f7'); sg.addColorStop(1,'transparent');
+  cx.fillStyle=sg; cx.fillRect(W/2-xr,0,xr*2,H);
+  cx.restore();
+}
+
+function drawRing(ring){
+  const sy=ring.worldY-camY;           // screen Y
+  if(sy<-RING_H()*4||sy>H+RING_H()*4) return;
+
+  const xr=TXR(), yr=TYR(), rh=RING_H();
+  const gapStart=ring.startAngle+towerRot;
+  const gapEnd=gapStart+ring.gapSize;
+  const solidStart=gapEnd;
+  const solidSize=Math.PI*2-ring.gapSize;
+
+  cx.save();
+  cx.globalAlpha=ring.alpha;
+
+  // Draw solid arc as an ellipse band (top ellipse + bottom ellipse + sides)
+  // We draw the top face of the ring (ellipse at sy) and bottom face (sy+rh)
+  // then fill between them for the solid portion only
+
+  const steps=80;
+  const da=solidSize/steps;
+
+  // Top face path
+  cx.beginPath();
+  for(let i=0;i<=steps;i++){
+    const a=solidStart+da*i;
+    const px=W/2+Math.cos(a)*xr;
+    const py=sy+Math.sin(a)*yr;
+    i===0?cx.moveTo(px,py):cx.lineTo(px,py);
+  }
+  // Bottom face (reverse)
+  for(let i=steps;i>=0;i--){
+    const a=solidStart+da*i;
+    const px=W/2+Math.cos(a)*xr;
+    const py=sy+rh+Math.sin(a)*yr;
+    cx.lineTo(px,py);
+  }
+  cx.closePath();
+
+  // Fill with gradient
+  const grad=cx.createLinearGradient(W/2-xr,sy,W/2+xr,sy+rh);
+  grad.addColorStop(0,ring.color+'ff');
+  grad.addColorStop(0.5,ring.color+'cc');
+  grad.addColorStop(1,ring.color+'88');
+  cx.fillStyle=grad;
+  cx.fill();
+
+  // Highlight strip on top
+  cx.beginPath();
+  for(let i=0;i<=steps;i++){
+    const a=solidStart+da*i;
+    const px=W/2+Math.cos(a)*xr;
+    const py=sy+Math.sin(a)*yr;
+    i===0?cx.moveTo(px,py):cx.lineTo(px,py);
+  }
+  for(let i=steps;i>=0;i--){
+    const a=solidStart+da*i;
+    const px=W/2+Math.cos(a)*(xr-4);
+    const py=sy+4+Math.sin(a)*yr;
+    cx.lineTo(px,py);
+  }
+  cx.closePath();
+  cx.fillStyle='rgba(255,255,255,0.18)';
+  cx.fill();
+
+  // Danger ring: add warning stripes (dashed red glow)
+  if(ring.isDanger){
+    cx.save();
+    cx.globalAlpha=ring.alpha*0.55;
+    cx.shadowColor=ring.color;
+    cx.shadowBlur=14;
+    cx.strokeStyle=ring.color;
+    cx.lineWidth=3;
+    cx.beginPath();
+    for(let i=0;i<=steps;i++){
+      const a=solidStart+da*i;
+      const px=W/2+Math.cos(a)*xr;
+      const py=sy+rh*0.5+Math.sin(a)*yr;
+      i===0?cx.moveTo(px,py):cx.lineTo(px,py);
+    }
+    cx.stroke();
+    cx.restore();
+  }
+
+  cx.restore();
+}
+
+function drawBall(){
+  const sy=ball.y-camY;
+  const br=BALL_R();
+  const xr=TXR();
+
+  cx.save();
+  // Shadow on tower
+  cx.globalAlpha=0.3;
+  cx.fillStyle='rgba(245,200,66,0.4)';
+  cx.beginPath();
+  cx.ellipse(W/2,sy+br*0.7, br*1.1, br*0.35, 0,0,Math.PI*2);
+  cx.fill();
+
+  // Glow
+  cx.globalAlpha=1;
+  const grd=cx.createRadialGradient(W/2,sy,0,W/2,sy,br*2.8);
+  grd.addColorStop(0,'rgba(245,200,66,0.3)');
+  grd.addColorStop(1,'rgba(245,200,66,0)');
+  cx.beginPath(); cx.arc(W/2,sy,br*2.8,0,Math.PI*2); cx.fillStyle=grd; cx.fill();
+
+  // Ball
+  const bg=cx.createRadialGradient(W/2-br*0.3,sy-br*0.3,br*0.05,W/2,sy,br);
+  bg.addColorStop(0,'#fffbe0');
+  bg.addColorStop(0.35,'#f5c842');
+  bg.addColorStop(1,'#b36000');
+  cx.beginPath(); cx.arc(W/2,sy,br,0,Math.PI*2);
+  cx.fillStyle=bg; cx.fill();
+
+  // Specular
+  cx.beginPath(); cx.arc(W/2-br*0.27,sy-br*0.27,br*0.28,0,Math.PI*2);
+  cx.fillStyle='rgba(255,255,255,0.72)'; cx.fill();
+
+  cx.restore();
+}
+
+/* ─── GAME LOOP ─── */
+let lastT=0;
+function loop(ts){
+  if(!running)return;
+  const dt=Math.min(ts-lastT,50); lastT=ts;
+
+  // Smooth tower rotation
+  towerRot+=(targetRot-towerRot)*0.16;
+
+  // Ball physics
+  ball.vy=Math.min(ball.vy+GRAVITY()*(dt/16), MAX_VY());
+  ball.y+=ball.vy*(dt/16);
+
+  // Camera: keep ball at ~22% from top
+  const tCam=ball.y-H*0.22;
+  camY+=(tCam-camY)*0.1;
+
+  // Tick dying rings
+  rings.forEach(r=>{ if(r.state==='dying') r.alpha-=0.075; });
+
+  // Remove far-past and fully-faded rings
+  rings=rings.filter(r=>r.worldY>camY-RING_H()*6 && r.alpha>0);
+
+  // Keep sorted by worldY so collision picks nearest correctly
+  rings.sort((a,b)=>a.worldY-b.worldY);
+
+  // Generate rings ahead
+  const deepest=rings.length>0?rings[rings.length-1].worldY:ball.y+RING_SPACE();
+  while(deepest<camY+H+RING_SPACE()*5){
+    rings.push(makeRing(rings[rings.length-1].worldY+RING_SPACE()));
+  }
+
+  // ─── COLLISION ───
+  // Strategy: find the FIRST ring below the ball (closest one the ball is approaching).
+  // Only interact with that one ring at a time to avoid confusion.
+  const br=BALL_R();
+  const rh=RING_H();
+
+  // Find the first alive ring whose top is below (ball.y - br) — i.e. ball hasn't fully passed it yet
+  let target=null;
+  for(let i=0;i<rings.length;i++){
+    const r=rings[i];
+    if(r.state!=='alive') continue;
+    if(r.worldY+rh < ball.y-br) continue; // fully above ball, skip
+    target=r;
+    break;
+  }
+
+  if(target){
+    const rTop=target.worldY;
+    const rBot=target.worldY+rh;
+    const ballBot=ball.y+br;
+
+    // Is ball's bottom edge touching or inside this ring vertically?
+    if(ballBot >= rTop){
+      const inGap=ballInGap(target);
+
+      if(inGap){
+        // Gap is open — let ball fall freely, score once as ball centre passes ring top
+        if(!target.scored && ball.y >= rTop - br*0.5){
+          target.scored=true;
+          target.state='dying';
+          score++;
+          updateHUD();
+          sPop();
+          particles(W/2, rTop-camY, target.color, 8);
+          checkDiff();
+        }
+      } else {
+        // Solid — block or punish
+        if(target.isDanger){
+          if(!target.scored){
+            target.scored=true;
+            target.state='dying';
+            lives--;
+            updateHUD();
+            sBuzz();
+            particles(W/2, rTop-camY, target.color, 6);
+            ball.vy=Math.abs(ball.vy)*0.35+3; // pass through
+            if(lives<=0){ endGame(); return; }
+          }
+        } else {
+          // Rest on top — only if ball is coming down
+          if(ball.vy>=0){
+            ball.y=rTop-br;
+            ball.vy=0;
+          }
+        }
+      }
+    }
+  }
+
+  // Draw
+  cx.clearRect(0,0,W,H);
+  drawBG();
+  // Draw rings back-to-front
+  rings.slice().sort((a,b)=>a.worldY-b.worldY).forEach(drawRing);
+  drawBall();
+
+  raf=requestAnimationFrame(loop);
+}
+
+/* ─── DIFFICULTY ─── */
+function checkDiff(){
+  const threshold=6+diff*2;
+  if(score-lastDiffScore>=threshold && diff<6){
+    diff++; lastDiffScore=score;
+    levelFlash(); sLvl();
+  }
+}
+
+/* ─── FLOW ─── */
+function startGame(){
+  score=0; lives=3; diff=1; lastDiffScore=0;
+  towerRot=0; targetRot=0;
+  ball.y=RING_SPACE()*0.3; ball.vy=0;
+  camY=0;
+  updateHUD();
+  initRings();
+  document.getElementById('lvl-flash').classList.remove('show');
+  running=true;
+  show('game');
+  lastT=performance.now();
+  raf=requestAnimationFrame(loop);
+}
+
+function endGame(){
+  running=false; cancelAnimationFrame(raf);
+  sOver();
+  if(score>best){ best=score; localStorage.setItem('hxbest',String(best)); }
+  document.getElementById('end-score').textContent=score.toLocaleString('en-US');
+  const stars=score>=30?3:score>=12?2:score>=4?1:0;
+  const sr=document.getElementById('stars');
+  sr.innerHTML='';
+  for(let i=0;i<3;i++){
+    const on=i<stars;
+    const d=document.createElement('div');
+    d.className='star'+(on?' on':'');
+    d.innerHTML=`<svg viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${on?'#f5c842':'#1e2a3a'}" stroke="${on?'#c07a00':'#2e4060'}" stroke-width="1.5"/></svg>`;
+    sr.appendChild(d);
+    if(on) setTimeout(()=>d.querySelector('svg').style.transform='scale(1.25) rotate(-8deg)',i*160+200);
+  }
+  document.getElementById('best-lbl').textContent=best>0?'أفضل نتيجة: '+best.toLocaleString('en-US'):'';
+  setTimeout(()=>show('end'),350);
+}
+
+/* ─── BUTTONS ─── */
+function tap(id,fn){
+  const el=document.getElementById(id);
+  el.addEventListener('touchstart',e=>{e.preventDefault();getAC();fn();},{passive:false});
+  el.addEventListener('mousedown',e=>{e.preventDefault();fn();});
+}
+tap('btn-start',startGame);
+tap('btn-replay',startGame);
+
+})();
+</script>
+</body>
+</html>
