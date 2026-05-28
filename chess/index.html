@@ -665,7 +665,7 @@ initBoard();
 updateHUD();
 window.addEventListener('resize',resize);
 resize();
-initFirebase();
+(async function(){ await initFirebase(); })();
 
 })();
 </script>
