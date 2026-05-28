@@ -573,7 +573,7 @@ document.getElementById('btn-restart').addEventListener('click',()=>{
 // ══════════════════════════════════════════════════
 // FIREBASE MULTIPLAYER
 // ══════════════════════════════════════════════════
-let _db=null, _roomRef=null;
+let _db=null, _roomRef=null, _connectedAt=0;
 
 async function initFirebase(){
   if(!IS_MP) return;
@@ -585,18 +585,21 @@ async function initFirebase(){
 
     _db=firebase.database(app);
     _roomRef=_db.ref('rooms/'+ROOM_ID+'/chess');
+    _connectedAt=Date.now();
 
-    // Listen for remote moves
+    // Listen for remote moves — ignore own moves and stale moves from before we connected
     _roomRef.child('move').on('value',snap=>{
       const mv=snap.val();
       if(!mv||mv.from===MY_IDX) return;
+      if(!mv.ts||mv.ts<_connectedAt) return;
       applyMove(mv.fr,mv.ff,mv.tr,mv.tf,mv.promo||null);
     });
 
-    // Listen for full state resets (restart)
+    // Listen for full state resets (restart) — ignore own and stale
     _roomRef.child('state').on('value',snap=>{
       const st=snap.val();
       if(!st||st.from===MY_IDX) return;
+      if(!st.ts||st.ts<_connectedAt) return;
       applyFullState(st);
     });
 
