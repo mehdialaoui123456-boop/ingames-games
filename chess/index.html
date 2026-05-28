@@ -6,6 +6,7 @@
 <title>شطرنج</title>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="config.js"></script>
 <style>
@@ -131,6 +132,7 @@ const ROOM_ID  = params.get('room');
 const MY_IDX   = parseInt(params.get('player') || '0', 10); // 0=white,1=black
 const IS_MP    = !!ROOM_ID;
 const MY_COLOR = MY_IDX === 0 ? 'w' : 'b';
+const _authToken = params.get('token');
 
 // ══════════════════════════════════════════════════
 // CHESS CONSTANTS
@@ -573,10 +575,14 @@ document.getElementById('btn-restart').addEventListener('click',()=>{
 // ══════════════════════════════════════════════════
 let _db=null, _roomRef=null;
 
-function initFirebase(){
+async function initFirebase(){
   if(!IS_MP) return;
   try{
     const app=firebase.initializeApp(_fbConfig);
+
+    // Sign in anonymously so Realtime Database rules (auth != null) pass
+    await firebase.auth(app).signInAnonymously();
+
     _db=firebase.database(app);
     _roomRef=_db.ref('rooms/'+ROOM_ID+'/chess');
 
