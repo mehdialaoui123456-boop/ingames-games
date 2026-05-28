@@ -5,6 +5,7 @@
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
@@ -449,7 +450,7 @@ function showCard(sp,idx,acts){
 function gName(g){return{brown:'الحي البني',sky:'الحي السماوي',pink:'الحي الوردي',orange:'البرتقالي',red:'الأحمر',gold:'الذهبي',green:'الأخضر',navy:'الأزرق الداكن',station:'محطات'}[g]||'عقار';}
 
 // ── Dice ──
-function rollDice(){
+function _coreRollDice(){
   if(hasRolled||isMoving||gameOver)return;
   ea();snd('roll');hasRolled=true;
   document.getElementById('rb').disabled=true;
@@ -517,13 +518,13 @@ function offerBuild(i){
   const lb=propH[i]<4?'ابنِ بيت ('+wn(cost)+')':'ابنِ فندق ('+wn(cost)+')';
   sActs([{l:lb,pri:true,fn:()=>{chMon(cp,-cost);propH[i]++;snd('buy');sMsg('تم البناء');draw();sActs([]);setTimeout(endTurn,500);}},{l:'تجاوز',fn:()=>{sActs([]);endTurn();}}]);
 }
-function endTurn(){
+function _coreEndTurn(){
   sActs([]);const dbl=dice[0]===dice[1]&&!P[cp].jail;
   if(!dbl)cp=(cp+1)%2;else sMsg('دبل! ارمِ مرة أخرى');
   hasRolled=false;document.getElementById('rb').disabled=false;uChip();
   if(!dbl)sMsg('دور اللاعب '+wn(cp+1));draw();
 }
-function endGame(w){
+function _coreEndGame(w){
   gameOver=true;snd('win');
   document.getElementById('gameScreen').classList.add('hidden');
   document.getElementById('eT').textContent='فاز اللاعب '+wn(w+1)+'!';
@@ -544,7 +545,7 @@ function initGame(){
 function bind(id,fn){const el=document.getElementById(id);el.addEventListener('touchstart',e=>{e.preventDefault();ea();fn();},{passive:false});el.addEventListener('mousedown',e=>{e.preventDefault();ea();fn();});}
 bind('btnS',()=>{document.getElementById('startScreen').classList.add('hidden');document.getElementById('gameScreen').classList.remove('hidden');initGame();});
 bind('btnR',()=>{document.getElementById('endScreen').classList.add('hidden');document.getElementById('gameScreen').classList.remove('hidden');initGame();});
-bind('rb',rollDice);
+bind('rb',()=>rollDice());
 window.addEventListener('resize',()=>{if(!gameOver&&!document.getElementById('gameScreen').classList.contains('hidden')){measure();draw();}});
 setTimeout(()=>{measure();},100);setTimeout(()=>{measure();},500);measure();
 
@@ -557,6 +558,7 @@ const _params = new URLSearchParams(window.location.search);
 const _roomId  = _params.get('room');
 const _myIdx   = parseInt(_params.get('player') || '0', 10); // 0 or 1
 const _isMP    = !!_roomId;
+const _authToken = _params.get('token');
 
 // Firebase config is defined in the inline script above
 
@@ -564,20 +566,28 @@ let _db = null;
 let _roomRef = null;
 let _isMaster = false; // player 0 is master (rolls dice, resolves turns)
 let _suppressRemote = false; // prevent echo when we push our own state
+let _connectedAt = 0;
 
-function _initFirebase() {
+async function _initFirebase() {
   if (!_isMP) return;
   try {
     const app = firebase.initializeApp(_fbConfig);
+
+    // Sign in anonymously so Realtime Database rules (auth != null) pass
+    await firebase.auth(app).signInAnonymously();
+
     _db = firebase.database(app);
     _roomRef = _db.ref('rooms/' + _roomId);
     _isMaster = (_myIdx === 0);
+    _connectedAt = Date.now();
 
     // Listen for remote state changes
     _roomRef.on('value', snap => {
       if (_suppressRemote) return;
       const data = snap.val();
       if (!data || !data.state) return;
+      // Ignore stale state pushed before we connected
+      if (!data.state.ts || data.state.ts < _connectedAt) return;
       _applyRemoteState(data.state);
     });
 
@@ -586,6 +596,8 @@ function _initFirebase() {
       const action = snap.val();
       if (!action) return;
       if (action.from === _myIdx) return; // ignore our own echoes
+      // Ignore stale actions from before we connected
+      if (!action.ts || action.ts < _connectedAt) return;
       _handleRemoteAction(action);
     });
 
@@ -605,6 +617,7 @@ function _pushState() {
     propOwn: Array.from(propOwn),
     propH:   Array.from(propH),
     cp, dice, hasRolled, gameOver,
+    ts: Date.now(),
   };
   _roomRef.child('state').set(state).then(() => {
     _suppressRemote = false;
@@ -658,35 +671,27 @@ function _handleRemoteAction(action) {
   }
 }
 
-// ── Override rollDice to sync ──
-const _origRollDice = rollDice;
+// ── Wrapper functions that add multiplayer sync ──
 function rollDice() {
-  if (!_isMP) { _origRollDice(); return; }
-  // Only your turn
+  if (!_isMP) { _coreRollDice(); return; }
   if (cp !== _myIdx) return;
   if (!_isMaster) {
-    // Non-master sends action request
     _sendAction('roll', {});
     return;
   }
-  _origRollDice();
+  _coreRollDice();
 }
 
-// Hook endTurn to push state after each turn
-const _origEndTurn = endTurn;
 function endTurn() {
-  _origEndTurn();
+  _coreEndTurn();
   if (_isMP && _isMaster) {
     setTimeout(_pushState, 200);
-    // Update button — only active player can roll
     document.getElementById('rb').disabled = (cp !== _myIdx) || gameOver;
   }
 }
 
-// Hook endGame to notify Flutter
-const _origEndGame = endGame;
 function endGame(w) {
-  _origEndGame(w);
+  _coreEndGame(w);
   if (_isMP) {
     if (typeof FlutterBridge !== 'undefined') {
       FlutterBridge.postMessage('gameOver');
@@ -703,22 +708,23 @@ function _updateUI() {
 }
 
 // ── Init ──
-_initFirebase();
+(async function(){
+  await _initFirebase();
 
-// In MP mode, show a "waiting" overlay until Firebase connects
-if (_isMP) {
-  const waiter = document.createElement('div');
-  waiter.id = 'mpWait';
-  waiter.style.cssText = 'position:fixed;inset:0;background:#0c0c10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;font-family:system-ui;color:#d4af55';
-  waiter.innerHTML = '<div style="font-size:3rem">🎲</div><div style="margin-top:12px;font-size:1rem;letter-spacing:2px">جارٍ الاتصال...</div>';
-  document.body.appendChild(waiter);
-  // Remove once Firebase emits first value
-  _roomRef && _roomRef.once('value', () => {
-    waiter.style.opacity = '0';
-    waiter.style.transition = 'opacity .4s';
-    setTimeout(() => waiter.remove(), 400);
-  });
-}
+  // In MP mode, show a "waiting" overlay until Firebase connects
+  if (_isMP && _roomRef) {
+    const waiter = document.createElement('div');
+    waiter.id = 'mpWait';
+    waiter.style.cssText = 'position:fixed;inset:0;background:#0c0c10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;font-family:system-ui;color:#d4af55';
+    waiter.innerHTML = '<div style="font-size:3rem">🎲</div><div style="margin-top:12px;font-size:1rem;letter-spacing:2px">جارٍ الاتصال...</div>';
+    document.body.appendChild(waiter);
+    _roomRef.once('value', () => {
+      waiter.style.opacity = '0';
+      waiter.style.transition = 'opacity .4s';
+      setTimeout(() => waiter.remove(), 400);
+    });
+  }
+})();
 
 })();
 </script>
