@@ -566,6 +566,7 @@ let _db = null;
 let _roomRef = null;
 let _isMaster = false; // player 0 is master (rolls dice, resolves turns)
 let _suppressRemote = false; // prevent echo when we push our own state
+let _connectedAt = 0;
 
 async function _initFirebase() {
   if (!_isMP) return;
@@ -578,12 +579,15 @@ async function _initFirebase() {
     _db = firebase.database(app);
     _roomRef = _db.ref('rooms/' + _roomId);
     _isMaster = (_myIdx === 0);
+    _connectedAt = Date.now();
 
     // Listen for remote state changes
     _roomRef.on('value', snap => {
       if (_suppressRemote) return;
       const data = snap.val();
       if (!data || !data.state) return;
+      // Ignore stale state pushed before we connected
+      if (!data.state.ts || data.state.ts < _connectedAt) return;
       _applyRemoteState(data.state);
     });
 
@@ -592,6 +596,8 @@ async function _initFirebase() {
       const action = snap.val();
       if (!action) return;
       if (action.from === _myIdx) return; // ignore our own echoes
+      // Ignore stale actions from before we connected
+      if (!action.ts || action.ts < _connectedAt) return;
       _handleRemoteAction(action);
     });
 
@@ -611,6 +617,7 @@ function _pushState() {
     propOwn: Array.from(propOwn),
     propH:   Array.from(propH),
     cp, dice, hasRolled, gameOver,
+    ts: Date.now(),
   };
   _roomRef.child('state').set(state).then(() => {
     _suppressRemote = false;
