@@ -115,7 +115,17 @@ canvas{display:block}
   <button class="btn-g" id="btnR">العب مرة أخرى</button>
 </div>
 
-<script src="config.js"></script>
+<script>
+const _fbConfig = {
+  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:        "ingames-9c93b.firebaseapp.com",
+  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:         "ingames-9c93b",
+  storageBucket:     "ingames-9c93b.firebasestorage.app",
+  messagingSenderId: "711825788462",
+  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+</script>
 <script>
 (function(){
 "use strict";
@@ -439,7 +449,7 @@ function showCard(sp,idx,acts){
 function gName(g){return{brown:'الحي البني',sky:'الحي السماوي',pink:'الحي الوردي',orange:'البرتقالي',red:'الأحمر',gold:'الذهبي',green:'الأخضر',navy:'الأزرق الداكن',station:'محطات'}[g]||'عقار';}
 
 // ── Dice ──
-function rollDice(){
+function _coreRollDice(){
   if(hasRolled||isMoving||gameOver)return;
   ea();snd('roll');hasRolled=true;
   document.getElementById('rb').disabled=true;
@@ -507,13 +517,13 @@ function offerBuild(i){
   const lb=propH[i]<4?'ابنِ بيت ('+wn(cost)+')':'ابنِ فندق ('+wn(cost)+')';
   sActs([{l:lb,pri:true,fn:()=>{chMon(cp,-cost);propH[i]++;snd('buy');sMsg('تم البناء');draw();sActs([]);setTimeout(endTurn,500);}},{l:'تجاوز',fn:()=>{sActs([]);endTurn();}}]);
 }
-function endTurn(){
+function _coreEndTurn(){
   sActs([]);const dbl=dice[0]===dice[1]&&!P[cp].jail;
   if(!dbl)cp=(cp+1)%2;else sMsg('دبل! ارمِ مرة أخرى');
   hasRolled=false;document.getElementById('rb').disabled=false;uChip();
   if(!dbl)sMsg('دور اللاعب '+wn(cp+1));draw();
 }
-function endGame(w){
+function _coreEndGame(w){
   gameOver=true;snd('win');
   document.getElementById('gameScreen').classList.add('hidden');
   document.getElementById('eT').textContent='فاز اللاعب '+wn(w+1)+'!';
@@ -534,7 +544,7 @@ function initGame(){
 function bind(id,fn){const el=document.getElementById(id);el.addEventListener('touchstart',e=>{e.preventDefault();ea();fn();},{passive:false});el.addEventListener('mousedown',e=>{e.preventDefault();ea();fn();});}
 bind('btnS',()=>{document.getElementById('startScreen').classList.add('hidden');document.getElementById('gameScreen').classList.remove('hidden');initGame();});
 bind('btnR',()=>{document.getElementById('endScreen').classList.add('hidden');document.getElementById('gameScreen').classList.remove('hidden');initGame();});
-bind('rb',rollDice);
+bind('rb',()=>rollDice());
 window.addEventListener('resize',()=>{if(!gameOver&&!document.getElementById('gameScreen').classList.contains('hidden')){measure();draw();}});
 setTimeout(()=>{measure();},100);setTimeout(()=>{measure();},500);measure();
 
@@ -548,7 +558,7 @@ const _roomId  = _params.get('room');
 const _myIdx   = parseInt(_params.get('player') || '0', 10); // 0 or 1
 const _isMP    = !!_roomId;
 
-// Firebase config loaded from config.js (gitignored)
+// Firebase config is defined in the inline script above
 
 let _db = null;
 let _roomRef = null;
@@ -648,35 +658,27 @@ function _handleRemoteAction(action) {
   }
 }
 
-// ── Override rollDice to sync ──
-const _origRollDice = rollDice;
+// ── Wrapper functions that add multiplayer sync ──
 function rollDice() {
-  if (!_isMP) { _origRollDice(); return; }
-  // Only your turn
+  if (!_isMP) { _coreRollDice(); return; }
   if (cp !== _myIdx) return;
   if (!_isMaster) {
-    // Non-master sends action request
     _sendAction('roll', {});
     return;
   }
-  _origRollDice();
+  _coreRollDice();
 }
 
-// Hook endTurn to push state after each turn
-const _origEndTurn = endTurn;
 function endTurn() {
-  _origEndTurn();
+  _coreEndTurn();
   if (_isMP && _isMaster) {
     setTimeout(_pushState, 200);
-    // Update button — only active player can roll
     document.getElementById('rb').disabled = (cp !== _myIdx) || gameOver;
   }
 }
 
-// Hook endGame to notify Flutter
-const _origEndGame = endGame;
 function endGame(w) {
-  _origEndGame(w);
+  _coreEndGame(w);
   if (_isMP) {
     if (typeof FlutterBridge !== 'undefined') {
       FlutterBridge.postMessage('gameOver');
