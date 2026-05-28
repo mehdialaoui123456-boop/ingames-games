@@ -701,22 +701,23 @@ function _updateUI() {
 }
 
 // ── Init ──
-_initFirebase();
+(async function(){
+  await _initFirebase();
 
-// In MP mode, show a "waiting" overlay until Firebase connects
-if (_isMP) {
-  const waiter = document.createElement('div');
-  waiter.id = 'mpWait';
-  waiter.style.cssText = 'position:fixed;inset:0;background:#0c0c10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;font-family:system-ui;color:#d4af55';
-  waiter.innerHTML = '<div style="font-size:3rem">🎲</div><div style="margin-top:12px;font-size:1rem;letter-spacing:2px">جارٍ الاتصال...</div>';
-  document.body.appendChild(waiter);
-  // Remove once Firebase emits first value
-  _roomRef && _roomRef.once('value', () => {
-    waiter.style.opacity = '0';
-    waiter.style.transition = 'opacity .4s';
-    setTimeout(() => waiter.remove(), 400);
-  });
-}
+  // In MP mode, show a "waiting" overlay until Firebase connects
+  if (_isMP && _roomRef) {
+    const waiter = document.createElement('div');
+    waiter.id = 'mpWait';
+    waiter.style.cssText = 'position:fixed;inset:0;background:#0c0c10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;font-family:system-ui;color:#d4af55';
+    waiter.innerHTML = '<div style="font-size:3rem">🎲</div><div style="margin-top:12px;font-size:1rem;letter-spacing:2px">جارٍ الاتصال...</div>';
+    document.body.appendChild(waiter);
+    _roomRef.once('value', () => {
+      waiter.style.opacity = '0';
+      waiter.style.transition = 'opacity .4s';
+      setTimeout(() => waiter.remove(), 400);
+    });
+  }
+})();
 
 })();
 </script>
