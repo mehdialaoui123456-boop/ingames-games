@@ -5,6 +5,7 @@
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
@@ -557,6 +558,7 @@ const _params = new URLSearchParams(window.location.search);
 const _roomId  = _params.get('room');
 const _myIdx   = parseInt(_params.get('player') || '0', 10); // 0 or 1
 const _isMP    = !!_roomId;
+const _authToken = _params.get('token');
 
 // Firebase config is defined in the inline script above
 
@@ -565,10 +567,14 @@ let _roomRef = null;
 let _isMaster = false; // player 0 is master (rolls dice, resolves turns)
 let _suppressRemote = false; // prevent echo when we push our own state
 
-function _initFirebase() {
+async function _initFirebase() {
   if (!_isMP) return;
   try {
     const app = firebase.initializeApp(_fbConfig);
+
+    // Sign in anonymously so Realtime Database rules (auth != null) pass
+    await firebase.auth(app).signInAnonymously();
+
     _db = firebase.database(app);
     _roomRef = _db.ref('rooms/' + _roomId);
     _isMaster = (_myIdx === 0);
