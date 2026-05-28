@@ -115,7 +115,17 @@ canvas{display:block}
   <button class="btn-g" id="btnR">العب مرة أخرى</button>
 </div>
 
-<script src="config.js"></script>
+<script>
+const _fbConfig = {
+  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:        "ingames-9c93b.firebaseapp.com",
+  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:         "ingames-9c93b",
+  storageBucket:     "ingames-9c93b.firebasestorage.app",
+  messagingSenderId: "711825788462",
+  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+</script>
 <script>
 (function(){
 "use strict";
@@ -548,7 +558,7 @@ const _roomId  = _params.get('room');
 const _myIdx   = parseInt(_params.get('player') || '0', 10); // 0 or 1
 const _isMP    = !!_roomId;
 
-// Firebase config loaded from config.js (gitignored)
+// Firebase config is defined in the inline script above
 
 let _db = null;
 let _roomRef = null;
