@@ -7,17 +7,7 @@
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script>
-const _fbConfig = {
-  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
-  authDomain:        "ingames-9c93b.firebaseapp.com",
-  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
-  projectId:         "ingames-9c93b",
-  storageBucket:     "ingames-9c93b.firebasestorage.app",
-  messagingSenderId: "711825788462",
-  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
-};
-</script>
+<script src="config.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{width:100%;height:100%;overflow:hidden;background:#0c0c10;font-family:system-ui,-apple-system,sans-serif}
@@ -278,16 +268,17 @@ function initBoard(){
 }
 
 // ── Find king ──
-function findKing(color){
+function findKing(color, b){
+  b = b || board;
   for(let r=0;r<8;r++) for(let f=0;f<8;f++)
-    if(board[r][f]===color+'K') return [r,f];
+    if(b[r][f]===color+'K') return [r,f];
   return null;
 }
 
 // ── Is square attacked by color? ──
 function isAttacked(r,f,byColor,b){
   b = b||board;
-  // Pawns
+  // Pawns — look behind the pawn's move direction to find attackers
   const pd = byColor==='w'?1:-1;
   for(const df of[-1,1]){
     const pr=r+pd, pf=f+df;
@@ -328,7 +319,7 @@ function isAttacked(r,f,byColor,b){
   return false;
 }
 
-function inCheck(color,b){ const k=findKing(color); return k?isAttacked(k[0],k[1],color==='w'?'b':'w',b):false; }
+function inCheck(color,b){ b=b||board; const k=findKing(color,b); return k?isAttacked(k[0],k[1],color==='w'?'b':'w',b):false; }
 
 // ── Generate pseudo-legal moves ──
 function pseudoMoves(r,f,b,cast,ep){
@@ -340,8 +331,8 @@ function pseudoMoves(r,f,b,cast,ep){
   const push=(tr,tf)=>{ if(tr>=0&&tr<8&&tf>=0&&tf<8) moves.push([tr,tf]); };
 
   if(type==='P'){
-    const dir=color==='w'?1:-1;
-    const start=color==='w'?1:6;
+    const dir=color==='w'?-1:1;
+    const start=color==='w'?6:1;
     // Forward
     if(!b[r+dir]?.[f]){ push(r+dir,f);
       if(r===start&&!b[r+2*dir]?.[f]) push(r+2*dir,f);
@@ -367,7 +358,7 @@ function pseudoMoves(r,f,b,cast,ep){
       if(tr>=0&&tr<8&&tf>=0&&tf<8&&b[tr][tf]?.[0]!==color) push(tr,tf);
     }
     // Castling
-    const backR=color==='w'?0:7;
+    const backR=color==='w'?7:0;
     if(r===backR&&f===4&&!inCheck(color,b)){
       if(cast[color+'K']&&!b[backR][5]&&!b[backR][6]
         &&!isAttacked(backR,5,opp,b)&&!isAttacked(backR,6,opp,b))
@@ -404,7 +395,7 @@ function legalMovesFor(r,f){
       nb[r][tf]=null;
     // Castling: move rook
     if(pc[1]==='K'&&Math.abs(tf-f)===2){
-      const backR=color==='w'?0:7;
+      const backR=color==='w'?7:0;
       if(tf===6){nb[backR][5]=nb[backR][7];nb[backR][7]=null;}
       else{nb[backR][3]=nb[backR][0];nb[backR][0]=null;}
     }
@@ -428,7 +419,7 @@ function applyMove(fr,ff,tr,tf,promo){
 
   // Castling: move rook
   if(pc[1]==='K'&&Math.abs(tf-ff)===2){
-    const backR=color==='w'?0:7;
+    const backR=color==='w'?7:0;
     if(tf===6){board[backR][5]=board[backR][7];board[backR][7]=null;}
     else{board[backR][3]=board[backR][0];board[backR][0]=null;}
     castling[color+'K']=castling[color+'Q']=false;
@@ -516,7 +507,7 @@ function handleTap(e){
     const legal=legalMoves.find(m=>m[0]===r&&m[1]===f);
     if(legal){
       const pc=board[selected[0]][selected[1]];
-      const isPromo=pc[1]==='P'&&(r===7||r===0);
+      const isPromo=pc[1]==='P'&&((pc[0]==='w'&&r===0)||(pc[0]==='b'&&r===7));
       if(isPromo){
         promoPending={fr:selected[0],ff:selected[1],tr:r,tf:f};
         showPromo(pc[0]);
