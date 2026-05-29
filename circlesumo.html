@@ -105,8 +105,8 @@
   <div id="stage">
     <canvas id="cv"></canvas>
     <div id="divider"></div>
-    <div id="hintTop" class="tapHint">اضغط للاندفاع نحو الخصم</div>
-    <div id="hintBot" class="tapHint">اضغط للاندفاع نحو الخصم</div>
+    <div id="hintTop" class="tapHint">حرّك إصبعك للتحكم</div>
+    <div id="hintBot" class="tapHint">حرّك إصبعك للتحكم</div>
     <div id="scoreTop" class="score"><span class="dot"></span><span id="sTop">0</span></div>
     <div id="scoreBot" class="score"><span class="dot"></span><span id="sBot">0</span></div>
     <div id="flash"></div>
@@ -169,10 +169,11 @@ const elWait=$('wait'), elStart=$('start'), elOver=$('over'), elFlash=$('flash')
 /* ---------- world model (logical 0..1000 space, mapped to canvas) ---------- */
 const WIN_SCORE = 5;
 const DISK_R = 0.072;      // fraction of min(W,H)
-const FRICTION = 0.986;
+const FRICTION = 0.94;     // stronger damping so joystick feels responsive
 const RESTITUTION = 0.92;  // disk-disk bounce
-const DASH_SPEED = 0.030;  // impulse magnitude (per-frame velocity units)
-const MAX_SPEED = 0.060;
+const THRUST = 0.0016;     // continuous accel from joystick (per frame at full tilt)
+const MAX_SPEED = 0.045;
+const STICK_R = 0.14;      // joystick base radius as fraction of min(W,H)
 
 let W=0, H=0, DPR=1;
 let arena = { cx:0, cy:0, r:0 };   // in pixels
@@ -189,8 +190,12 @@ let game = {
   roundLock:false
 };
 
-/* pending taps from guest, consumed by host each frame */
-let pendingRemoteTap = null;
+/* joystick vectors: normalized -1..1 per axis. [0]=host disk, [1]=guest disk */
+let joy = [ {dx:0,dy:0,active:false}, {dx:0,dy:0,active:false} ];
+/* on-screen stick visuals (pixels). key by pointer id */
+let sticks = {}; // id -> {ownerIdx, baseX, baseY, curX, curY}
+/* guest's joystick vector received by host */
+let remoteJoy = {dx:0,dy:0};
 
 /* ---------- Firebase wiring ---------- */
 let _db=null, _roomRef=null, _connectedAt=0, _bothConnected=false;
@@ -225,12 +230,12 @@ async function initFirebase(){
     });
 
     if(IS_HOST){
-      // host listens for guest taps
+      // host listens for guest joystick vector
       _roomRef.child('input').on('value', snap=>{
         const v = snap.val();
         if(!v || v.from === MY_IDX) return;
         if(!v.ts || v.ts < _connectedAt) return;
-        pendingRemoteTap = v;            // consumed in physics step
+        remoteJoy = { dx:v.dx||0, dy:v.dy||0 };
       });
     } else {
       // guest listens for authoritative state
@@ -286,10 +291,14 @@ function broadcastState(extra){
   _roomRef.child('state').set(payload);
 }
 
-/* guest sends a tap (direction computed host-side from positions) */
-function sendInput(){
+/* guest streams its joystick vector to host (throttled) */
+let _lastInputSend = 0;
+function sendInput(force){
   if(!IS_MP || IS_HOST || !_roomRef) return;
-  _roomRef.child('input').set({ from: MY_IDX, ts: Date.now(), tap:true });
+  const now = performance.now();
+  if(!force && now - _lastInputSend < 50) return;  // ~20Hz
+  _lastInputSend = now;
+  _roomRef.child('input').set({ from: MY_IDX, ts: Date.now(), dx:joy[1].dx, dy:joy[1].dy });
 }
 
 /* ---------- canvas sizing ---------- */
@@ -314,42 +323,72 @@ function resetDisks(){
   game.roundLock = false;
 }
 
-/* ---------- input ---------- */
-function onTap(clientY){
-  if(!game.running || game.roundLock) return;
+/* ---------- input: joysticks ---------- */
+/* which disk does a touch on this Y belong to?
+   single device: top half -> guest disk(1), bottom -> host disk(0)
+   MP host: only its own half (bottom) controls disk 0
+   MP guest: only its own half (top) controls disk 1                */
+function ownerForY(clientY){
   const topHalf = clientY < H/2;
-  // In MP: host only controls disk0 via its own taps on bottom half;
-  // guest controls disk1 by sending input.
   if(IS_MP){
-    if(IS_HOST){
-      if(!topHalf) dash(0);          // host taps bottom -> dash disk 0
-    } else {
-      if(topHalf) sendInput();        // guest taps top -> tell host
-    }
-  } else {
-    // single device: bottom half = disk0, top half = disk1
-    dash(topHalf ? 1 : 0);
+    if(IS_HOST) return topHalf ? null : 0;   // host owns bottom only
+    return topHalf ? 1 : null;               // guest owns top only
   }
+  return topHalf ? 1 : 0;                     // single device: both halves
 }
 
-/* apply dash impulse to disk `i` toward opponent */
-function dash(i){
-  const me = game.disks[i];
-  const opp = game.disks[1-i];
-  let dx = opp.x - me.x, dy = opp.y - me.y;
-  const len = Math.hypot(dx,dy) || 1;
-  dx/=len; dy/=len;
-  me.vx += dx*DASH_SPEED;
-  me.vy += dy*DASH_SPEED;
-  const sp = Math.hypot(me.vx,me.vy);
-  if(sp>MAX_SPEED){ me.vx*=MAX_SPEED/sp; me.vy*=MAX_SPEED/sp; }
+function setStick(id, ownerIdx, x, y){
+  sticks[id] = { ownerIdx, baseX:x, baseY:y, curX:x, curY:y };
+  joy[ownerIdx].active = true;
+}
+function moveStick(id, x, y){
+  const s = sticks[id]; if(!s) return;
+  let dx = x - s.baseX, dy = y - s.baseY;
+  const maxR = Math.min(W,H)*STICK_R;
+  const len = Math.hypot(dx,dy);
+  if(len > maxR){ dx = dx/len*maxR; dy = dy/len*maxR; }
+  s.curX = s.baseX + dx; s.curY = s.baseY + dy;
+  joy[s.ownerIdx].dx = dx/maxR;        // -1..1
+  joy[s.ownerIdx].dy = dy/maxR;
+  if(s.ownerIdx === MY_IDX) sendInput();
+}
+function endStick(id){
+  const s = sticks[id]; if(!s) return;
+  joy[s.ownerIdx] = {dx:0,dy:0,active:false};
+  if(s.ownerIdx === MY_IDX) sendInput(true);
+  delete sticks[id];
 }
 
 cv.addEventListener('touchstart', e=>{
   e.preventDefault();
-  onTap(e.touches[0].clientY);
+  for(const t of e.changedTouches){
+    const owner = ownerForY(t.clientY);
+    if(owner===null) continue;
+    setStick(t.identifier, owner, t.clientX, t.clientY);
+  }
 }, {passive:false});
-cv.addEventListener('mousedown', e=> onTap(e.clientY));
+cv.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    if(sticks[t.identifier]) moveStick(t.identifier, t.clientX, t.clientY);
+  }
+}, {passive:false});
+cv.addEventListener('touchend', e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches) endStick(t.identifier);
+}, {passive:false});
+cv.addEventListener('touchcancel', e=>{
+  for(const t of e.changedTouches) endStick(t.identifier);
+}, {passive:false});
+
+/* mouse fallback for desktop testing (single stick) */
+let _mouseId = 'mouse';
+cv.addEventListener('mousedown', e=>{
+  const owner = ownerForY(e.clientY);
+  if(owner!==null) setStick(_mouseId, owner, e.clientX, e.clientY);
+});
+window.addEventListener('mousemove', e=>{ if(sticks[_mouseId]) moveStick(_mouseId, e.clientX, e.clientY); });
+window.addEventListener('mouseup', ()=> endStick(_mouseId));
 
 /* ---------- physics (host only in MP; local in single-device) ---------- */
 function physicsEnabled(){ return !IS_MP || IS_HOST; }
@@ -358,8 +397,11 @@ function step(){
   if(!game.running) return;
 
   if(physicsEnabled() && !game.roundLock){
-    // consume a queued remote tap (guest dash)
-    if(pendingRemoteTap){ dash(1); pendingRemoteTap=null; }
+    // joystick thrust: disk 0 = local/host stick, disk 1 = guest (remote in MP)
+    const j0 = joy[0];
+    const j1 = IS_MP ? remoteJoy : joy[1];
+    applyThrust(0, j0.dx, j0.dy);
+    applyThrust(1, j1.dx, j1.dy);
 
     // integrate
     for(const d of game.disks){
@@ -372,6 +414,16 @@ function step(){
     // out-of-bounds check (centre of disk past arena radius + own radius)
     checkOut();
   }
+}
+
+/* continuous thrust from a joystick vector (jx,jy in -1..1) */
+function applyThrust(i, jx, jy){
+  if(!jx && !jy) return;
+  const d = game.disks[i];
+  d.vx += jx * THRUST;
+  d.vy += jy * THRUST;
+  const sp = Math.hypot(d.vx, d.vy);
+  if(sp > MAX_SPEED){ d.vx *= MAX_SPEED/sp; d.vy *= MAX_SPEED/sp; }
 }
 
 function collide(a,b){
@@ -466,6 +518,13 @@ function draw(){
   drawDisk(game.disks[0], getCss('--p0'), getCss('--p0glow'));
   drawDisk(game.disks[1], getCss('--p1'), getCss('--p1glow'));
 
+  // joysticks
+  for(const id in sticks){
+    const s = sticks[id];
+    drawStick(s, s.ownerIdx===0 ? getCss('--p0') : getCss('--p1'),
+                 s.ownerIdx===0 ? getCss('--p0glow') : getCss('--p1glow'));
+  }
+
   requestAnimationFrame(loop);
 }
 
@@ -480,6 +539,20 @@ function drawDisk(d, col, glow){
   ctx.shadowBlur=0;
   ctx.lineWidth=2;ctx.strokeStyle='rgba(255,255,255,0.5)';
   ctx.beginPath();ctx.arc(x,y,diskR,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+
+function drawStick(s, col, glow){
+  const R = Math.min(W,H)*STICK_R;
+  ctx.save();
+  // base ring
+  ctx.beginPath();ctx.arc(s.baseX,s.baseY,R,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.04)';ctx.fill();
+  ctx.lineWidth=2;ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.stroke();
+  // knob
+  ctx.shadowColor=glow;ctx.shadowBlur=16;
+  ctx.beginPath();ctx.arc(s.curX,s.curY,R*0.42,0,Math.PI*2);
+  ctx.fillStyle=col;ctx.fill();
   ctx.restore();
 }
 
