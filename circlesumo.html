@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>سومو الدائرة</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg:#0A0F1E;
+    --accent:#1877F2;
+    --p0:#1E90FF;      /* host / player 0 — neon blue */
+    --p0glow:#5FB8FF;
+    --p1:#FF3B5C;      /* guest / player 1 — neon red */
+    --p1glow:#FF7A92;
+    --ring:#2A3550;
+    --ink:#EAF0FF;
+    --muted:#8A96B5;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;background:var(--bg);}
+  body{
+    font-family:"Cairo","Segoe UI",Tahoma,system-ui,sans-serif;
+    color:var(--ink);
+    position:fixed;inset:0;
+    touch-action:none;user-select:none;
+  }
+  #stage{position:absolute;inset:0;}
+  canvas{display:block;width:100%;height:100%;}
+
+  /* tap overlays */
+  .tapHint{
+    position:absolute;left:0;right:0;text-align:center;
+    color:var(--muted);font-size:15px;font-weight:700;letter-spacing:.5px;
+    pointer-events:none;opacity:.9;
+  }
+  #hintTop{top:14px;transform:rotate(180deg);}     /* player 1 reads upside-down */
+  #hintBot{bottom:14px;}
+
+  /* score chips */
+  .score{
+    position:absolute;display:flex;align-items:center;gap:8px;
+    font-size:26px;font-weight:800;pointer-events:none;
+    background:rgba(255,255,255,.04);
+    padding:6px 14px;border-radius:30px;
+    border:1px solid rgba(255,255,255,.06);
+  }
+  #scoreTop{top:46px;left:50%;transform:translateX(-50%) rotate(180deg);color:var(--p1);}
+  #scoreBot{bottom:46px;left:50%;transform:translateX(-50%);color:var(--p0);}
+  .score .dot{width:14px;height:14px;border-radius:50%;}
+  #scoreTop .dot{background:var(--p1);box-shadow:0 0 12px var(--p1glow);}
+  #scoreBot .dot{background:var(--p0);box-shadow:0 0 12px var(--p0glow);}
+
+  /* center divider */
+  #divider{
+    position:absolute;left:0;right:0;top:50%;height:1px;
+    background:linear-gradient(90deg,transparent,var(--ring),transparent);
+    pointer-events:none;
+  }
+
+  /* round flash */
+  #flash{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:40px;font-weight:800;pointer-events:none;opacity:0;
+    transition:opacity .25s;
+  }
+
+  /* full-screen panels */
+  .panel{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;
+    background:radial-gradient(circle at 50% 50%,rgba(24,119,242,.10),var(--bg) 70%);
+    text-align:center;padding:30px;z-index:20;
+  }
+  .panel h1{font-size:34px;font-weight:800;letter-spacing:.5px;}
+  .panel p{color:var(--muted);font-size:16px;line-height:1.7;max-width:300px;}
+  .badge{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;
+    border:1px solid rgba(255,255,255,.1);
+  }
+  .btn{
+    margin-top:8px;padding:16px 44px;border:none;border-radius:16px;
+    font-family:inherit;font-size:19px;font-weight:800;color:#fff;
+    background:linear-gradient(135deg,var(--accent),#0E5FCF);
+    box-shadow:0 8px 26px rgba(24,119,242,.45);cursor:pointer;
+    transition:transform .12s;
+  }
+  .btn:active{transform:scale(.96);}
+  .spinner{
+    width:42px;height:42px;border-radius:50%;
+    border:4px solid rgba(255,255,255,.12);border-top-color:var(--accent);
+    animation:spin 1s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .hidden{display:none !important;}
+  .vCircle{
+    width:18px;height:18px;border-radius:50%;display:inline-block;vertical-align:middle;
+  }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="divider"></div>
+    <div id="hintTop" class="tapHint">اضغط للاندفاع نحو الخصم</div>
+    <div id="hintBot" class="tapHint">اضغط للاندفاع نحو الخصم</div>
+    <div id="scoreTop" class="score"><span class="dot"></span><span id="sTop">0</span></div>
+    <div id="scoreBot" class="score"><span class="dot"></span><span id="sBot">0</span></div>
+    <div id="flash"></div>
+  </div>
+
+  <!-- waiting / connecting overlay -->
+  <div id="wait" class="panel">
+    <div class="spinner"></div>
+    <h1 id="waitTitle">جارٍ الاتصال...</h1>
+    <p id="waitMsg">بانتظار صديقك للانضمام...</p>
+  </div>
+
+  <!-- start (single-device fallback only) -->
+  <div id="start" class="panel hidden">
+    <h1>سومو الدائرة</h1>
+    <p>ادفع خصمك خارج الدائرة! أول من يصل إلى 5 نقاط يفوز. لاعبان على نفس الجهاز.</p>
+    <button class="btn" id="startBtn">ابدأ اللعبة</button>
+  </div>
+
+  <!-- victory -->
+  <div id="over" class="panel hidden">
+    <div class="badge" id="overBadge"></div>
+    <h1 id="overTitle">انتهت اللعبة</h1>
+    <p id="overScore"></p>
+    <button class="btn" id="againBtn">العب مجدداً</button>
+  </div>
+
+<script>
+/* ============================================================
+   سومو الدائرة — Circle Sumo (multiplayer, host-authoritative)
+   Player 0 (host) runs physics + broadcasts state.
+   Player 1 (guest) renders state + sends tap inputs.
+   ============================================================ */
+
+/* ---------- 1. room / player from URL ---------- */
+const params  = new URLSearchParams(window.location.search);
+const ROOM_ID = params.get('room');
+const MY_IDX  = parseInt(params.get('player') || '0', 10); // 0 = host, 1 = guest
+const IS_MP   = !!ROOM_ID;
+const IS_HOST = MY_IDX === 0;
+const GAME_KEY = 'circlesumo';
+
+/* ---------- 2. Firebase config (InGames project) ---------- */
+const _fbConfig = {
+  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:        "ingames-9c93b.firebaseapp.com",
+  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:         "ingames-9c93b",
+  storageBucket:     "ingames-9c93b.firebasestorage.app",
+  messagingSenderId: "711825788462",
+  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+
+/* ---------- DOM ---------- */
+const cv   = document.getElementById('cv');
+const ctx  = cv.getContext('2d');
+const $    = id => document.getElementById(id);
+const elWait=$('wait'), elStart=$('start'), elOver=$('over'), elFlash=$('flash');
+
+/* ---------- world model (logical 0..1000 space, mapped to canvas) ---------- */
+const WIN_SCORE = 5;
+const DISK_R = 0.072;      // fraction of min(W,H)
+const FRICTION = 0.986;
+const RESTITUTION = 0.92;  // disk-disk bounce
+const DASH_SPEED = 0.030;  // impulse magnitude (per-frame velocity units)
+const MAX_SPEED = 0.060;
+
+let W=0, H=0, DPR=1;
+let arena = { cx:0, cy:0, r:0 };   // in pixels
+let diskR = 0;
+
+// positions/velocities are normalized: x,y in 0..1 of canvas; v in per-frame fraction
+let game = {
+  running:false,
+  score:[0,0],
+  disks:[
+    { x:0.5, y:0.74, vx:0, vy:0 },  // index 0 = host (bottom, blue)
+    { x:0.5, y:0.26, vx:0, vy:0 }   // index 1 = guest (top, red)
+  ],
+  roundLock:false
+};
+
+/* pending taps from guest, consumed by host each frame */
+let pendingRemoteTap = null;
+
+/* ---------- Firebase wiring ---------- */
+let _db=null, _roomRef=null, _connectedAt=0, _bothConnected=false;
+
+async function initFirebase(){
+  if(!IS_MP){ // single-device fallback
+    elWait.classList.add('hidden');
+    elStart.classList.remove('hidden');
+    return;
+  }
+  try{
+    const app = firebase.initializeApp(_fbConfig);
+    await firebase.auth(app).signInAnonymously();
+    _db = firebase.database(app);
+    _roomRef = _db.ref('rooms/' + ROOM_ID + '/' + GAME_KEY);
+    _connectedAt = Date.now();
+
+    // presence
+    _roomRef.child('players/' + MY_IDX).set(true);
+    _roomRef.child('players/' + MY_IDX).onDisconnect().remove();
+
+    // wait for both
+    _roomRef.child('players').on('value', snap=>{
+      const count = Object.keys(snap.val()||{}).length;
+      if(count >= 2 && !_bothConnected){
+        _bothConnected = true;
+        _roomRef.child('players').off('value');
+        startMatch();
+      } else if(count < 2){
+        $('waitMsg').textContent = 'بانتظار صديقك للانضمام...';
+      }
+    });
+
+    if(IS_HOST){
+      // host listens for guest taps
+      _roomRef.child('input').on('value', snap=>{
+        const v = snap.val();
+        if(!v || v.from === MY_IDX) return;
+        if(!v.ts || v.ts < _connectedAt) return;
+        pendingRemoteTap = v;            // consumed in physics step
+      });
+    } else {
+      // guest listens for authoritative state
+      _roomRef.child('state').on('value', snap=>{
+        const st = snap.val();
+        if(!st || st.ts < _connectedAt) return;
+        applyFullState(st);
+      });
+    }
+  }catch(e){
+    console.error('Firebase error', e);
+    elWait.classList.remove('hidden');
+    $('waitTitle').textContent = 'تعذر الاتصال';
+    $('waitMsg').textContent = 'حدث خطأ في الشبكة. حاول مرة أخرى.';
+    elWait.querySelector('.spinner').classList.add('hidden');
+    setTimeout(()=>elWait.classList.add('hidden'), 1800);
+  }
+}
+
+function startMatch(){
+  elWait.classList.add('hidden');
+  resetDisks();
+  game.score=[0,0];
+  updateScoreUI();
+  game.running = true;
+  if(IS_HOST) broadcastState();   // initial sync
+}
+
+/* guest applies host's state */
+function applyFullState(st){
+  game.score = st.score || [0,0];
+  game.running = st.running;
+  if(st.disks) game.disks = st.disks;
+  updateScoreUI();
+  if(st.flash){ showFlash(st.flash.text, st.flash.color); }
+  if(st.over){ showVictory(st.over.winner); }
+}
+
+/* host pushes full state (called ~throttled) */
+let _lastBroadcast = 0;
+function broadcastState(extra){
+  if(!IS_MP || !IS_HOST || !_roomRef) return;
+  const payload = {
+    from: MY_IDX, ts: Date.now(),
+    score: game.score,
+    running: game.running,
+    disks: game.disks.map(d=>({
+      x:+d.x.toFixed(4), y:+d.y.toFixed(4),
+      vx:+d.vx.toFixed(4), vy:+d.vy.toFixed(4)
+    }))
+  };
+  if(extra) Object.assign(payload, extra);
+  _roomRef.child('state').set(payload);
+}
+
+/* guest sends a tap (direction computed host-side from positions) */
+function sendInput(){
+  if(!IS_MP || IS_HOST || !_roomRef) return;
+  _roomRef.child('input').set({ from: MY_IDX, ts: Date.now(), tap:true });
+}
+
+/* ---------- canvas sizing ---------- */
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W*DPR; cv.height = H*DPR;
+  cv.style.width = W+'px'; cv.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const m = Math.min(W,H);
+  arena = { cx:W/2, cy:H/2, r:m*0.42 };
+  diskR = m*DISK_R;
+}
+window.addEventListener('resize', resize);
+
+/* ---------- helpers: map normalized -> pixels ---------- */
+function px(d){ return { x:d.x*W, y:d.y*H }; }
+
+function resetDisks(){
+  game.disks[0] = { x:0.5, y:0.74, vx:0, vy:0 }; // host bottom
+  game.disks[1] = { x:0.5, y:0.26, vx:0, vy:0 }; // guest top
+  game.roundLock = false;
+}
+
+/* ---------- input ---------- */
+function onTap(clientY){
+  if(!game.running || game.roundLock) return;
+  const topHalf = clientY < H/2;
+  // In MP: host only controls disk0 via its own taps on bottom half;
+  // guest controls disk1 by sending input.
+  if(IS_MP){
+    if(IS_HOST){
+      if(!topHalf) dash(0);          // host taps bottom -> dash disk 0
+    } else {
+      if(topHalf) sendInput();        // guest taps top -> tell host
+    }
+  } else {
+    // single device: bottom half = disk0, top half = disk1
+    dash(topHalf ? 1 : 0);
+  }
+}
+
+/* apply dash impulse to disk `i` toward opponent */
+function dash(i){
+  const me = game.disks[i];
+  const opp = game.disks[1-i];
+  let dx = opp.x - me.x, dy = opp.y - me.y;
+  const len = Math.hypot(dx,dy) || 1;
+  dx/=len; dy/=len;
+  me.vx += dx*DASH_SPEED;
+  me.vy += dy*DASH_SPEED;
+  const sp = Math.hypot(me.vx,me.vy);
+  if(sp>MAX_SPEED){ me.vx*=MAX_SPEED/sp; me.vy*=MAX_SPEED/sp; }
+}
+
+cv.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  onTap(e.touches[0].clientY);
+}, {passive:false});
+cv.addEventListener('mousedown', e=> onTap(e.clientY));
+
+/* ---------- physics (host only in MP; local in single-device) ---------- */
+function physicsEnabled(){ return !IS_MP || IS_HOST; }
+
+function step(){
+  if(!game.running) return;
+
+  if(physicsEnabled() && !game.roundLock){
+    // consume a queued remote tap (guest dash)
+    if(pendingRemoteTap){ dash(1); pendingRemoteTap=null; }
+
+    // integrate
+    for(const d of game.disks){
+      d.x += d.vx; d.y += d.vy;
+      d.vx *= FRICTION; d.vy *= FRICTION;
+    }
+    // collision between the two disks (elastic)
+    collide(game.disks[0], game.disks[1]);
+
+    // out-of-bounds check (centre of disk past arena radius + own radius)
+    checkOut();
+  }
+}
+
+function collide(a,b){
+  // work in pixel space for correct aspect
+  const ax=a.x*W, ay=a.y*H, bx=b.x*W, by=b.y*H;
+  let dx=bx-ax, dy=by-ay;
+  let dist=Math.hypot(dx,dy);
+  const minD = diskR*2;
+  if(dist===0){ dist=0.01; dx=0.01; }
+  if(dist < minD){
+    const nx=dx/dist, ny=dy/dist;
+    // separate
+    const overlap=(minD-dist)/2;
+    a.x -= nx*overlap/W; a.y -= ny*overlap/H;
+    b.x += nx*overlap/W; b.y += ny*overlap/H;
+    // relative velocity along normal (convert v to px)
+    const avx=a.vx*W, avy=a.vy*H, bvx=b.vx*W, bvy=b.vy*H;
+    const rvx=bvx-avx, rvy=bvy-avy;
+    const vn = rvx*nx + rvy*ny;
+    if(vn<0){
+      const imp = -(1+RESTITUTION)*vn/2;
+      a.vx -= (imp*nx)/W; a.vy -= (imp*ny)/H;
+      b.vx += (imp*nx)/W; b.vy += (imp*ny)/H;
+    }
+  }
+}
+
+function checkOut(){
+  for(let i=0;i<2;i++){
+    const d=game.disks[i];
+    const dxp=d.x*W-arena.cx, dyp=d.y*H-arena.cy;
+    const dist=Math.hypot(dxp,dyp);
+    if(dist > arena.r + diskR){   // fully outside the ring
+      scorePoint(1-i);            // the OTHER player scores
+      return;
+    }
+  }
+}
+
+function scorePoint(winnerIdx){
+  if(game.roundLock) return;
+  game.roundLock = true;
+  game.score[winnerIdx]++;
+  updateScoreUI();
+
+  const won = game.score[winnerIdx] >= WIN_SCORE;
+  const color = winnerIdx===0 ? getCss('--p0') : getCss('--p1');
+  const txt = won ? '' : (winnerIdx===0 ? 'نقطة للأزرق!' : 'نقطة للأحمر!');
+
+  if(!won) showFlash(txt, color);
+
+  if(IS_HOST||!IS_MP){
+    if(won){
+      game.running=false;
+      broadcastState({ over:{winner:winnerIdx}, flash:null });
+      showVictory(winnerIdx);
+    } else {
+      broadcastState({ flash:{text:txt,color} });
+      setTimeout(()=>{
+        resetDisks();
+        broadcastState();
+      }, 900);
+    }
+  }
+}
+
+/* ---------- rendering ---------- */
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  // arena ring
+  ctx.save();
+  // outer glow ring
+  const grd=ctx.createRadialGradient(arena.cx,arena.cy,arena.r*0.6,arena.cx,arena.cy,arena.r*1.05);
+  grd.addColorStop(0,'rgba(24,119,242,0.06)');
+  grd.addColorStop(1,'rgba(24,119,242,0)');
+  ctx.fillStyle=grd;
+  ctx.beginPath();ctx.arc(arena.cx,arena.cy,arena.r*1.05,0,Math.PI*2);ctx.fill();
+
+  // ring border
+  ctx.beginPath();ctx.arc(arena.cx,arena.cy,arena.r,0,Math.PI*2);
+  ctx.lineWidth=3;ctx.strokeStyle=getCss('--ring');ctx.stroke();
+  ctx.lineWidth=1.5;ctx.strokeStyle='rgba(95,184,255,0.35)';
+  ctx.beginPath();ctx.arc(arena.cx,arena.cy,arena.r-6,0,Math.PI*2);ctx.stroke();
+
+  // inner faint fill
+  ctx.beginPath();ctx.arc(arena.cx,arena.cy,arena.r,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.015)';ctx.fill();
+  ctx.restore();
+
+  // disks
+  drawDisk(game.disks[0], getCss('--p0'), getCss('--p0glow'));
+  drawDisk(game.disks[1], getCss('--p1'), getCss('--p1glow'));
+
+  requestAnimationFrame(loop);
+}
+
+function drawDisk(d, col, glow){
+  const x=d.x*W, y=d.y*H;
+  ctx.save();
+  ctx.shadowColor=glow; ctx.shadowBlur=22;
+  const g=ctx.createRadialGradient(x-diskR*0.3,y-diskR*0.3,diskR*0.2,x,y,diskR);
+  g.addColorStop(0,glow); g.addColorStop(1,col);
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.arc(x,y,diskR,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.lineWidth=2;ctx.strokeStyle='rgba(255,255,255,0.5)';
+  ctx.beginPath();ctx.arc(x,y,diskR,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+
+function loop(){
+  step();
+  // host broadcasts at ~20Hz
+  if(physicsEnabled() && IS_MP && game.running){
+    const now=performance.now();
+    if(now-_lastBroadcast > 50){ _lastBroadcast=now; broadcastState(); }
+  }
+  draw();
+}
+
+/* ---------- UI ---------- */
+function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function updateScoreUI(){ $('sBot').textContent=game.score[0]; $('sTop').textContent=game.score[1]; }
+
+let _flashT=null;
+function showFlash(text,color){
+  if(!text) return;
+  elFlash.textContent=text; elFlash.style.color=color||'#fff';
+  elFlash.style.opacity='1';
+  clearTimeout(_flashT);
+  _flashT=setTimeout(()=>elFlash.style.opacity='0',800);
+}
+
+function showVictory(winnerIdx){
+  game.running=false;
+  const blue = winnerIdx===0;
+  const badge=$('overBadge');
+  badge.innerHTML = '<span class="vCircle" style="background:'+(blue?getCss('--p0'):getCss('--p1'))+'"></span>'+
+                    (blue?'اللاعب الأزرق':'اللاعب الأحمر');
+  badge.style.color = blue?getCss('--p0'):getCss('--p1');
+  // whose perspective in MP?
+  let title='الفائز!';
+  if(IS_MP){
+    title = (winnerIdx===MY_IDX)? 'لقد فزت! 🎉' : 'لقد خسرت';
+  }
+  $('overTitle').textContent=title;
+  $('overScore').textContent='النتيجة  '+game.score[0]+' - '+game.score[1];
+  elOver.classList.remove('hidden');
+
+  // notify Flutter app
+  if(IS_MP && typeof FlutterBridge !== 'undefined'){
+    FlutterBridge.postMessage('gameOver');
+  }
+}
+
+/* play again */
+$('againBtn').addEventListener('click', ()=>{
+  elOver.classList.add('hidden');
+  game.score=[0,0]; updateScoreUI();
+  resetDisks();
+  game.running=true;
+  if(IS_HOST||!IS_MP) broadcastState();
+});
+
+/* single-device start */
+$('startBtn').addEventListener('click', ()=>{
+  elStart.classList.add('hidden');
+  resetDisks(); game.score=[0,0]; updateScoreUI();
+  game.running=true;
+});
+
+/* ---------- boot ---------- */
+resize();
+initFirebase();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
