@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>سفن حربية</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg:#0A0F1E;
+    --bg2:#0E1530;
+    --accent:#1877F2;
+    --accent2:#5FB8FF;
+    --ship:#2E5C8A;
+    --shipEdge:#4A86C5;
+    --hit:#FF3B5C;
+    --hitGlow:#FF7A92;
+    --miss:#33405E;
+    --sunk:#8A1024;
+    --grid:#1B2545;
+    --gridLine:#26345C;
+    --ink:#EAF0FF;
+    --muted:#8A96B5;
+    --ok:#28C26A;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;}
+  body{
+    font-family:"Cairo","Segoe UI",Tahoma,system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(24,119,242,.14), transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    position:fixed;inset:0;
+    user-select:none;-webkit-user-select:none;touch-action:manipulation;
+    display:flex;flex-direction:column;
+  }
+
+  header{
+    padding:14px 16px 6px;text-align:center;flex:0 0 auto;
+  }
+  header .title{font-size:22px;font-weight:800;letter-spacing:.5px;}
+  header .title .em{color:var(--accent2);}
+  #turnBar{
+    margin-top:8px;display:inline-flex;align-items:center;gap:8px;
+    padding:7px 16px;border-radius:30px;font-weight:800;font-size:14px;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+    transition:all .2s;
+  }
+  #turnBar.me{background:rgba(40,194,106,.14);border-color:rgba(40,194,106,.4);color:var(--ok);}
+  #turnBar.them{background:rgba(255,59,92,.12);border-color:rgba(255,59,92,.35);color:var(--hitGlow);}
+  #turnBar .pulse{width:9px;height:9px;border-radius:50%;background:currentColor;
+    box-shadow:0 0 10px currentColor;animation:pulse 1.1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+  main{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;padding:8px 14px 14px;overflow:hidden;}
+
+  .boardWrap{width:100%;max-width:420px;}
+  .boardLabel{display:flex;align-items:center;justify-content:space-between;
+    margin:0 2px 6px;font-size:13px;font-weight:700;color:var(--muted);}
+  .boardLabel .tag{display:inline-flex;align-items:center;gap:6px;}
+  .boardLabel .dotc{width:10px;height:10px;border-radius:50%;}
+
+  .grid{
+    display:grid;gap:3px;width:100%;aspect-ratio:1;
+    background:var(--gridLine);padding:3px;border-radius:12px;
+    border:1px solid var(--gridLine);
+    box-shadow:0 10px 30px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.02);
+  }
+  .cell{
+    background:var(--grid);border-radius:4px;position:relative;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .15s,transform .08s;
+  }
+  .cell.tappable{cursor:pointer;}
+  .cell.tappable:active{transform:scale(.92);}
+  .cell.ship{background:linear-gradient(135deg,var(--ship),#22456A);
+    box-shadow:inset 0 0 0 1.5px var(--shipEdge);}
+  .cell.preview{background:rgba(74,134,197,.35);box-shadow:inset 0 0 0 1.5px var(--accent2);}
+  .cell.invalid{background:rgba(255,59,92,.3);box-shadow:inset 0 0 0 1.5px var(--hit);}
+  .cell.hit::after{content:"";width:54%;height:54%;border-radius:50%;
+    background:var(--hit);box-shadow:0 0 12px var(--hitGlow);}
+  .cell.miss::after{content:"";width:30%;height:30%;border-radius:50%;
+    background:var(--muted);opacity:.7;}
+  .cell.sunk{background:var(--sunk) !important;box-shadow:inset 0 0 0 1.5px var(--hit);}
+  .cell.sunk::after{background:#fff;box-shadow:0 0 10px var(--hitGlow);}
+  .cell.aim{box-shadow:inset 0 0 0 2px var(--accent2);}
+
+  /* fleet status pips */
+  .fleet{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:2px;}
+  .fleetItem{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:20px;
+    background:rgba(255,255,255,.04);font-size:12px;font-weight:700;color:var(--muted);
+    border:1px solid rgba(255,255,255,.06);}
+  .fleetItem.dead{color:var(--hit);background:rgba(255,59,92,.1);border-color:rgba(255,59,92,.3);
+    text-decoration:line-through;}
+  .fleetItem .seg{display:flex;gap:2px;}
+  .fleetItem .seg i{width:7px;height:7px;border-radius:2px;background:var(--shipEdge);display:block;}
+  .fleetItem.dead .seg i{background:var(--hit);}
+
+  /* placement controls */
+  #placeBar{display:flex;flex-direction:column;gap:10px;width:100%;max-width:420px;}
+  .placeRow{display:flex;gap:8px;}
+  .btn{
+    flex:1;padding:13px;border:none;border-radius:13px;font-family:inherit;
+    font-size:15px;font-weight:800;color:#fff;cursor:pointer;transition:transform .1s,opacity .2s;
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+  }
+  .btn:active{transform:scale(.97);}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),#0E5FCF);
+    box-shadow:0 8px 24px rgba(24,119,242,.4);border:none;}
+  .btn.primary:disabled{opacity:.4;box-shadow:none;}
+  .btn.ghost:active{background:rgba(255,255,255,.12);}
+  .placeHint{text-align:center;font-size:13px;color:var(--muted);line-height:1.5;}
+  .placeHint b{color:var(--accent2);}
+
+  /* panels */
+  .panel{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;text-align:center;
+    padding:32px;z-index:30;
+    background:radial-gradient(circle at 50% 35%,rgba(24,119,242,.12),var(--bg) 70%);
+  }
+  .panel h1{font-size:32px;font-weight:800;}
+  .panel p{color:var(--muted);font-size:15px;line-height:1.7;max-width:300px;}
+  .bigBtn{margin-top:6px;padding:16px 46px;border:none;border-radius:16px;
+    font-family:inherit;font-size:19px;font-weight:800;color:#fff;cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),#0E5FCF);
+    box-shadow:0 8px 26px rgba(24,119,242,.45);transition:transform .12s;}
+  .bigBtn:active{transform:scale(.96);}
+  .spinner{width:42px;height:42px;border-radius:50%;
+    border:4px solid rgba(255,255,255,.12);border-top-color:var(--accent);
+    animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .hidden{display:none !important;}
+  .resultBadge{display:inline-flex;align-items:center;gap:10px;padding:10px 20px;
+    border-radius:30px;font-size:18px;font-weight:800;}
+  .toast{position:absolute;top:64px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.12);
+    padding:9px 18px;border-radius:24px;font-size:14px;font-weight:700;
+    opacity:0;transition:opacity .25s;pointer-events:none;z-index:25;white-space:nowrap;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">سفن <span class="em">حربية</span></div>
+    <div id="turnBar"><span class="pulse"></span><span id="turnText">...</span></div>
+  </header>
+
+  <main id="main">
+    <!-- enemy board (battle phase) -->
+    <div class="boardWrap hidden" id="enemyWrap">
+      <div class="boardLabel">
+        <span class="tag"><span class="dotc" style="background:var(--hit)"></span> أسطول الخصم</span>
+        <span class="muted" id="enemyShotsLeft"></span>
+      </div>
+      <div class="grid" id="enemyGrid"></div>
+      <div class="fleet" id="enemyFleet"></div>
+    </div>
+
+    <!-- my board -->
+    <div class="boardWrap" id="myWrap">
+      <div class="boardLabel">
+        <span class="tag"><span class="dotc" style="background:var(--accent2)"></span> أسطولك</span>
+        <span class="muted" id="myStatus"></span>
+      </div>
+      <div class="grid" id="myGrid"></div>
+      <div class="fleet" id="myFleet"></div>
+    </div>
+
+    <!-- placement controls -->
+    <div id="placeBar">
+      <div class="placeHint" id="placeHint">ضع سفنك على الشبكة. اضغط لوضع السفينة الحالية.</div>
+      <div class="placeRow">
+        <button class="btn ghost" id="rotateBtn">↻ تدوير</button>
+        <button class="btn ghost" id="autoBtn">⚓ توزيع تلقائي</button>
+      </div>
+      <div class="placeRow">
+        <button class="btn ghost" id="resetBtn">مسح</button>
+        <button class="btn primary" id="readyBtn" disabled>جاهز للمعركة</button>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- connecting overlay -->
+  <div id="wait" class="panel">
+    <div class="spinner"></div>
+    <h1 id="waitTitle">جارٍ الاتصال...</h1>
+    <p id="waitMsg">بانتظار صديقك للانضمام...</p>
+  </div>
+
+  <!-- single-device note (fallback) -->
+  <div id="start" class="panel hidden">
+    <h1>سفن حربية</h1>
+    <p>هذه لعبة للاعبَين عبر الإنترنت. افتحها من داخل تطبيق InGames لبدء مباراة مع صديق.</p>
+    <button class="bigBtn" id="startSolo">تجربة فردية</button>
+  </div>
+
+  <!-- game over -->
+  <div id="over" class="panel hidden">
+    <div class="resultBadge" id="overBadge"></div>
+    <h1 id="overTitle"></h1>
+    <p id="overSub"></p>
+    <button class="bigBtn" id="againBtn">العب مجدداً</button>
+  </div>
+
+<script>
+/* ============================================================
+   سفن حربية — Battleship (turn-based multiplayer)
+   Each device owns its OWN board truth. You broadcast your SHOTS;
+   the target device replies with the result. No shared physics.
+   ============================================================ */
+
+/* ---------- room / player ---------- */
+const params  = new URLSearchParams(window.location.search);
+const ROOM_ID = params.get('room');
+const MY_IDX  = parseInt(params.get('player') || '0', 10); // 0 = host, 1 = guest
+const IS_MP   = !!ROOM_ID;
+const GAME_KEY= 'battleship';
+
+/* ---------- firebase config (InGames) ---------- */
+const _fbConfig = {
+  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:        "ingames-9c93b.firebaseapp.com",
+  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:         "ingames-9c93b",
+  storageBucket:     "ingames-9c93b.firebasestorage.app",
+  messagingSenderId: "711825788462",
+  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+
+/* ---------- game constants ---------- */
+const N = 8;                                   // 8x8 grid
+const FLEET = [                                // ship sizes + Arabic names
+  { id:'carrier',    name:'حاملة',  size:4 },
+  { id:'battleship', name:'مدمّرة', size:3 },
+  { id:'cruiser',    name:'طرّاد',  size:3 },
+  { id:'submarine',  name:'غوّاصة', size:2 },
+  { id:'destroyer',  name:'زورق',   size:2 }
+];
+const TOTAL_CELLS = FLEET.reduce((s,f)=>s+f.size,0);
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const elWait=$('wait'), elStart=$('start'), elOver=$('over');
+const myGridEl=$('myGrid'), enemyGridEl=$('enemyGrid');
+
+/* ---------- state ---------- */
+let phase = 'place';        // place | battle | over
+let myTurn = false;
+let firstTurn = 0;          // host (player 0) shoots first
+
+// my board: each cell = null | {shipIdx} ; plus shotsTakenByEnemy marks
+let myBoard   = makeGrid();   // ship layout
+let myHits    = makeGrid();   // what enemy has hit on me: 0 none,1 miss,2 hit
+let enemyView = makeGrid();   // my shots on enemy: 0 none,1 miss,2 hit,3 sunk
+let myShipCells = [];         // [{idx, cells:[[r,c]...], hits:Set}]
+let enemyFleetState = FLEET.map(f=>({...f, sunk:false}));
+
+// placement
+let placeIdx = 0;             // which ship we're placing
+let horiz = true;             // orientation
+let placed = [];              // placed ships: {idx, cells}
+
+function makeGrid(){ return Array.from({length:N},()=>Array(N).fill(0)); }
+
+/* ---------- firebase ---------- */
+let _db=null, _roomRef=null, _connectedAt=0, _bothPresent=false;
+let oppReady=false, iAmReady=false, battleStarted=false;
+
+async function initFirebase(){
+  if(!IS_MP){ elWait.classList.add('hidden'); elStart.classList.remove('hidden'); return; }
+  try{
+    const app = firebase.initializeApp(_fbConfig);
+    await firebase.auth(app).signInAnonymously();
+    _db = firebase.database(app);
+    _roomRef = _db.ref('rooms/'+ROOM_ID+'/'+GAME_KEY);
+    _connectedAt = Date.now();
+
+    _roomRef.child('players/'+MY_IDX).set(true);
+    _roomRef.child('players/'+MY_IDX).onDisconnect().remove();
+
+    _roomRef.child('players').on('value', snap=>{
+      const count = Object.keys(snap.val()||{}).length;
+      if(count>=2 && !_bothPresent){
+        _bothPresent=true;
+        _roomRef.child('players').off('value');
+        beginPlacement();
+      } else if(count<2){
+        $('waitMsg').textContent='بانتظار صديقك للانضمام...';
+      }
+    });
+
+    // opponent readiness
+    _roomRef.child('ready/'+(1-MY_IDX)).on('value', s=>{
+      oppReady = !!s.val();
+      maybeStartBattle();
+    });
+
+    // incoming shots fired AT me -> resolve and reply
+    _roomRef.child('shots/'+(1-MY_IDX)).on('value', s=>{
+      const shot=s.val();
+      if(!shot || shot.ts<_connectedAt) return;
+      resolveIncomingShot(shot);
+    });
+
+    // results of MY shots (opponent's reply)
+    _roomRef.child('results/'+(1-MY_IDX)).on('value', s=>{
+      const res=s.val();
+      if(!res || res.ts<_connectedAt) return;
+      applyShotResult(res);
+    });
+
+    // rematch signal
+    _roomRef.child('rematch').on('value', s=>{
+      const r=s.val();
+      if(!r || r.ts<_connectedAt) return;
+      if(r.from!==MY_IDX) doRematch(false);
+    });
+  }catch(e){
+    console.error('Firebase error',e);
+    elWait.classList.remove('hidden');
+    $('waitTitle').textContent='تعذر الاتصال';
+    $('waitMsg').textContent='حدث خطأ في الشبكة. حاول مرة أخرى.';
+    elWait.querySelector('.spinner').classList.add('hidden');
+    setTimeout(()=>elWait.classList.add('hidden'),1800);
+  }
+}
+
+/* ---------- placement phase ---------- */
+function beginPlacement(){
+  elWait.classList.add('hidden');
+  phase='place';
+  buildGrids();
+  renderPlacement();
+  updateTurnBar();
+}
+
+function buildGrids(){
+  myGridEl.style.gridTemplateColumns=`repeat(${N},1fr)`;
+  enemyGridEl.style.gridTemplateColumns=`repeat(${N},1fr)`;
+  myGridEl.innerHTML=''; enemyGridEl.innerHTML='';
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const m=document.createElement('div'); m.className='cell'; m.dataset.r=r; m.dataset.c=c;
+    myGridEl.appendChild(m);
+    const e=document.createElement('div'); e.className='cell'; e.dataset.r=r; e.dataset.c=c;
+    enemyGridEl.appendChild(e);
+  }
+  // placement interactions on my grid
+  myGridEl.querySelectorAll('.cell').forEach(cell=>{
+    cell.addEventListener('click', ()=>onPlaceClick(+cell.dataset.r,+cell.dataset.c));
+    cell.addEventListener('mouseenter', ()=>onPlaceHover(+cell.dataset.r,+cell.dataset.c));
+    cell.addEventListener('mouseleave', clearPreview);
+    cell.addEventListener('touchstart', ()=>onPlaceHover(+cell.dataset.r,+cell.dataset.c), {passive:true});
+  });
+}
+
+function currentShip(){ return FLEET[placeIdx]; }
+
+function shipCellsAt(r,c,size,h){
+  const cells=[];
+  for(let i=0;i<size;i++){
+    const rr=h?r:r+i, cc=h?c+i:c;
+    cells.push([rr,cc]);
+  }
+  return cells;
+}
+function validPlacement(cells){
+  for(const [r,c] of cells){
+    if(r<0||c<0||r>=N||c>=N) return false;
+    if(myBoard[r][c]!==0) return false;
+  }
+  return true;
+}
+
+function onPlaceHover(r,c){
+  if(phase!=='place'||placeIdx>=FLEET.length) return;
+  clearPreview();
+  const cells=shipCellsAt(r,c,currentShip().size,horiz);
+  const ok=validPlacement(cells);
+  for(const [rr,cc] of cells){
+    if(rr<0||cc<0||rr>=N||cc>=N) continue;
+    const el=cellEl(myGridEl,rr,cc);
+    if(el) el.classList.add(ok?'preview':'invalid');
+  }
+}
+function clearPreview(){
+  myGridEl.querySelectorAll('.preview,.invalid').forEach(e=>e.classList.remove('preview','invalid'));
+}
+
+function onPlaceClick(r,c){
+  if(phase!=='place'||placeIdx>=FLEET.length) return;
+  const cells=shipCellsAt(r,c,currentShip().size,horiz);
+  if(!validPlacement(cells)){ toast('لا يمكن وضع السفينة هنا'); return; }
+  for(const [rr,cc] of cells) myBoard[rr][cc]=placeIdx+1; // store 1-based ship id
+  placed.push({idx:placeIdx, cells});
+  placeIdx++;
+  clearPreview();
+  renderPlacement();
+}
+
+function autoPlace(){
+  resetPlacement();
+  for(let i=0;i<FLEET.length;i++){
+    let done=false, tries=0;
+    while(!done && tries<500){
+      tries++;
+      const h=Math.random()<0.5;
+      const r=Math.floor(Math.random()*N), c=Math.floor(Math.random()*N);
+      const cells=shipCellsAt(r,c,FLEET[i].size,h);
+      if(validPlacement(cells)){
+        for(const [rr,cc] of cells) myBoard[rr][cc]=i+1;
+        placed.push({idx:i,cells}); done=true;
+      }
+    }
+  }
+  placeIdx=FLEET.length;
+  renderPlacement();
+}
+
+function resetPlacement(){
+  myBoard=makeGrid(); placed=[]; placeIdx=0;
+  renderPlacement();
+}
+
+function renderPlacement(){
+  // paint ships
+  myGridEl.querySelectorAll('.cell').forEach(el=>{
+    el.className='cell';
+    const r=+el.dataset.r,c=+el.dataset.c;
+    if(myBoard[r][c]!==0) el.classList.add('ship');
+  });
+  // fleet pips (mine)
+  renderMyFleet();
+  const allPlaced = placeIdx>=FLEET.length;
+  $('readyBtn').disabled = !allPlaced || iAmReady;
+  if(iAmReady){
+    $('placeHint').innerHTML='بانتظار خصمك ليصبح جاهزاً...';
+    $('rotateBtn').disabled=$('autoBtn').disabled=$('resetBtn').disabled=true;
+  } else if(allPlaced){
+    $('placeHint').innerHTML='كل السفن في مكانها. اضغط <b>جاهز للمعركة</b>.';
+  } else {
+    const s=currentShip();
+    $('placeHint').innerHTML=`ضع: <b>${s.name}</b> (${s.size} خلايا) — الاتجاه ${horiz?'أفقي':'رأسي'}`;
+  }
+}
+
+function renderMyFleet(){
+  const box=$('myFleet'); box.innerHTML='';
+  FLEET.forEach((f,i)=>{
+    const ship=myShipCells.find(s=>s.idx===i);
+    const dead = ship && ship.hits.size>=f.size;
+    const item=document.createElement('div');
+    item.className='fleetItem'+(dead?' dead':'');
+    const seg='<i></i>'.repeat(f.size);
+    item.innerHTML=`<span>${f.name}</span><span class="seg">${seg}</span>`;
+    box.appendChild(item);
+  });
+}
+
+function renderEnemyFleet(){
+  const box=$('enemyFleet'); box.innerHTML='';
+  enemyFleetState.forEach(f=>{
+    const item=document.createElement('div');
+    item.className='fleetItem'+(f.sunk?' dead':'');
+    const seg='<i></i>'.repeat(f.size);
+    item.innerHTML=`<span>${f.name}</span><span class="seg">${seg}</span>`;
+    box.appendChild(item);
+  });
+}
+
+/* lock in my fleet -> build ship-cell tracking */
+function lockFleet(){
+  myShipCells = placed.map(p=>({ idx:p.idx, cells:p.cells, hits:new Set() }));
+}
+
+function setReady(){
+  if(placeIdx<FLEET.length) return;
+  iAmReady=true;
+  lockFleet();
+  renderPlacement();
+  if(IS_MP){
+    _roomRef.child('ready/'+MY_IDX).set(true);
+  } else {
+    // solo: opponent auto-ready
+    oppReady=true;
+  }
+  maybeStartBattle();
+}
+
+function maybeStartBattle(){
+  if(battleStarted) return;
+  if(iAmReady && oppReady){
+    battleStarted=true;
+    startBattle();
+  }
+}
+
+/* ---------- battle phase ---------- */
+function startBattle(){
+  phase='battle';
+  $('placeBar').classList.add('hidden');
+  $('enemyWrap').classList.remove('hidden');
+  myTurn = (MY_IDX===firstTurn);
+  // wire enemy grid taps
+  enemyGridEl.querySelectorAll('.cell').forEach(cell=>{
+    cell.classList.add('tappable');
+    cell.addEventListener('click', ()=>fireAt(+cell.dataset.r,+cell.dataset.c));
+  });
+  renderEnemyFleet();
+  renderBattle();
+  updateTurnBar();
+}
+
+function fireAt(r,c){
+  if(phase!=='battle'||!myTurn) { if(!myTurn) toast('انتظر دورك'); return; }
+  if(enemyView[r][c]!==0){ toast('لقد ضربت هنا من قبل'); return; }
+  myTurn=false;            // lock immediately
+  updateTurnBar();
+  if(IS_MP){
+    _roomRef.child('shots/'+MY_IDX).set({ r, c, ts:Date.now(), from:MY_IDX });
+  } else {
+    soloResolveMyShot(r,c);
+  }
+}
+
+/* an opponent shot landed on MY board: resolve + reply with result */
+function resolveIncomingShot(shot){
+  const {r,c}=shot;
+  let hit=false, sunk=false, shipId=null;
+  if(myBoard[r][c]!==0){
+    hit=true;
+    myHits[r][c]=2;
+    const sIdx=myBoard[r][c]-1;
+    const ship=myShipCells.find(s=>s.idx===sIdx);
+    if(ship){
+      ship.hits.add(r+'-'+c);
+      if(ship.hits.size>=FLEET[sIdx].size){ sunk=true; shipId=sIdx; }
+    }
+  } else {
+    myHits[r][c]=1;
+  }
+  renderMyBoardHits();
+  renderMyFleet();
+
+  // did I lose?
+  const allSunk = myShipCells.every(s=>s.hits.size>=FLEET[s.idx].size);
+
+  // reply
+  if(IS_MP){
+    _roomRef.child('results/'+MY_IDX).set({
+      r, c, hit, sunk, shipId, ts:Date.now(), loser: allSunk?MY_IDX:null
+    });
+  }
+
+  // now it's MY turn (the shooter passes turn to me on a miss? No:
+  // standard battleship = shooter keeps firing only by variant; here we
+  // alternate strictly: after opponent shoots, it's my turn)
+  if(!allSunk){ myTurn=true; updateTurnBar(); }
+  else { endGame(1-MY_IDX); } // opponent (shooter) wins
+}
+
+/* opponent replied to my shot */
+function applyShotResult(res){
+  const {r,c,hit,sunk,shipId}=res;
+  enemyView[r][c]= hit?2:1;
+  if(sunk && shipId!=null){
+    enemyFleetState[shipId].sunk=true;
+    // We don't know the enemy's exact ship layout, but every cell we've hit
+    // that is contiguous with this final hit belongs to the sunk ship. Flood
+    // from (r,c) across our existing hits and mark them sunk.
+    markSunkCluster(r,c);
+  }
+  renderEnemyBoard();
+  renderEnemyFleet();
+  toast(hit ? (sunk?`أغرقت ${enemyFleetState[shipId]?.name||'سفينة'}! 🔥`:'إصابة! 🎯') : 'في الماء 💧');
+
+  if(res.loser!=null){ endGame(MY_IDX); return; } // I sank their last ship
+  // strict alternation: turn already handed off (myTurn=false set in fireAt).
+}
+
+/* flood-fill contiguous hits and mark as sunk (visual) */
+function markSunkCluster(r,c){
+  const stack=[[r,c]], seen=new Set();
+  while(stack.length){
+    const [cr,cc]=stack.pop();
+    const k=cr+'-'+cc;
+    if(cr<0||cc<0||cr>=N||cc>=N||seen.has(k)) continue;
+    seen.add(k);
+    if(enemyView[cr][cc]===2 || enemyView[cr][cc]===3){
+      enemyView[cr][cc]=3;
+      stack.push([cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]);
+    }
+  }
+}
+
+/* ---------- rendering: battle ---------- */
+function renderBattle(){ renderMyBoardHits(); renderEnemyBoard(); }
+
+function renderMyBoardHits(){
+  myGridEl.querySelectorAll('.cell').forEach(el=>{
+    const r=+el.dataset.r,c=+el.dataset.c;
+    el.className='cell';
+    if(myBoard[r][c]!==0) el.classList.add('ship');
+    if(myHits[r][c]===1) el.classList.add('miss');
+    else if(myHits[r][c]===2) el.classList.add('hit');
+  });
+}
+
+function renderEnemyBoard(){
+  enemyGridEl.querySelectorAll('.cell').forEach(el=>{
+    const r=+el.dataset.r,c=+el.dataset.c;
+    el.className='cell tappable';
+    if(enemyView[r][c]===1) el.classList.add('miss');
+    else if(enemyView[r][c]===2) el.classList.add('hit');
+    else if(enemyView[r][c]===3) el.classList.add('sunk');
+  });
+}
+
+/* ---------- turn bar ---------- */
+function updateTurnBar(){
+  const bar=$('turnBar'), t=$('turnText');
+  bar.classList.remove('me','them');
+  if(phase==='place'){
+    t.textContent = iAmReady ? 'بانتظار الخصم' : 'مرحلة وضع السفن';
+  } else if(phase==='battle'){
+    if(myTurn){ bar.classList.add('me'); t.textContent='دورك — أطلق النار!'; }
+    else { bar.classList.add('them'); t.textContent='دور الخصم...'; }
+    $('enemyShotsLeft').textContent='';
+  } else { t.textContent='انتهت المعركة'; }
+}
+
+/* ---------- game over ---------- */
+function endGame(winnerIdx){
+  phase='over';
+  const iWon = (winnerIdx===MY_IDX);
+  $('overBadge').innerHTML = iWon
+    ? '<span style="color:var(--ok)">⚓ النصر</span>'
+    : '<span style="color:var(--hit)">💥 الهزيمة</span>';
+  $('overBadge').style.background = iWon?'rgba(40,194,106,.14)':'rgba(255,59,92,.12)';
+  $('overTitle').textContent = iWon?'لقد فزت! 🎉':'لقد خسرت';
+  $('overSub').textContent = iWon?'دمّرت أسطول خصمك بالكامل.':'غرق أسطولك بالكامل.';
+  elOver.classList.remove('hidden');
+  updateTurnBar();
+  if(IS_MP && typeof FlutterBridge!=='undefined'){
+    FlutterBridge.postMessage('gameOver');
+  }
+}
+
+/* ---------- rematch ---------- */
+function doRematch(initiator){
+  // reset everything
+  phase='place'; myTurn=false; battleStarted=false;
+  iAmReady=false; oppReady=false;
+  myBoard=makeGrid(); myHits=makeGrid(); enemyView=makeGrid();
+  myShipCells=[]; placed=[]; placeIdx=0; horiz=true;
+  enemyFleetState=FLEET.map(f=>({...f,sunk:false}));
+  elOver.classList.add('hidden');
+  $('enemyWrap').classList.add('hidden');
+  $('placeBar').classList.remove('hidden');
+  $('rotateBtn').disabled=$('autoBtn').disabled=$('resetBtn').disabled=false;
+  buildGrids(); renderPlacement(); updateTurnBar();
+  if(IS_MP){
+    _roomRef.child('ready/'+MY_IDX).set(false);
+    if(initiator) _roomRef.child('rematch').set({from:MY_IDX, ts:Date.now()});
+  } else { oppReady=true; }
+}
+
+/* ---------- toast ---------- */
+let _toastT=null;
+function toast(msg){
+  const el=$('toast'); el.textContent=msg; el.classList.add('show');
+  clearTimeout(_toastT); _toastT=setTimeout(()=>el.classList.remove('show'),1400);
+}
+
+/* ---------- SOLO fallback (vs random AI on one device) ---------- */
+let aiBoard=null, aiShips=null, aiView=null, aiQueue=[];
+function soloSetup(){
+  aiBoard=makeGrid(); aiShips=[]; aiView=makeGrid();
+  for(let i=0;i<FLEET.length;i++){
+    let done=false,tries=0;
+    while(!done&&tries<500){tries++;
+      const h=Math.random()<.5, r=(Math.random()*N)|0, c=(Math.random()*N)|0;
+      const cells=shipCellsAt(r,c,FLEET[i].size,h);
+      if(validPlacement2(aiBoard,cells)){for(const[rr,cc]of cells)aiBoard[rr][cc]=i+1;
+        aiShips.push({idx:i,cells,hits:new Set()});done=true;}
+    }
+  }
+}
+function validPlacement2(b,cells){for(const[r,c]of cells){if(r<0||c<0||r>=N||c>=N)return false;if(b[r][c]!==0)return false;}return true;}
+function soloResolveMyShot(r,c){
+  let hit=false,sunk=false,shipId=null;
+  if(aiBoard[r][c]!==0){hit=true;const si=aiBoard[r][c]-1;const sh=aiShips.find(s=>s.idx===si);
+    sh.hits.add(r+'-'+c);enemyView[r][c]=2;
+    if(sh.hits.size>=FLEET[si].size){sunk=true;shipId=si;enemyFleetState[si].sunk=true;}
+  } else enemyView[r][c]=1;
+  renderEnemyBoard();renderEnemyFleet();
+  toast(hit?(sunk?`أغرقت ${enemyFleetState[shipId].name}! 🔥`:'إصابة! 🎯'):'في الماء 💧');
+  if(aiShips.every(s=>s.hits.size>=FLEET[s.idx].size)){endGame(MY_IDX);return;}
+  setTimeout(soloAImove,650);
+}
+function soloAImove(){
+  let r,c;
+  if(aiQueue.length){[r,c]=aiQueue.shift();}
+  else{do{r=(Math.random()*N)|0;c=(Math.random()*N)|0;}while(myHits[r][c]!==0);}
+  let hit=false,sunk=false;
+  if(myBoard[r][c]!==0){hit=true;myHits[r][c]=2;
+    const si=myBoard[r][c]-1;const sh=myShipCells.find(s=>s.idx===si);sh.hits.add(r+'-'+c);
+    // queue neighbors
+    [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([nr,nc])=>{
+      if(nr>=0&&nc>=0&&nr<N&&nc<N&&myHits[nr][nc]===0)aiQueue.push([nr,nc]);});
+    if(sh.hits.size>=FLEET[si].size)sunk=true;
+  } else myHits[r][c]=1;
+  renderMyBoardHits();renderMyFleet();
+  if(myShipCells.every(s=>s.hits.size>=FLEET[s.idx].size)){endGame(1-MY_IDX);return;}
+  myTurn=true;updateTurnBar();
+}
+
+/* ---------- buttons ---------- */
+$('rotateBtn').addEventListener('click',()=>{horiz=!horiz;clearPreview();renderPlacement();});
+$('autoBtn').addEventListener('click',autoPlace);
+$('resetBtn').addEventListener('click',resetPlacement);
+$('readyBtn').addEventListener('click',setReady);
+$('againBtn').addEventListener('click',()=>doRematch(true));
+$('startSolo').addEventListener('click',()=>{
+  elStart.classList.add('hidden');
+  soloSetup();
+  beginPlacement();
+});
+
+/* ---------- boot ---------- */
+buildGrids();
+initFirebase();
