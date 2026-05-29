@@ -564,8 +564,6 @@ const _authToken = _params.get('token');
 
 let _db = null;
 let _roomRef = null;
-let _isMaster = false; // player 0 is master (rolls dice, resolves turns)
-let _suppressRemote = false; // prevent echo when we push our own state
 let _connectedAt = 0;
 
 // ── Waiting overlay (shown until both players are connected) ──
@@ -597,65 +595,65 @@ async function _initFirebase() {
 
     _db = firebase.database(app);
     _roomRef = _db.ref('rooms/' + _roomId);
-    _isMaster = (_myIdx === 0);
     _connectedAt = Date.now();
 
-    // Listen for remote state changes
-    _roomRef.on('value', snap => {
-      if (_suppressRemote) return;
-      const data = snap.val();
-      if (!data || !data.state) return;
-      // Ignore stale state pushed before we connected
-      if (!data.state.ts || data.state.ts < _connectedAt) return;
-      _applyRemoteState(data.state);
-    });
-
-    // Listen for actions from the other player
-    _roomRef.child('action').on('value', snap => {
-      const action = snap.val();
-      if (!action) return;
-      if (action.from === _myIdx) return; // ignore our own echoes
-      // Ignore stale actions from before we connected
-      if (!action.ts || action.ts < _connectedAt) return;
-      _handleRemoteAction(action);
+    // Listen for full game-state pushes from the other player. Whoever's
+    // turn it is is authoritative for that turn and pushes state; the other
+    // peer just applies it. We ignore our OWN pushes and stale ones.
+    _roomRef.child('state').on('value', snap => {
+      const st = snap.val();
+      if (!st) return;
+      if (st.from === _myIdx) return;            // our own echo
+      if (!st.ts || st.ts < _connectedAt) return; // stale (pre-connect)
+      _applyRemoteState(st);
     });
 
     // Register my presence in the room.
     _roomRef.child('players/' + _myIdx).set(true);
     try { _roomRef.child('players/' + _myIdx).onDisconnect().remove(); } catch(e){}
 
-    // Wait for BOTH players before starting. Once two are present, hide the
-    // waiting overlay; the master then pushes the initial game state so the
-    // guest's board is in sync no matter who connected first.
+    // Wait for BOTH players before starting. Once two are present, reveal the
+    // board on both devices (skip the manual start screen in multiplayer),
+    // hide the waiting overlay, and let player 0 seed the starting state.
+    let _begun = false;
     _roomRef.child('players').on('value', psnap => {
       const count = Object.keys(psnap.val() || {}).length;
-      if (count >= 2) {
+      if (count >= 2 && !_begun) {
+        _begun = true;
+        _roomRef.child('players').off('value');
         _hideWait();
-        if (_isMaster) _pushState();
+        // Reveal the game screen on both sides automatically.
+        document.getElementById('startScreen').classList.add('hidden');
+        document.getElementById('gameScreen').classList.remove('hidden');
+        initGame();
+        // Player 0 is the authority for the opening board.
+        if (_myIdx === 0) _pushState();
+        _lockUI();
       }
     });
   } catch(e) { console.error('Firebase init failed', e); _hideWait(); }
 }
 
-// Push current full game state to Firebase
+// Push the FULL current game state. Anyone may push; we stamp who pushed
+// it and when, so the receiver can ignore its own echoes and stale data.
+let _suppressPush = false;
 function _pushState() {
-  if (!_roomRef || !_isMaster) return;
-  _suppressRemote = true;
+  if (!_roomRef || _suppressPush) return;
   const state = {
     P: P.map(p => ({pos:p.pos,money:p.money,props:p.props,jail:p.jail,jt:p.jt,dead:p.dead})),
     propOwn: Array.from(propOwn),
     propH:   Array.from(propH),
     cp, dice, hasRolled, gameOver,
+    from: _myIdx,
     ts: Date.now(),
   };
-  _roomRef.child('state').set(state).then(() => {
-    _suppressRemote = false;
-  });
+  _roomRef.child('state').set(state);
 }
 
-// Apply state received from master
+// Apply a state pushed by the other player.
 function _applyRemoteState(s) {
   if (!s) return;
+  _suppressPush = true;               // applying remote => don't re-push
   if (s.P) s.P.forEach((sp, i) => {
     P[i].pos   = sp.pos;
     P[i].money = sp.money;
@@ -670,70 +668,55 @@ function _applyRemoteState(s) {
   if (s.dice)    dice = s.dice;
   if (s.hasRolled !== undefined) hasRolled = s.hasRolled;
   if (s.gameOver  !== undefined) gameOver  = s.gameOver;
+  hasRolled = false;       // a fresh turn arrives to us
+  isMoving  = false;
+  sActs([]);               // clear any leftover action buttons
   uMon(); uChip(); draw();
-  // Update roll button state for the non-master player
-  document.getElementById('rb').disabled = (cp !== _myIdx) || hasRolled || isMoving || gameOver;
+  _lockUI();
+  if (s.gameOver) {
+    // mirror the end screen on this side
+    const w = (P[0].dead ? 1 : (P[1].dead ? 0 : (P[0].money>=P[1].money?0:1)));
+    _coreEndGame(w);
+  }
+  _suppressPush = false;
 }
 
-// Send a discrete action (for non-master player interactions)
-function _sendAction(type, payload) {
-  if (!_roomRef) return;
-  _roomRef.child('action').set({ from: _myIdx, type, payload, ts: Date.now() });
-}
-
-// Handle action from remote player
-function _handleRemoteAction(action) {
-  if (action.type === 'roll' && _isMaster) {
-    // Non-master requested a roll — execute it as master
-    rollDice();
-  } else if (action.type === 'buy' && _isMaster) {
-    const i = action.payload.spaceIdx;
-    const p = P[cp];
-    const sp = SPACES[i];
-    if (propOwn[i] === -1 && p.money >= sp.pr) {
-      chMon(cp, -sp.pr); propOwn[i] = cp; p.props.push(i);
-      snd('buy'); sMsg('اشتريت ' + sp.n); draw();
-      setTimeout(() => { endTurn(); _pushState(); }, 500);
-    }
-  } else if (action.type === 'pass') {
-    if (_isMaster) { endTurn(); _pushState(); }
+// ── Turn ownership / input lock ──
+function _myTurn() { return !_isMP || cp === _myIdx; }
+function _lockUI() {
+  const rb = document.getElementById('rb');
+  if (rb) rb.disabled = !_myTurn() || hasRolled || isMoving || gameOver;
+  if (_isMP) {
+    sMsg(_myTurn() ? ('دورك — ارمِ النرد') : ('دور الخصم...'));
   }
 }
 
-// ── Wrapper functions that add multiplayer sync ──
+// ── Wrappers: the ACTIVE player runs the full turn locally, then syncs ──
 function rollDice() {
   if (!_isMP) { _coreRollDice(); return; }
-  if (cp !== _myIdx) return;
-  if (!_isMaster) {
-    _sendAction('roll', {});
-    return;
-  }
-  _coreRollDice();
+  if (!_myTurn() || hasRolled || isMoving || gameOver) return;
+  _coreRollDice();   // runs the entire turn locally on the active device
 }
 
 function endTurn() {
   _coreEndTurn();
-  if (_isMP && _isMaster) {
-    setTimeout(_pushState, 200);
-    document.getElementById('rb').disabled = (cp !== _myIdx) || gameOver;
+  if (_isMP) {
+    // push the resolved state to the opponent, then lock our UI since the
+    // turn has (usually) passed to them.
+    _pushState();
+    _lockUI();
   }
 }
 
 function endGame(w) {
   _coreEndGame(w);
   if (_isMP) {
+    gameOver = true;
+    _pushState();   // tell the opponent the game is over
     if (typeof FlutterBridge !== 'undefined') {
-      FlutterBridge.postMessage('gameOver');
+      try { FlutterBridge.postMessage('gameOver'); } catch(e){}
     }
-    if (_roomRef) _roomRef.child('state').update({ gameOver: true });
   }
-}
-
-// ── Lock UI for non-active player ──
-function _updateUI() {
-  if (!_isMP) return;
-  const myTurn = (cp === _myIdx);
-  document.getElementById('rb').disabled = !myTurn || hasRolled || isMoving || gameOver;
 }
 
 // ── Init ──
