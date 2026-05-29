@@ -7,89 +7,158 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
+  :root{
+    --bg-0:#120a06; --bg-1:#1d1208; --bg-2:#2a1a0c;
+    --sky-0:#3a2410; --sky-1:#7a3f12; --sun:#ffb24d;
+    --gold:#ffc24b; --gold-d:#c8862a;
+    --me:#36d97a; --me-glow:rgba(54,217,122,.55);
+    --op:#ff5d7e; --op-glow:rgba(255,93,126,.5);
+    --ink:#f4e4c8;
+    --line:rgba(255,200,120,.10);
+  }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
   html,body { height:100%; }
   body {
-    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
-    background:#0a0f1e; color:#fff; overflow:hidden;
+    font-family:'Cairo', system-ui, sans-serif;
+    color:var(--ink); overflow:hidden;
     display:flex; flex-direction:column; height:100dvh;
+    background:var(--bg-0);
+  }
+  /* film grain overlay for atmosphere */
+  body::after{
+    content:''; position:fixed; inset:0; z-index:60; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode:overlay;
   }
 
-  /* HUD */
-  #hud { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 8px; gap:10px; z-index:20; }
-  .score-card { flex:1; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:7px 10px; text-align:center; transition:.25s; }
-  .score-card.me .lbl { color:#1877F2; }
-  .score-card.lead { border-color:rgba(125,255,154,.55); box-shadow:0 0 16px rgba(125,255,154,.2); }
-  .score-card .lbl { font-size:.66rem; color:rgba(255,255,255,.55); font-weight:700; }
-  .score-card .val { font-size:1.5rem; font-weight:800; line-height:1.15; }
-  #mid { text-align:center; }
-  #remain { font-size:.62rem; color:rgba(255,255,255,.45); font-weight:700; }
-  #remainN { font-size:1.05rem; font-weight:800; color:#fff; }
+  /* ── HUD ── */
+  #hud { display:flex; align-items:stretch; justify-content:space-between; padding:14px 14px 10px; gap:8px; z-index:20; background:linear-gradient(180deg, rgba(0,0,0,.35), transparent); }
+  .score-card {
+    flex:1; position:relative; border-radius:14px; padding:8px 6px 9px; text-align:center;
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.18));
+    border:1px solid rgba(255,200,120,.14);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 6px 14px rgba(0,0,0,.35);
+    transition:.3s; overflow:hidden;
+  }
+  .score-card .lbl { font-size:.62rem; letter-spacing:1px; color:rgba(244,228,200,.6); font-weight:800; text-transform:uppercase; }
+  .score-card .val { font-family:'Oswald',sans-serif; font-size:1.85rem; font-weight:700; line-height:1.05; }
+  .score-card.me  { border-color:rgba(54,217,122,.4); }
+  .score-card.me  .val { color:var(--me); text-shadow:0 0 16px var(--me-glow); }
+  .score-card.theirs .val { color:var(--op); text-shadow:0 0 16px var(--op-glow); }
+  .score-card.lead::before{
+    content:''; position:absolute; inset:0; border-radius:14px;
+    box-shadow:inset 0 0 0 1.5px currentColor, 0 0 22px -4px currentColor; opacity:.55;
+  }
+  .score-card.me.lead{ color:var(--me); }
+  .score-card.theirs.lead{ color:var(--op); }
+  .pop { animation:pulse .3s ease; }
+  @keyframes pulse { 0%{transform:scale(1)} 45%{transform:scale(1.18)} 100%{transform:scale(1)} }
 
-  /* Range */
+  #mid { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:62px; }
+  #remain { font-size:.56rem; letter-spacing:1.5px; color:rgba(255,194,75,.7); font-weight:800; text-transform:uppercase; }
+  #remainN { font-family:'Oswald',sans-serif; font-size:1.55rem; font-weight:700; color:var(--gold); text-shadow:0 0 14px rgba(255,178,77,.4); }
+  #remainBar { width:44px; height:4px; border-radius:99px; background:rgba(255,255,255,.1); overflow:hidden; margin-top:2px; }
+  #remainBar > i { display:block; height:100%; width:100%; background:linear-gradient(90deg,var(--gold),var(--sun)); transition:width .3s; }
+
+  /* ── Range ── */
   #range {
-    flex:1; position:relative; margin:8px 0 0; overflow:hidden;
+    flex:1; position:relative; overflow:hidden; touch-action:none;
     background:
-      radial-gradient(circle at 50% 120%, rgba(24,120,242,.15), transparent 60%),
-      linear-gradient(180deg, #142b4a 0%, #0c1426 40%, #0a1020 100%);
-    background-color:#0c1426;
-    touch-action:none;
+      radial-gradient(120% 60% at 50% 8%, rgba(255,178,77,.30), transparent 55%),
+      radial-gradient(80% 40% at 50% 0%, rgba(255,120,40,.22), transparent 60%),
+      linear-gradient(180deg, var(--sky-0) 0%, var(--sky-1) 14%, var(--bg-2) 42%, var(--bg-1) 75%, var(--bg-0) 100%);
   }
-  /* shelf lines for depth */
-  #range::before, #range::after {
-    content:''; position:absolute; left:0; right:0; height:2px;
-    background:rgba(255,255,255,.05);
+  /* the sun disc */
+  #range::before{
+    content:''; position:absolute; left:50%; top:7%; width:130px; height:130px; transform:translateX(-50%);
+    border-radius:50%; background:radial-gradient(circle, var(--sun) 0%, rgba(255,150,50,.35) 45%, transparent 70%);
+    filter:blur(2px); z-index:0;
   }
-  #range::before { top:38%; }
-  #range::after  { top:68%; }
+  /* dunes silhouette */
+  .dune{ position:absolute; left:-5%; right:-5%; z-index:1; pointer-events:none; }
+  .dune svg{ width:110%; display:block; }
+  .dune.d1{ bottom:40%; opacity:.5; }
+  .dune.d2{ bottom:24%; opacity:.7; }
+  .dune.d3{ bottom:0;   opacity:1; }
+  /* wooden shelves the bottles rest on */
+  .shelf{ position:absolute; left:6%; right:6%; height:9px; z-index:3; border-radius:3px;
+    background:linear-gradient(180deg,#5a3a1c,#3a2410); box-shadow:0 5px 10px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,210,150,.25); }
+  .shelf.s1{ top:36%; } .shelf.s2{ top:60%; } .shelf.s3{ top:84%; }
 
   .bottle {
-    position:absolute; width:38px; height:74px; transform:translate(-50%,-50%) scale(0);
-    transition:transform .18s cubic-bezier(.34,1.56,.64,1), opacity .15s;
+    position:absolute; width:42px; height:88px; transform:translate(-50%,-50%) scale(0) rotate(-4deg);
+    transition:transform .2s cubic-bezier(.34,1.6,.55,1), opacity .15s;
     will-change:transform; z-index:5;
   }
-  .bottle.in { transform:translate(-50%,-50%) scale(1); }
-  .bottle svg { width:100%; height:100%; display:block; filter:drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
-  .bottle.gone { transform:translate(-50%,-50%) scale(0); opacity:0; }
-  .bottle.mine svg .glass { fill:rgba(125,255,154,.85); }
-  .bottle.theirs svg .glass { fill:rgba(255,140,160,.85); }
+  .bottle.in { transform:translate(-50%,-50%) scale(1) rotate(0); }
+  .bottle.wobble { animation:wob 1.6s ease-in-out infinite; }
+  @keyframes wob { 0%,100%{ transform:translate(-50%,-50%) rotate(-2.5deg) } 50%{ transform:translate(-50%,-50%) rotate(2.5deg) } }
+  .bottle svg { width:100%; height:100%; display:block; filter:drop-shadow(0 5px 7px rgba(0,0,0,.55)); }
+  .bottle.gone { transform:translate(-50%,-50%) scale(0) rotate(20deg); opacity:0; }
+  .bottle.mine   svg .glass { fill:url(#gMe); }
+  .bottle.theirs svg .glass { fill:url(#gOp); }
 
-  /* crosshair */
-  #scope {
-    position:absolute; width:96px; height:96px; left:50%; top:60%;
-    transform:translate(-50%,-50%); pointer-events:none; z-index:12;
-    transition:opacity .15s;
-  }
-  #scope .ring { position:absolute; inset:0; border:2px solid rgba(24,120,242,.9); border-radius:50%; box-shadow:0 0 14px rgba(24,120,242,.5), inset 0 0 14px rgba(24,120,242,.25); }
-  #scope .h, #scope .v { position:absolute; background:rgba(24,120,242,.9); }
-  #scope .h { left:8%; right:8%; top:50%; height:2px; transform:translateY(-50%); }
-  #scope .v { top:8%; bottom:8%; left:50%; width:2px; transform:translateX(-50%); }
-  #scope .dot { position:absolute; left:50%; top:50%; width:6px; height:6px; background:#ff4d6d; border-radius:50%; transform:translate(-50%,-50%); }
+  /* shatter shards */
+  .shard{ position:absolute; width:8px; height:12px; z-index:8; pointer-events:none; border-radius:2px; }
 
-  .ripple { position:absolute; width:20px; height:20px; border:2px solid #fff; border-radius:50%; transform:translate(-50%,-50%); pointer-events:none; animation:rip .4s ease-out forwards; z-index:11; }
-  @keyframes rip { from{opacity:.9;width:8px;height:8px} to{opacity:0;width:60px;height:60px} }
-  .float { position:absolute; font-weight:800; font-size:1.1rem; pointer-events:none; transform:translate(-50%,-50%); animation:rise .7s ease-out forwards; z-index:13; }
-  @keyframes rise { from{opacity:1} to{opacity:0; margin-top:-30px} }
+  /* ── crosshair / scope ── */
+  #scope { position:absolute; width:110px; height:110px; left:50%; top:62%; transform:translate(-50%,-50%); pointer-events:none; z-index:12; }
+  #scope .ring  { position:absolute; inset:0; border-radius:50%; border:1.5px solid rgba(255,194,75,.85); box-shadow:0 0 18px rgba(255,178,77,.45), inset 0 0 22px rgba(255,178,77,.18); }
+  #scope .ring2 { position:absolute; inset:26%; border-radius:50%; border:1px solid rgba(255,194,75,.4); }
+  #scope .h { left:50%; top:-14%; width:1.5px; height:128%; transform:translateX(-50%); background:linear-gradient(180deg,transparent,rgba(255,194,75,.85),transparent); }
+  #scope .v { top:50%; left:-14%; height:1.5px; width:128%; transform:translateY(-50%); background:linear-gradient(90deg,transparent,rgba(255,194,75,.85),transparent); }
+  #scope .h,#scope .v { position:absolute; }
+  #scope .dot { position:absolute; left:50%; top:50%; width:5px; height:5px; background:#ff3b3b; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 8px #ff3b3b; }
+  #scope .tick{ position:absolute; width:2px; height:8px; background:rgba(255,194,75,.7); left:50%; transform:translateX(-50%); }
+  #scope .tick.t{ top:4%; } #scope .tick.b{ bottom:4%; }
+  #scope.fire{ animation:recoil .12s ease; }
+  @keyframes recoil { 50%{ transform:translate(-50%,-50%) scale(.88) } }
 
-  #hint { position:absolute; left:0; right:0; bottom:14px; text-align:center; font-size:.78rem; color:rgba(255,255,255,.5); z-index:12; pointer-events:none; }
+  .muzzle{ position:absolute; width:50px; height:50px; border-radius:50%; transform:translate(-50%,-50%); pointer-events:none; z-index:11;
+    background:radial-gradient(circle, rgba(255,230,150,.95), rgba(255,150,40,.5) 40%, transparent 70%); animation:mz .22s ease-out forwards; }
+  @keyframes mz { from{opacity:1; transform:translate(-50%,-50%) scale(.3)} to{opacity:0; transform:translate(-50%,-50%) scale(1.4)} }
+  .float { position:absolute; font-family:'Oswald',sans-serif; font-weight:700; font-size:1.4rem; pointer-events:none; transform:translate(-50%,-50%); animation:rise .8s cubic-bezier(.2,.7,.3,1) forwards; z-index:13; text-shadow:0 2px 6px rgba(0,0,0,.5); }
+  @keyframes rise { 0%{opacity:0; transform:translate(-50%,-50%) scale(.6)} 25%{opacity:1; transform:translate(-50%,-90%) scale(1.1)} 100%{opacity:0; transform:translate(-50%,-200%) scale(1)} }
 
-  /* overlay */
-  #ov { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(6,8,15,.93); text-align:center; padding:30px; }
+  #hint { position:absolute; left:0; right:0; bottom:16px; text-align:center; font-size:.76rem; color:rgba(255,225,180,.55); z-index:12; pointer-events:none; font-weight:700; letter-spacing:.3px; }
+
+  /* ── overlay ── */
+  #ov { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 30%, rgba(40,22,8,.92), rgba(8,5,2,.97)); text-align:center; padding:34px; }
   #ov.hide { display:none; }
-  #ov .emo { font-size:3.4rem; margin-bottom:12px; }
-  #ov h1 { font-size:1.5rem; font-weight:800; margin-bottom:8px; }
-  #ov p { font-size:.95rem; color:rgba(255,255,255,.6); margin-bottom:18px; line-height:1.6; }
-  #ov .big { font-size:2.3rem; font-weight:800; margin:6px 0 18px; }
-  .btn { background:linear-gradient(90deg,#1877F2,#0a5dc2); color:#fff; border:none; padding:14px 40px; border-radius:30px; font-size:1rem; font-weight:800; font-family:inherit; box-shadow:0 8px 22px rgba(24,120,242,.4); }
-  .btn:active { transform:scale(.96); }
-  .spinner { width:30px; height:30px; border:3px solid rgba(255,255,255,.15); border-top-color:#1877F2; border-radius:50%; animation:sp 1s linear infinite; margin-bottom:14px; }
+  #ov .emo { font-size:3.8rem; margin-bottom:10px; filter:drop-shadow(0 6px 12px rgba(0,0,0,.5)); animation:drop .5s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes drop { from{ transform:translateY(-24px) scale(.6); opacity:0 } to{ transform:none; opacity:1 } }
+  #ov h1 { font-family:'Oswald',sans-serif; font-size:1.9rem; font-weight:700; letter-spacing:.5px; margin-bottom:8px; color:var(--gold); text-shadow:0 0 24px rgba(255,178,77,.35); }
+  #ov p { font-size:.95rem; color:rgba(244,228,200,.62); margin-bottom:18px; line-height:1.6; }
+  #ov .big { font-family:'Oswald',sans-serif; font-size:3rem; font-weight:700; margin:4px 0 20px; letter-spacing:2px; color:#fff; }
+  .btn { background:linear-gradient(180deg,var(--gold),var(--gold-d)); color:#2a1606; border:none; padding:15px 44px; border-radius:16px; font-size:1.05rem; font-weight:900; font-family:'Cairo',sans-serif; box-shadow:0 10px 24px rgba(255,178,77,.35), inset 0 1px 0 rgba(255,255,255,.4); }
+  .btn:active { transform:translateY(2px); box-shadow:0 4px 12px rgba(255,178,77,.3); }
+  .spinner { width:34px; height:34px; border:3px solid rgba(255,194,75,.2); border-top-color:var(--gold); border-radius:50%; animation:sp 1s linear infinite; margin-bottom:16px; }
   @keyframes sp { to{ transform:rotate(360deg) } }
-  .legend { margin-top:16px; font-size:.72rem; color:rgba(255,255,255,.45); line-height:1.8; }
-  .legend b.g { color:#7dff9a; } .legend b.r { color:#ff8aa0; }
+  .legend { margin-top:18px; font-size:.74rem; color:rgba(244,228,200,.5); line-height:1.9; }
+  .legend b.g { color:var(--me); } .legend b.r { color:var(--op); }
 </style>
 </head>
 <body>
+
+  <!-- shared SVG gradient defs for bottles -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="gMe" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#7dffb0"/><stop offset=".5" stop-color="#36d97a"/><stop offset="1" stop-color="#1b9b52"/>
+      </linearGradient>
+      <linearGradient id="gOp" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ff9bb3"/><stop offset=".5" stop-color="#ff5d7e"/><stop offset="1" stop-color="#c43356"/>
+      </linearGradient>
+      <linearGradient id="gGlass" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#9fe6d8"/><stop offset=".45" stop-color="#3fa996"/><stop offset="1" stop-color="#1f6a5d"/>
+      </linearGradient>
+    </defs>
+  </svg>
 
   <div id="hud">
     <div class="score-card me" id="meCard">
@@ -97,14 +166,28 @@
     </div>
     <div id="mid">
       <div id="remain">متبقٍ</div><div id="remainN">20</div>
+      <div id="remainBar"><i></i></div>
     </div>
-    <div class="score-card" id="opCard">
+    <div class="score-card theirs" id="opCard">
       <div class="lbl">الخصم</div><div class="val" id="opScore">0</div>
     </div>
   </div>
 
   <div id="range">
-    <div id="scope"><div class="ring"></div><div class="h"></div><div class="v"></div><div class="dot"></div></div>
+    <div class="dune d1"><svg viewBox="0 0 100 20" preserveAspectRatio="none"><path d="M0 20 Q25 4 50 12 T100 8 V20 Z" fill="#5a3414"/></svg></div>
+    <div class="dune d2"><svg viewBox="0 0 100 20" preserveAspectRatio="none"><path d="M0 20 Q30 6 60 14 T100 10 V20 Z" fill="#3f2410"/></svg></div>
+    <div class="dune d3"><svg viewBox="0 0 100 24" preserveAspectRatio="none"><path d="M0 24 Q35 8 70 16 T100 12 V24 Z" fill="#241408"/></svg></div>
+
+    <div class="shelf s1"></div>
+    <div class="shelf s2"></div>
+    <div class="shelf s3"></div>
+
+    <div id="scope">
+      <div class="ring"></div><div class="ring2"></div>
+      <div class="h"></div><div class="v"></div>
+      <div class="tick t"></div><div class="tick b"></div>
+      <div class="dot"></div>
+    </div>
     <div id="hint">حرّك إصبعك للتصويب — ارفعه لإطلاق النار</div>
   </div>
 
@@ -168,12 +251,19 @@ const opCard  = document.getElementById('opCard');
 const ov      = document.getElementById('ov');
 
 // ── HUD ──
+const remainBar = document.querySelector('#remainBar > i');
 function updateHUD(){
   meScoreEl.textContent = scores[MY_IDX];
   opScoreEl.textContent = scores[1-MY_IDX];
-  remainEl.textContent  = Math.max(0, TOTAL_BOTTLES - resolved);
+  const left = Math.max(0, TOTAL_BOTTLES - resolved);
+  remainEl.textContent  = left;
+  if(remainBar) remainBar.style.width = (left/TOTAL_BOTTLES*100) + '%';
   meCard.classList.toggle('lead', scores[MY_IDX] > scores[1-MY_IDX]);
   opCard.classList.toggle('lead', scores[1-MY_IDX] > scores[MY_IDX]);
+}
+function popScore(shooter){
+  const el = (shooter===MY_IDX ? meScoreEl : opScoreEl);
+  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
 }
 
 // ── OVERLAY ──
@@ -189,13 +279,48 @@ function showOverlay(o){
 }
 function hideOverlay(){ ov.classList.add('hide'); }
 
-// ── BOTTLE SVG ──
+// ── BOTTLE SVG (detailed glass bottle: cap, neck, shoulder, label, highlight) ──
 function bottleSVG(){
-  return '<svg viewBox="0 0 38 74">'
-    + '<rect class="glass" x="13" y="2" width="12" height="12" rx="3"/>'           // neck
-    + '<path class="glass" d="M11 14 q8 6 16 0 v50 a8 8 0 0 1 -16 0 z"/>'           // body
-    + '<rect x="11" y="40" width="16" height="14" rx="2" fill="rgba(255,255,255,.85)"/>' // label
+  return '<svg viewBox="0 0 42 88">'
+    // cap
+    + '<rect x="15" y="0"  width="12" height="7" rx="2" fill="#caa24a"/>'
+    + '<rect x="15" y="5"  width="12" height="2.5" fill="rgba(0,0,0,.25)"/>'
+    // neck
+    + '<path class="glass" d="M16 7 h10 v10 q0 3 2 6 l1 4 h-16 l1 -4 q2 -3 2 -6 z" fill="url(#gGlass)"/>'
+    // body with shoulders
+    + '<path class="glass" d="M14 27 q7 -4 14 0 q4 2 4 9 v40 q0 8 -8 8 h-6 q-8 0 -8 -8 v-40 q0 -7 4 -9 z" fill="url(#gGlass)"/>'
+    // label
+    + '<rect x="12.5" y="46" width="17" height="20" rx="2.5" fill="#f4ecd8"/>'
+    + '<rect x="12.5" y="50" width="17" height="2" fill="#caa24a"/>'
+    + '<rect x="12.5" y="60" width="17" height="2" fill="#caa24a"/>'
+    + '<circle cx="21" cy="56" r="3.2" fill="#c8442f"/>'
+    // glass highlight
+    + '<path d="M17 30 q-2 2 -2 8 v34" stroke="rgba(255,255,255,.55)" stroke-width="2.2" fill="none" stroke-linecap="round"/>'
+    + '<path d="M27 33 v30" stroke="rgba(255,255,255,.18)" stroke-width="1.6" fill="none" stroke-linecap="round"/>'
     + '</svg>';
+}
+
+// ── SHATTER: spray a handful of glass shards when a bottle breaks ──
+function shatter(px, py, shooter){
+  const color = shooter===MY_IDX ? '#7dffb0' : '#ff9bb3';
+  const n = 8;
+  for(let i=0;i<n;i++){
+    const s = document.createElement('div');
+    s.className = 'shard';
+    s.style.left = px+'px'; s.style.top = py+'px';
+    s.style.background = i%2 ? color : 'rgba(220,240,255,.85)';
+    s.style.transform = 'translate(-50%,-50%) rotate('+(Math.random()*360)+'deg)';
+    rangeEl.appendChild(s);
+    const ang = Math.random()*Math.PI*2;
+    const dist = 30 + Math.random()*55;
+    const dx = Math.cos(ang)*dist, dy = Math.sin(ang)*dist - 10;
+    s.animate(
+      [ { transform:s.style.transform, opacity:1 },
+        { transform:'translate('+dx+'px,'+(dy+50)+'px) rotate('+(Math.random()*720-360)+'deg)', opacity:0 } ],
+      { duration: 480+Math.random()*220, easing:'cubic-bezier(.25,.7,.35,1)' }
+    );
+    setTimeout(()=>s.remove(), 720);
+  }
 }
 
 // ── SPAWN A BOTTLE (both clients run this from the shared schedule) ──
@@ -213,6 +338,7 @@ function spawnBottle(item){
   rangeEl.appendChild(el);
   requestAnimationFrame(()=> el.classList.add('in'));
   const rec = { el, x:px, y:py, fx:item.x, fy:item.y, claimed:false, escTimer:null };
+  setTimeout(()=>{ if(!rec.claimed) el.classList.add('wobble'); }, 220);
   rec.escTimer = setTimeout(()=> escapeBottle(item.id), BOTTLE_LIFE);
   live.set(item.id, rec);
 }
@@ -232,22 +358,25 @@ function claimBottle(id, shooter){
   const rec = live.get(id); if(!rec || rec.claimed) return;
   rec.claimed = true;
   clearTimeout(rec.escTimer);
+  rec.el.classList.remove('wobble');
   rec.el.classList.add(shooter===MY_IDX ? 'mine' : 'theirs');
-  // shatter
+  shatter(rec.x, rec.y, shooter);
   requestAnimationFrame(()=>{
     rec.el.classList.add('gone');
-    floatText(rec.x, rec.y, shooter===MY_IDX?'+1':'', shooter===MY_IDX?'#7dff9a':'#ff8aa0');
+    floatText(rec.x, rec.y, shooter===MY_IDX?'+1':'✕', shooter===MY_IDX?'#7dffb0':'#ff9bb3');
   });
-  setTimeout(()=> rec.el.remove(), 200);
+  setTimeout(()=> rec.el.remove(), 220);
   live.delete(id);
   scores[shooter]++; resolved++;
   updateHUD();
+  popScore(shooter);
   maybeFinish();
 }
 
 // ── SHOOTING ──
 function fireAt(px, py){
-  ripple(px, py);
+  muzzle(px, py);
+  scope.classList.remove('fire'); void scope.offsetWidth; scope.classList.add('fire');
   if(finished || !started) return;
   // find the nearest UNCLAIMED bottle within radius
   let bestId=null, bestD=HIT_RADIUS;
@@ -263,10 +392,10 @@ function fireAt(px, py){
   }
 }
 
-function ripple(px,py){
-  const r=document.createElement('div'); r.className='ripple';
-  r.style.left=px+'px'; r.style.top=py+'px'; rangeEl.appendChild(r);
-  setTimeout(()=>r.remove(),400);
+function muzzle(px,py){
+  const m=document.createElement('div'); m.className='muzzle';
+  m.style.left=px+'px'; m.style.top=py+'px'; rangeEl.appendChild(m);
+  setTimeout(()=>m.remove(),240);
 }
 function floatText(px,py,txt,color){
   if(!txt) return;
