@@ -275,16 +275,27 @@ let oppReady=false, iAmReady=false, battleStarted=false;
 
 async function initFirebase(){
   if(!IS_MP){ elWait.classList.add('hidden'); elStart.classList.remove('hidden'); return; }
+  const stage = m => { $('waitMsg').textContent = m; };
   try{
+    if(typeof firebase==='undefined'){
+      throw new Error('لم يتم تحميل Firebase SDK (تحقق من الإنترنت).');
+    }
+    stage('جارٍ تهيئة الاتصال...');
     const app = firebase.initializeApp(_fbConfig);
+
+    stage('جارٍ تسجيل الدخول...');
     await firebase.auth(app).signInAnonymously();
+
+    stage('جارٍ فتح الغرفة...');
     _db = firebase.database(app);
     _roomRef = _db.ref('rooms/'+ROOM_ID+'/'+GAME_KEY);
     _connectedAt = Date.now();
 
-    _roomRef.child('players/'+MY_IDX).set(true);
+    // confirm we can actually WRITE (this is where rules failures show up)
+    await _roomRef.child('players/'+MY_IDX).set(true);
     _roomRef.child('players/'+MY_IDX).onDisconnect().remove();
 
+    stage('بانتظار صديقك للانضمام...');
     _roomRef.child('players').on('value', snap=>{
       const count = Object.keys(snap.val()||{}).length;
       if(count>=2 && !_bothPresent){
@@ -324,11 +335,18 @@ async function initFirebase(){
     });
   }catch(e){
     console.error('Firebase error',e);
+    const msg = (e && e.message) ? e.message : 'خطأ غير معروف';
     elWait.classList.remove('hidden');
-    $('waitTitle').textContent='تعذر الاتصال';
-    $('waitMsg').textContent='حدث خطأ في الشبكة. حاول مرة أخرى.';
     elWait.querySelector('.spinner').classList.add('hidden');
-    setTimeout(()=>elWait.classList.add('hidden'),1800);
+    $('waitTitle').textContent='تعذر الاتصال';
+    $('waitMsg').innerHTML =
+      'سبب المشكلة:<br><span style="color:var(--hit);font-size:13px">'+msg+'</span>'+
+      '<br><br>تأكد من تفعيل «Anonymous Auth» و«Realtime Database» في Firebase.';
+    const b=document.createElement('button');
+    b.className='bigBtn'; b.textContent='اللعب ضد الكمبيوتر';
+    b.style.marginTop='18px';
+    b.onclick=()=>{ elWait.classList.add('hidden'); soloSetup(); beginPlacement(); };
+    elWait.appendChild(b);
   }
 }
 
