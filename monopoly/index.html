@@ -568,6 +568,25 @@ let _isMaster = false; // player 0 is master (rolls dice, resolves turns)
 let _suppressRemote = false; // prevent echo when we push our own state
 let _connectedAt = 0;
 
+// ── Waiting overlay (shown until both players are connected) ──
+function _showWait(){
+  if (!_isMP || document.getElementById('mpWait')) return;
+  const w = document.createElement('div');
+  w.id = 'mpWait';
+  w.style.cssText = 'position:fixed;inset:0;background:#0c0c10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;font-family:system-ui;color:#d4af55;text-align:center;padding:24px';
+  w.innerHTML = '<div style="font-size:3rem">🎲</div>'
+    + '<div style="margin-top:12px;font-size:1rem;letter-spacing:2px">جارٍ الاتصال...</div>'
+    + '<div id="mpWaitMsg" style="margin-top:8px;font-size:.8rem;color:rgba(255,255,255,.5)">بانتظار صديقك للانضمام...</div>';
+  document.body.appendChild(w);
+}
+function _hideWait(){
+  const w = document.getElementById('mpWait');
+  if (!w) return;
+  w.style.transition = 'opacity .4s';
+  w.style.opacity = '0';
+  setTimeout(() => w.remove(), 400);
+}
+
 async function _initFirebase() {
   if (!_isMP) return;
   try {
@@ -601,11 +620,21 @@ async function _initFirebase() {
       _handleRemoteAction(action);
     });
 
-    // If master, push initial state after game loads
-    if (_isMaster) {
-      setTimeout(_pushState, 800);
-    }
-  } catch(e) { console.error('Firebase init failed', e); }
+    // Register my presence in the room.
+    _roomRef.child('players/' + _myIdx).set(true);
+    try { _roomRef.child('players/' + _myIdx).onDisconnect().remove(); } catch(e){}
+
+    // Wait for BOTH players before starting. Once two are present, hide the
+    // waiting overlay; the master then pushes the initial game state so the
+    // guest's board is in sync no matter who connected first.
+    _roomRef.child('players').on('value', psnap => {
+      const count = Object.keys(psnap.val() || {}).length;
+      if (count >= 2) {
+        _hideWait();
+        if (_isMaster) _pushState();
+      }
+    });
+  } catch(e) { console.error('Firebase init failed', e); _hideWait(); }
 }
 
 // Push current full game state to Firebase
@@ -709,21 +738,9 @@ function _updateUI() {
 
 // ── Init ──
 (async function(){
+  _showWait();
   await _initFirebase();
 
-  // In MP mode, show a "waiting" overlay until Firebase connects
-  if (_isMP && _roomRef) {
-    const waiter = document.createElement('div');
-    waiter.id = 'mpWait';
-    waiter.style.cssText = 'position:fixed;inset:0;background:#0c0c10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;font-family:system-ui;color:#d4af55';
-    waiter.innerHTML = '<div style="font-size:3rem">🎲</div><div style="margin-top:12px;font-size:1rem;letter-spacing:2px">جارٍ الاتصال...</div>';
-    document.body.appendChild(waiter);
-    _roomRef.once('value', () => {
-      waiter.style.opacity = '0';
-      waiter.style.transition = 'opacity .4s';
-      setTimeout(() => waiter.remove(), 400);
-    });
-  }
 })();
 
 })();
