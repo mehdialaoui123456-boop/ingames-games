@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>قنص الزجاجات</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html,body { height:100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+    background:#0a0f1e; color:#fff; overflow:hidden;
+    display:flex; flex-direction:column; height:100dvh;
+  }
+
+  /* HUD */
+  #hud { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 8px; gap:10px; z-index:20; }
+  .score-card { flex:1; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:7px 10px; text-align:center; transition:.25s; }
+  .score-card.me .lbl { color:#1877F2; }
+  .score-card.lead { border-color:rgba(125,255,154,.55); box-shadow:0 0 16px rgba(125,255,154,.2); }
+  .score-card .lbl { font-size:.66rem; color:rgba(255,255,255,.55); font-weight:700; }
+  .score-card .val { font-size:1.5rem; font-weight:800; line-height:1.15; }
+  #mid { text-align:center; }
+  #remain { font-size:.62rem; color:rgba(255,255,255,.45); font-weight:700; }
+  #remainN { font-size:1.05rem; font-weight:800; color:#fff; }
+
+  /* Range */
+  #range {
+    flex:1; position:relative; margin:8px 0 0; overflow:hidden;
+    background:
+      radial-gradient(circle at 50% 120%, rgba(24,120,242,.15), transparent 60%),
+      linear-gradient(180deg, #142b4a 0%, #0c1426 40%, #0a1020 100%);
+    background-color:#0c1426;
+    touch-action:none;
+  }
+  /* shelf lines for depth */
+  #range::before, #range::after {
+    content:''; position:absolute; left:0; right:0; height:2px;
+    background:rgba(255,255,255,.05);
+  }
+  #range::before { top:38%; }
+  #range::after  { top:68%; }
+
+  .bottle {
+    position:absolute; width:38px; height:74px; transform:translate(-50%,-50%) scale(0);
+    transition:transform .18s cubic-bezier(.34,1.56,.64,1), opacity .15s;
+    will-change:transform; z-index:5;
+  }
+  .bottle.in { transform:translate(-50%,-50%) scale(1); }
+  .bottle svg { width:100%; height:100%; display:block; filter:drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+  .bottle.gone { transform:translate(-50%,-50%) scale(0); opacity:0; }
+  .bottle.mine svg .glass { fill:rgba(125,255,154,.85); }
+  .bottle.theirs svg .glass { fill:rgba(255,140,160,.85); }
+
+  /* crosshair */
+  #scope {
+    position:absolute; width:96px; height:96px; left:50%; top:60%;
+    transform:translate(-50%,-50%); pointer-events:none; z-index:12;
+    transition:opacity .15s;
+  }
+  #scope .ring { position:absolute; inset:0; border:2px solid rgba(24,120,242,.9); border-radius:50%; box-shadow:0 0 14px rgba(24,120,242,.5), inset 0 0 14px rgba(24,120,242,.25); }
+  #scope .h, #scope .v { position:absolute; background:rgba(24,120,242,.9); }
+  #scope .h { left:8%; right:8%; top:50%; height:2px; transform:translateY(-50%); }
+  #scope .v { top:8%; bottom:8%; left:50%; width:2px; transform:translateX(-50%); }
+  #scope .dot { position:absolute; left:50%; top:50%; width:6px; height:6px; background:#ff4d6d; border-radius:50%; transform:translate(-50%,-50%); }
+
+  .ripple { position:absolute; width:20px; height:20px; border:2px solid #fff; border-radius:50%; transform:translate(-50%,-50%); pointer-events:none; animation:rip .4s ease-out forwards; z-index:11; }
+  @keyframes rip { from{opacity:.9;width:8px;height:8px} to{opacity:0;width:60px;height:60px} }
+  .float { position:absolute; font-weight:800; font-size:1.1rem; pointer-events:none; transform:translate(-50%,-50%); animation:rise .7s ease-out forwards; z-index:13; }
+  @keyframes rise { from{opacity:1} to{opacity:0; margin-top:-30px} }
+
+  #hint { position:absolute; left:0; right:0; bottom:14px; text-align:center; font-size:.78rem; color:rgba(255,255,255,.5); z-index:12; pointer-events:none; }
+
+  /* overlay */
+  #ov { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(6,8,15,.93); text-align:center; padding:30px; }
+  #ov.hide { display:none; }
+  #ov .emo { font-size:3.4rem; margin-bottom:12px; }
+  #ov h1 { font-size:1.5rem; font-weight:800; margin-bottom:8px; }
+  #ov p { font-size:.95rem; color:rgba(255,255,255,.6); margin-bottom:18px; line-height:1.6; }
+  #ov .big { font-size:2.3rem; font-weight:800; margin:6px 0 18px; }
+  .btn { background:linear-gradient(90deg,#1877F2,#0a5dc2); color:#fff; border:none; padding:14px 40px; border-radius:30px; font-size:1rem; font-weight:800; font-family:inherit; box-shadow:0 8px 22px rgba(24,120,242,.4); }
+  .btn:active { transform:scale(.96); }
+  .spinner { width:30px; height:30px; border:3px solid rgba(255,255,255,.15); border-top-color:#1877F2; border-radius:50%; animation:sp 1s linear infinite; margin-bottom:14px; }
+  @keyframes sp { to{ transform:rotate(360deg) } }
+  .legend { margin-top:16px; font-size:.72rem; color:rgba(255,255,255,.45); line-height:1.8; }
+  .legend b.g { color:#7dff9a; } .legend b.r { color:#ff8aa0; }
+</style>
+</head>
+<body>
+
+  <div id="hud">
+    <div class="score-card me" id="meCard">
+      <div class="lbl">أنت</div><div class="val" id="meScore">0</div>
+    </div>
+    <div id="mid">
+      <div id="remain">متبقٍ</div><div id="remainN">20</div>
+    </div>
+    <div class="score-card" id="opCard">
+      <div class="lbl">الخصم</div><div class="val" id="opScore">0</div>
+    </div>
+  </div>
+
+  <div id="range">
+    <div id="scope"><div class="ring"></div><div class="h"></div><div class="v"></div><div class="dot"></div></div>
+    <div id="hint">حرّك إصبعك للتصويب — ارفعه لإطلاق النار</div>
+  </div>
+
+  <div id="ov" class="">
+    <div class="spinner" id="ovSpin"></div>
+    <div class="emo" id="ovEmo" style="display:none"></div>
+    <h1 id="ovTitle">جارٍ الاتصال...</h1>
+    <p id="ovMsg">بانتظار صديقك للانضمام...</p>
+    <div class="big" id="ovBig" style="display:none"></div>
+    <button class="btn" id="ovBtn" style="display:none">العب مرة أخرى</button>
+    <div class="legend" id="ovLegend" style="display:none">
+      <b class="g">الأخضر</b> = زجاجاتك التي أصبتها &nbsp;•&nbsp; <b class="r">الوردي</b> = زجاجات الخصم
+    </div>
+  </div>
+
+<script>
+(function(){
+"use strict";
+
+// ── URL PARAMS ──
+const params  = new URLSearchParams(window.location.search);
+const ROOM_ID = params.get('room');
+const MY_IDX  = parseInt(params.get('player') || '0', 10); // 0 or 1
+const IS_MP   = !!ROOM_ID;
+
+// ── FIREBASE CONFIG (mandatory) ──
+const _fbConfig = {
+  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:        "ingames-9c93b.firebaseapp.com",
+  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:         "ingames-9c93b",
+  storageBucket:     "ingames-9c93b.firebasestorage.app",
+  messagingSenderId: "711825788462",
+  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+
+// ── GAME CONFIG ──
+const TOTAL_BOTTLES = 20;      // bottles per match (shared)
+const BOTTLE_LIFE   = 1700;    // ms a bottle stays before escaping
+const SPAWN_GAP_MIN = 600;     // ms between spawns
+const SPAWN_GAP_MAX = 1200;
+const HIT_RADIUS    = 46;      // px tolerance around bottle centre
+
+// ── STATE ──
+let scores   = [0,0];
+let spawned  = 0;              // how many bottles spawned so far
+let resolved = 0;             // how many bottles have been claimed or escaped
+let schedule = [];           // shared list of {id,x,y,t} — built by player 0
+let started  = false;
+let finished = false;
+const live   = new Map();     // id -> {el, x, y, claimed, escTimer}
+
+// ── DOM ──
+const rangeEl = document.getElementById('range');
+const scope   = document.getElementById('scope');
+const meScoreEl=document.getElementById('meScore');
+const opScoreEl=document.getElementById('opScore');
+const remainEl =document.getElementById('remainN');
+const meCard  = document.getElementById('meCard');
+const opCard  = document.getElementById('opCard');
+const ov      = document.getElementById('ov');
+
+// ── HUD ──
+function updateHUD(){
+  meScoreEl.textContent = scores[MY_IDX];
+  opScoreEl.textContent = scores[1-MY_IDX];
+  remainEl.textContent  = Math.max(0, TOTAL_BOTTLES - resolved);
+  meCard.classList.toggle('lead', scores[MY_IDX] > scores[1-MY_IDX]);
+  opCard.classList.toggle('lead', scores[1-MY_IDX] > scores[MY_IDX]);
+}
+
+// ── OVERLAY ──
+function showOverlay(o){
+  document.getElementById('ovSpin').style.display = o.spin?'block':'none';
+  const e=document.getElementById('ovEmo'); e.style.display=o.emo?'block':'none'; e.textContent=o.emo||'';
+  document.getElementById('ovTitle').textContent=o.title||'';
+  document.getElementById('ovMsg').textContent=o.msg||'';
+  const b=document.getElementById('ovBig'); b.style.display=o.big?'block':'none'; b.textContent=o.big||'';
+  const btn=document.getElementById('ovBtn'); btn.style.display=o.btn?'inline-block':'none'; btn.textContent=o.btn||'';
+  document.getElementById('ovLegend').style.display=o.legend?'block':'none';
+  ov.classList.remove('hide');
+}
+function hideOverlay(){ ov.classList.add('hide'); }
+
+// ── BOTTLE SVG ──
+function bottleSVG(){
+  return '<svg viewBox="0 0 38 74">'
+    + '<rect class="glass" x="13" y="2" width="12" height="12" rx="3"/>'           // neck
+    + '<path class="glass" d="M11 14 q8 6 16 0 v50 a8 8 0 0 1 -16 0 z"/>'           // body
+    + '<rect x="11" y="40" width="16" height="14" rx="2" fill="rgba(255,255,255,.85)"/>' // label
+    + '</svg>';
+}
+
+// ── SPAWN A BOTTLE (both clients run this from the shared schedule) ──
+function spawnBottle(item){
+  if(live.has(item.id)) return;
+  const el = document.createElement('div');
+  el.className = 'bottle';
+  el.innerHTML = bottleSVG();
+  // position is a fraction of the range box so it matches on both screens
+  const rect = rangeEl.getBoundingClientRect();
+  const px = item.x * rect.width;
+  const py = item.y * rect.height;
+  el.style.left = px + 'px';
+  el.style.top  = py + 'px';
+  rangeEl.appendChild(el);
+  requestAnimationFrame(()=> el.classList.add('in'));
+  const rec = { el, x:px, y:py, fx:item.x, fy:item.y, claimed:false, escTimer:null };
+  rec.escTimer = setTimeout(()=> escapeBottle(item.id), BOTTLE_LIFE);
+  live.set(item.id, rec);
+}
+
+function escapeBottle(id){
+  const rec = live.get(id); if(!rec || rec.claimed) return;
+  rec.claimed = true; // escaped counts as resolved, nobody scores
+  rec.el.classList.add('gone');
+  setTimeout(()=>{ rec.el.remove(); }, 180);
+  live.delete(id);
+  resolved++; updateHUD();
+  maybeFinish();
+}
+
+// A bottle was claimed by `shooter` (could be me or opponent)
+function claimBottle(id, shooter){
+  const rec = live.get(id); if(!rec || rec.claimed) return;
+  rec.claimed = true;
+  clearTimeout(rec.escTimer);
+  rec.el.classList.add(shooter===MY_IDX ? 'mine' : 'theirs');
+  // shatter
+  requestAnimationFrame(()=>{
+    rec.el.classList.add('gone');
+    floatText(rec.x, rec.y, shooter===MY_IDX?'+1':'', shooter===MY_IDX?'#7dff9a':'#ff8aa0');
+  });
+  setTimeout(()=> rec.el.remove(), 200);
+  live.delete(id);
+  scores[shooter]++; resolved++;
+  updateHUD();
+  maybeFinish();
+}
+
+// ── SHOOTING ──
+function fireAt(px, py){
+  ripple(px, py);
+  if(finished || !started) return;
+  // find the nearest UNCLAIMED bottle within radius
+  let bestId=null, bestD=HIT_RADIUS;
+  live.forEach((rec,id)=>{
+    if(rec.claimed) return;
+    const d = Math.hypot(rec.x-px, rec.y-py);
+    if(d < bestD){ bestD=d; bestId=id; }
+  });
+  if(bestId!==null){
+    // claim locally for instant feedback, and broadcast — first write wins
+    claimBottle(bestId, MY_IDX);
+    broadcast('claim', { id:bestId, shooter:MY_IDX });
+  }
+}
+
+function ripple(px,py){
+  const r=document.createElement('div'); r.className='ripple';
+  r.style.left=px+'px'; r.style.top=py+'px'; rangeEl.appendChild(r);
+  setTimeout(()=>r.remove(),400);
+}
+function floatText(px,py,txt,color){
+  if(!txt) return;
+  const f=document.createElement('div'); f.className='float'; f.textContent=txt; f.style.color=color;
+  f.style.left=px+'px'; f.style.top=py+'px'; rangeEl.appendChild(f);
+  setTimeout(()=>f.remove(),700);
+}
+
+// ── INPUT: crosshair follows finger, fire on lift ──
+let aiming=false;
+function pt(e){ const t=e.touches?e.touches[0]:e; const r=rangeEl.getBoundingClientRect(); return {x:t.clientX-r.left, y:t.clientY-r.top}; }
+function moveScope(p){ scope.style.left=p.x+'px'; scope.style.top=p.y+'px'; }
+
+rangeEl.addEventListener('touchstart', e=>{ aiming=true; moveScope(pt(e)); e.preventDefault(); }, {passive:false});
+rangeEl.addEventListener('touchmove',  e=>{ if(aiming){ moveScope(pt(e)); } e.preventDefault(); }, {passive:false});
+rangeEl.addEventListener('touchend',   e=>{
+  if(!aiming) return; aiming=false;
+  const r=rangeEl.getBoundingClientRect();
+  const x=parseFloat(scope.style.left), y=parseFloat(scope.style.top);
+  fireAt(x,y); e.preventDefault();
+}, {passive:false});
+// mouse fallback for desktop testing
+rangeEl.addEventListener('mousedown', e=>{ aiming=true; moveScope(pt(e)); });
+rangeEl.addEventListener('mousemove', e=>{ if(aiming) moveScope(pt(e)); });
+rangeEl.addEventListener('mouseup',   e=>{ if(!aiming) return; aiming=false; fireAt(parseFloat(scope.style.left), parseFloat(scope.style.top)); });
+
+// ── MATCH FLOW ──
+function buildSchedule(){
+  // player 0 generates the shared bottle schedule (positions as 0..1 fractions)
+  const arr=[];
+  for(let i=0;i<TOTAL_BOTTLES;i++){
+    arr.push({
+      id:i,
+      x: 0.12 + Math.random()*0.76,
+      y: 0.20 + Math.random()*0.62,
+    });
+  }
+  return arr;
+}
+
+function startMatch(sched){
+  schedule = sched; started=true; finished=false;
+  scores=[0,0]; spawned=0; resolved=0; live.clear();
+  // clear any leftover bottles
+  rangeEl.querySelectorAll('.bottle').forEach(b=>b.remove());
+  updateHUD(); hideOverlay();
+  scheduleSpawns();
+}
+
+function scheduleSpawns(){
+  if(spawned >= schedule.length) return;
+  const gap = SPAWN_GAP_MIN + Math.random()*(SPAWN_GAP_MAX-SPAWN_GAP_MIN);
+  setTimeout(()=>{
+    if(finished) return;
+    spawnBottle(schedule[spawned]);
+    spawned++;
+    scheduleSpawns();
+  }, gap);
+}
+
+function maybeFinish(){
+  if(finished) return;
+  if(resolved >= TOTAL_BOTTLES){
+    finished=true; started=false;
+    const me=scores[MY_IDX], op=scores[1-MY_IDX];
+    let emo,title;
+    if(me>op){ emo='🏆'; title='فزت!'; }
+    else if(me<op){ emo='💥'; title='خسرت!'; }
+    else { emo='🤝'; title='تعادل!'; }
+    showOverlay({ emo, title, big: me+' - '+op, btn:'العب مرة أخرى', legend:true });
+    if(IS_MP && typeof FlutterBridge!=='undefined'){ try{ FlutterBridge.postMessage('gameOver'); }catch(e){} }
+  }
+}
+
+document.getElementById('ovBtn').addEventListener('click', ()=>{
+  if(MY_IDX===0){
+    const sched=buildSchedule();
+    broadcast('start', { schedule:sched });
+    startMatch(sched);
+  } else {
+    showOverlay({ spin:true, title:'بانتظار اللاعب الأول لبدء جولة جديدة...' });
+    broadcast('rematchReq', {});
+  }
+});
+
+// ── FIREBASE MULTIPLAYER ──
+let _db=null,_roomRef=null,_connectedAt=0,_bothReady=false;
+
+function broadcast(type,payload){
+  if(!_roomRef) return;
+  _roomRef.child('ev').set({ type, ...payload, from:MY_IDX, ts:Date.now() });
+}
+
+// claims need to be authoritative & race-safe: use a transaction on the
+// bottle's owner so only the FIRST shooter can claim it.
+function broadcastClaim(id, shooter){
+  if(!_roomRef) return;
+  const ref=_roomRef.child('claims/'+id);
+  ref.transaction(cur => cur===null ? shooter : cur, (err, committed, snap)=>{
+    if(err) return;
+    const owner = snap.val();
+    if(owner !== shooter){
+      // someone else got it first — revert our optimistic local claim
+      revertClaim(id, owner);
+    }
+  });
+}
+
+function revertClaim(id, owner){
+  // we had counted it for ourselves optimistically; correct the books
+  if(scores[MY_IDX]>0) scores[MY_IDX]--;
+  scores[owner] = (scores[owner]||0)+1;
+  updateHUD();
+}
+
+function handleEvent(ev){
+  switch(ev.type){
+    case 'start':
+      startMatch(ev.schedule);
+      break;
+    case 'claim':
+      // opponent claimed a bottle — show it as theirs if still live
+      claimBottle(ev.id, ev.shooter);
+      break;
+    case 'rematchReq':
+      if(MY_IDX===0){
+        const sched=buildSchedule();
+        broadcast('start',{ schedule:sched });
+        startMatch(sched);
+      }
+      break;
+  }
+}
+
+async function initFirebase(){
+  if(!IS_MP){
+    // local solo fallback: shoot bottles, single player
+    started=true; hideOverlay();
+    schedule=buildSchedule(); scheduleSpawns();
+    return;
+  }
+  try{
+    const app=firebase.initializeApp(_fbConfig);
+    await firebase.auth(app).signInAnonymously();
+    _db=firebase.database(app);
+    _roomRef=_db.ref('rooms/'+ROOM_ID+'/bottleduel');
+    _connectedAt=Date.now();
+
+    _roomRef.child('players/'+MY_IDX).set(true);
+    try{ _roomRef.child('players/'+MY_IDX).onDisconnect().remove(); }catch(e){}
+
+    _roomRef.child('ev').on('value', snap=>{
+      const ev=snap.val();
+      if(!ev || ev.from===MY_IDX) return;
+      if(!ev.ts || ev.ts<_connectedAt) return;
+      handleEvent(ev);
+    });
+
+    _roomRef.child('players').on('value', snap=>{
+      const count=Object.keys(snap.val()||{}).length;
+      if(count>=2 && !_bothReady){
+        _bothReady=true;
+        _roomRef.child('players').off('value');
+        showOverlay({ emo:'🔫', title:'استعدوا!', msg:'أصب أكبر عدد من الزجاجات' });
+        if(MY_IDX===0){
+          setTimeout(()=>{ const s=buildSchedule(); broadcast('start',{schedule:s}); startMatch(s); }, 1500);
+        } else {
+          // guest waits for 'start' event; fallback if missed
+          setTimeout(()=>{ if(!started) showOverlay({spin:true,title:'بانتظار بدء المباراة...'}); }, 2500);
+        }
+      }
+    });
+  }catch(e){
+    console.error('Firebase error',e);
+    showOverlay({ emo:'⚠️', title:'تعذّر الاتصال', msg:'حاول مرة أخرى' });
+  }
+}
+
+// override broadcast for 'claim' to also run the authoritative transaction
+const _origBroadcast = broadcast;
+broadcast = function(type,payload){
+  _origBroadcast(type,payload);
+  if(type==='claim'){ broadcastClaim(payload.id, payload.shooter); }
+};
+
+// ── BOOT ──
+updateHUD();
+initFirebase();
+
+})();
+</script>
+</body>
+</html>
