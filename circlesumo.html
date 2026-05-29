@@ -168,24 +168,27 @@ const elWait=$('wait'), elStart=$('start'), elOver=$('over'), elFlash=$('flash')
 
 /* ---------- world model (logical 0..1000 space, mapped to canvas) ---------- */
 const WIN_SCORE = 5;
-const DISK_R = 0.072;      // fraction of min(W,H)
-const FRICTION = 0.94;     // stronger damping so joystick feels responsive
-const RESTITUTION = 0.92;  // disk-disk bounce
-const THRUST = 0.0016;     // continuous accel from joystick (per frame at full tilt)
-const MAX_SPEED = 0.045;
+const DISK_R_REL = 0.16;   // disk radius as fraction of ARENA radius
+const FRICTION = 0.94;     // damping so joystick feels responsive
+const RESTITUTION = 0.95;  // disk-disk bounce
+const THRUST = 0.010;      // continuous accel from joystick (radius-units/frame²)
+const MAX_SPEED = 0.085;   // top speed in radius-units/frame
 const STICK_R = 0.14;      // joystick base radius as fraction of min(W,H)
+const START_Y = 0.55;      // start distance from centre (radius units)
 
 let W=0, H=0, DPR=1;
 let arena = { cx:0, cy:0, r:0 };   // in pixels
 let diskR = 0;
 
-// positions/velocities are normalized: x,y in 0..1 of canvas; v in per-frame fraction
+// Disk positions are ARENA-LOCAL: ax,ay = offset from arena centre, in units of
+// arena radius (so the ring edge is at distance 1). vx,vy in the same units/frame.
+// This is screen-shape independent and makes perspective flipping trivial.
 let game = {
   running:false,
   score:[0,0],
   disks:[
-    { x:0.5, y:0.74, vx:0, vy:0 },  // index 0 = host (bottom, blue)
-    { x:0.5, y:0.26, vx:0, vy:0 }   // index 1 = guest (top, red)
+    { ax:0, ay:0.55, vx:0, vy:0 },  // index 0 = host  (logical bottom, blue)
+    { ax:0, ay:-0.55, vx:0, vy:0 }  // index 1 = guest (logical top, red)
   ],
   roundLock:false
 };
@@ -264,17 +267,37 @@ function startMatch(){
   if(IS_HOST) broadcastState();   // initial sync
 }
 
-/* guest applies host's state */
+/* guest applies host's authoritative state.
+   - opponent disk (0): snap fully to host.
+   - own disk (1): soft-reconcile toward host so prediction stays smooth but
+     never drifts far from authority.                                        */
 function applyFullState(st){
   game.score = st.score || [0,0];
   game.running = st.running;
-  if(st.disks) game.disks = st.disks;
+  game.roundLock = !!st.roundLock;
+  if(st.disks){
+    // opponent — trust host completely
+    game.disks[0] = st.disks[0];
+    // self — reconcile
+    const hostSelf = st.disks[1];
+    const me = game.disks[1];
+    const err = Math.hypot(hostSelf.ax-me.ax, hostSelf.ay-me.ay);
+    if(err > 0.35 || game.roundLock){
+      // big divergence or a reset/round boundary: snap
+      game.disks[1] = hostSelf;
+    } else {
+      // small drift: ease toward host position, take host velocity
+      me.ax += (hostSelf.ax - me.ax)*0.25;
+      me.ay += (hostSelf.ay - me.ay)*0.25;
+      me.vx = hostSelf.vx; me.vy = hostSelf.vy;
+    }
+  }
   updateScoreUI();
   if(st.flash){ showFlash(st.flash.text, st.flash.color); }
   if(st.over){ showVictory(st.over.winner); }
 }
 
-/* host pushes full state (called ~throttled) */
+/* host pushes full state (throttled) */
 let _lastBroadcast = 0;
 function broadcastState(extra){
   if(!IS_MP || !IS_HOST || !_roomRef) return;
@@ -282,8 +305,9 @@ function broadcastState(extra){
     from: MY_IDX, ts: Date.now(),
     score: game.score,
     running: game.running,
+    roundLock: game.roundLock,
     disks: game.disks.map(d=>({
-      x:+d.x.toFixed(4), y:+d.y.toFixed(4),
+      ax:+d.ax.toFixed(4), ay:+d.ay.toFixed(4),
       vx:+d.vx.toFixed(4), vy:+d.vy.toFixed(4)
     }))
   };
@@ -310,29 +334,39 @@ function resize(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   const m = Math.min(W,H);
   arena = { cx:W/2, cy:H/2, r:m*0.42 };
-  diskR = m*DISK_R;
+  diskR = arena.r * DISK_R_REL;
 }
 window.addEventListener('resize', resize);
 
-/* ---------- helpers: map normalized -> pixels ---------- */
-function px(d){ return { x:d.x*W, y:d.y*H }; }
+/* Perspective: each player sees THEMSELVES at the bottom. The simulation is
+   canonical (disk 0 = bottom). The guest (MY_IDX===1) flips Y for both
+   rendering and input so their own disk appears at the bottom.            */
+const FLIP = (IS_MP && MY_IDX === 1) ? -1 : 1;
+
+/* arena-local (ax,ay) -> screen pixels. Guest view is rotated 180° (both axes). */
+function arenaToPx(ax, ay){
+  return { x: arena.cx + (ax*FLIP)*arena.r, y: arena.cy + (ay*FLIP)*arena.r };
+}
+/* screen pixels -> arena-local */
+function pxToArena(px, py){
+  return { ax: ((px-arena.cx)/arena.r)*FLIP, ay: ((py-arena.cy)/arena.r)*FLIP };
+}
 
 function resetDisks(){
-  game.disks[0] = { x:0.5, y:0.74, vx:0, vy:0 }; // host bottom
-  game.disks[1] = { x:0.5, y:0.26, vx:0, vy:0 }; // guest top
+  game.disks[0] = { ax:0, ay:START_Y,  vx:0, vy:0 }; // logical bottom (host)
+  game.disks[1] = { ax:0, ay:-START_Y, vx:0, vy:0 }; // logical top (guest)
   game.roundLock = false;
 }
 
 /* ---------- input: joysticks ---------- */
-/* which disk does a touch on this Y belong to?
-   single device: top half -> guest disk(1), bottom -> host disk(0)
-   MP host: only its own half (bottom) controls disk 0
-   MP guest: only its own half (top) controls disk 1                */
+/* With perspective flip, the LOCAL player always sits at the bottom of their
+   own screen. So in MP the local player controls their own disk from the
+   bottom half. Single-device keeps both halves (top=disk1, bottom=disk0).   */
 function ownerForY(clientY){
   const topHalf = clientY < H/2;
   if(IS_MP){
-    if(IS_HOST) return topHalf ? null : 0;   // host owns bottom only
-    return topHalf ? 1 : null;               // guest owns top only
+    // only the bottom half is interactive; it controls MY disk
+    return topHalf ? null : MY_IDX;
   }
   return topHalf ? 1 : 0;                     // single device: both halves
 }
@@ -348,8 +382,11 @@ function moveStick(id, x, y){
   const len = Math.hypot(dx,dy);
   if(len > maxR){ dx = dx/len*maxR; dy = dy/len*maxR; }
   s.curX = s.baseX + dx; s.curY = s.baseY + dy;
-  joy[s.ownerIdx].dx = dx/maxR;        // -1..1
-  joy[s.ownerIdx].dy = dy/maxR;
+  // Guest's view is rotated 180°, so BOTH axes invert for them.
+  // single-device disk 1 (top player) likewise reads fully inverted.
+  const f = IS_MP ? FLIP : (s.ownerIdx===1 ? -1 : 1);
+  joy[s.ownerIdx].dx = (dx/maxR)*f;     // -1..1
+  joy[s.ownerIdx].dy = (dy/maxR)*f;
   if(s.ownerIdx === MY_IDX) sendInput();
 }
 function endStick(id){
@@ -397,22 +434,33 @@ function step(){
   if(!game.running) return;
 
   if(physicsEnabled() && !game.roundLock){
-    // joystick thrust: disk 0 = local/host stick, disk 1 = guest (remote in MP)
-    const j0 = joy[0];
-    const j1 = IS_MP ? remoteJoy : joy[1];
-    applyThrust(0, j0.dx, j0.dy);
-    applyThrust(1, j1.dx, j1.dy);
-
-    // integrate
-    for(const d of game.disks){
-      d.x += d.vx; d.y += d.vy;
-      d.vx *= FRICTION; d.vy *= FRICTION;
-    }
-    // collision between the two disks (elastic)
+    // HOST: full authoritative sim. disk0 = host stick, disk1 = guest's streamed input.
+    applyThrust(0, joy[0].dx, joy[0].dy);
+    applyThrust(1, remoteJoy.dx, remoteJoy.dy);
+    integrate();
     collide(game.disks[0], game.disks[1]);
-
-    // out-of-bounds check (centre of disk past arena radius + own radius)
     checkOut();
+  } else if(IS_MP && !IS_HOST && !game.roundLock){
+    // GUEST: client-side prediction — move MY OWN disk locally so input feels
+    // instant, instead of waiting for the host's broadcast round-trip.
+    applyThrust(1, joy[1].dx, joy[1].dy);
+    const d = game.disks[1];
+    d.ax += d.vx; d.ay += d.vy;
+    d.vx *= FRICTION; d.vy *= FRICTION;
+  } else if(!IS_MP && !game.roundLock){
+    // single device
+    applyThrust(0, joy[0].dx, joy[0].dy);
+    applyThrust(1, joy[1].dx, joy[1].dy);
+    integrate();
+    collide(game.disks[0], game.disks[1]);
+    checkOut();
+  }
+}
+
+function integrate(){
+  for(const d of game.disks){
+    d.ax += d.vx; d.ay += d.vy;
+    d.vx *= FRICTION; d.vy *= FRICTION;
   }
 }
 
@@ -426,38 +474,34 @@ function applyThrust(i, jx, jy){
   if(sp > MAX_SPEED){ d.vx *= MAX_SPEED/sp; d.vy *= MAX_SPEED/sp; }
 }
 
+/* elastic collision in clean arena units (equal mass) */
 function collide(a,b){
-  // work in pixel space for correct aspect
-  const ax=a.x*W, ay=a.y*H, bx=b.x*W, by=b.y*H;
-  let dx=bx-ax, dy=by-ay;
+  let dx=b.ax-a.ax, dy=b.ay-a.ay;
   let dist=Math.hypot(dx,dy);
-  const minD = diskR*2;
-  if(dist===0){ dist=0.01; dx=0.01; }
+  const minD = (diskR/arena.r)*2;          // disk diameter in radius units
+  if(dist===0){ dist=0.001; dx=0.001; }
   if(dist < minD){
     const nx=dx/dist, ny=dy/dist;
-    // separate
     const overlap=(minD-dist)/2;
-    a.x -= nx*overlap/W; a.y -= ny*overlap/H;
-    b.x += nx*overlap/W; b.y += ny*overlap/H;
-    // relative velocity along normal (convert v to px)
-    const avx=a.vx*W, avy=a.vy*H, bvx=b.vx*W, bvy=b.vy*H;
-    const rvx=bvx-avx, rvy=bvy-avy;
+    a.ax -= nx*overlap; a.ay -= ny*overlap;
+    b.ax += nx*overlap; b.ay += ny*overlap;
+    const rvx=b.vx-a.vx, rvy=b.vy-a.vy;
     const vn = rvx*nx + rvy*ny;
     if(vn<0){
       const imp = -(1+RESTITUTION)*vn/2;
-      a.vx -= (imp*nx)/W; a.vy -= (imp*ny)/H;
-      b.vx += (imp*nx)/W; b.vy += (imp*ny)/H;
+      a.vx -= imp*nx; a.vy -= imp*ny;
+      b.vx += imp*nx; b.vy += imp*ny;
     }
   }
 }
 
 function checkOut(){
+  const diskRel = diskR/arena.r;
   for(let i=0;i<2;i++){
     const d=game.disks[i];
-    const dxp=d.x*W-arena.cx, dyp=d.y*H-arena.cy;
-    const dist=Math.hypot(dxp,dyp);
-    if(dist > arena.r + diskR){   // fully outside the ring
-      scorePoint(1-i);            // the OTHER player scores
+    const dist=Math.hypot(d.ax, d.ay);    // distance from centre in radius units
+    if(dist > 1 + diskRel){               // fully outside the ring (edge at 1)
+      scorePoint(1-i);                    // the OTHER player scores
       return;
     }
   }
@@ -529,7 +573,8 @@ function draw(){
 }
 
 function drawDisk(d, col, glow){
-  const x=d.x*W, y=d.y*H;
+  const p = arenaToPx(d.ax, d.ay);
+  const x=p.x, y=p.y;
   ctx.save();
   ctx.shadowColor=glow; ctx.shadowBlur=22;
   const g=ctx.createRadialGradient(x-diskR*0.3,y-diskR*0.3,diskR*0.2,x,y,diskR);
@@ -558,17 +603,37 @@ function drawStick(s, col, glow){
 
 function loop(){
   step();
-  // host broadcasts at ~20Hz
-  if(physicsEnabled() && IS_MP && game.running){
+  // host broadcasts authoritative state at ~33Hz
+  if(IS_HOST && IS_MP && game.running){
     const now=performance.now();
-    if(now-_lastBroadcast > 50){ _lastBroadcast=now; broadcastState(); }
+    if(now-_lastBroadcast > 30){ _lastBroadcast=now; broadcastState(); }
   }
   draw();
 }
 
 /* ---------- UI ---------- */
 function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
-function updateScoreUI(){ $('sBot').textContent=game.score[0]; $('sTop').textContent=game.score[1]; }
+function applyPerspectiveColors(){
+  if(!IS_MP) return;
+  const meCol  = MY_IDX===0 ? getCss('--p0') : getCss('--p1');
+  const meGlow = MY_IDX===0 ? getCss('--p0glow') : getCss('--p1glow');
+  const opCol  = MY_IDX===0 ? getCss('--p1') : getCss('--p0');
+  const opGlow = MY_IDX===0 ? getCss('--p1glow') : getCss('--p0glow');
+  const sB=$('scoreBot'), sT=$('scoreTop');
+  sB.style.color=meCol; sT.style.color=opCol;
+  sB.querySelector('.dot').style.background=meCol;
+  sB.querySelector('.dot').style.boxShadow='0 0 12px '+meGlow;
+  sT.querySelector('.dot').style.background=opCol;
+  sT.querySelector('.dot').style.boxShadow='0 0 12px '+opGlow;
+}
+
+function updateScoreUI(){
+  // bottom chip = local player; top chip = opponent (perspective-aware in MP)
+  const meIdx  = IS_MP ? MY_IDX : 0;
+  const oppIdx = IS_MP ? (1-MY_IDX) : 1;
+  $('sBot').textContent = game.score[meIdx];
+  $('sTop').textContent = game.score[oppIdx];
+}
 
 let _flashT=null;
 function showFlash(text,color){
@@ -592,7 +657,9 @@ function showVictory(winnerIdx){
     title = (winnerIdx===MY_IDX)? 'لقد فزت! 🎉' : 'لقد خسرت';
   }
   $('overTitle').textContent=title;
-  $('overScore').textContent='النتيجة  '+game.score[0]+' - '+game.score[1];
+  const meIdx  = IS_MP ? MY_IDX : 0;
+  const oppIdx = IS_MP ? (1-MY_IDX) : 1;
+  $('overScore').textContent='النتيجة  '+game.score[meIdx]+' - '+game.score[oppIdx];
   elOver.classList.remove('hidden');
 
   // notify Flutter app
@@ -619,6 +686,7 @@ $('startBtn').addEventListener('click', ()=>{
 
 /* ---------- boot ---------- */
 resize();
+applyPerspectiveColors();
 initFirebase();
 requestAnimationFrame(loop);
 </script>
