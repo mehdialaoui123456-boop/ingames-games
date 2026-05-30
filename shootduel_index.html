@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>اصطد الهارب</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html,body { height:100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #16213a 0%, #0a0f1e 60%, #06080f 100%);
+    color:#fff; overflow:hidden;
+    display:flex; flex-direction:column; height:100dvh;
+  }
+
+  /* Top HUD */
+  #hud {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px 10px; gap:10px;
+  }
+  .score-card {
+    flex:1; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+    border-radius:16px; padding:8px 10px; text-align:center; transition:.3s;
+  }
+  .score-card.active { border-color:rgba(24,120,242,.6); box-shadow:0 0 18px rgba(24,120,242,.25); }
+  .score-card .lbl { font-size:.66rem; color:rgba(255,255,255,.55); font-weight:600; }
+  .score-card .val { font-size:1.5rem; font-weight:800; color:#fff; line-height:1.2; }
+  .score-card.me .lbl { color:#1877F2; }
+  #vs { font-size:.7rem; color:rgba(255,255,255,.3); font-weight:700; }
+
+  /* Role banner */
+  #banner {
+    margin:4px 16px 0; padding:10px; border-radius:14px; text-align:center;
+    font-weight:800; font-size:.95rem; letter-spacing:.3px; transition:.3s;
+  }
+  #banner.shoot { background:rgba(255,77,109,.14); border:1px solid rgba(255,77,109,.45); color:#ff8aa0; }
+  #banner.hide  { background:rgba(24,120,242,.14); border:1px solid rgba(24,120,242,.45); color:#7db4ff; }
+
+  /* Timer bar */
+  #timerWrap { margin:10px 16px 0; height:6px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
+  #timerBar { height:100%; width:100%; background:linear-gradient(90deg,#1877F2,#5aa6ff); transition:width .1s linear; }
+
+  /* Arena */
+  #arena {
+    flex:1; margin:14px 14px 18px; position:relative;
+    display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(4,1fr);
+    gap:12px;
+  }
+  .hole {
+    position:relative; border-radius:18px;
+    background:radial-gradient(circle at 50% 35%, #1c2742 0%, #121a30 70%, #0c1222 100%);
+    border:1px solid rgba(255,255,255,.05);
+    overflow:hidden; display:flex; align-items:center; justify-content:center;
+  }
+  .hole .lip {
+    position:absolute; bottom:0; left:0; right:0; height:28%;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.45) 100%);
+    border-bottom-left-radius:18px; border-bottom-right-radius:18px;
+  }
+  .target {
+    position:absolute; bottom:-100%; width:64%; aspect-ratio:1;
+    border-radius:50%;
+    background:radial-gradient(circle at 38% 32%, #ffd27a 0%, #f5a623 55%, #c97f0a 100%);
+    box-shadow:0 0 0 4px rgba(0,0,0,.25), inset 0 -6px 12px rgba(0,0,0,.3);
+    display:flex; align-items:center; justify-content:center; font-size:1.5rem;
+    transition:bottom .14s cubic-bezier(.34,1.56,.64,1);
+  }
+  .target.up { bottom:18%; }
+  .target.hit {
+    background:radial-gradient(circle at 38% 32%, #ff9aa9 0%, #ff4d6d 55%, #b3263f 100%);
+  }
+  .hole.flash::after {
+    content:''; position:absolute; inset:0; background:rgba(255,255,255,.5);
+    animation:fl .25s ease-out forwards; pointer-events:none;
+  }
+  @keyframes fl { from{opacity:.7} to{opacity:0} }
+
+  .float {
+    position:absolute; font-weight:800; font-size:1.1rem; pointer-events:none;
+    animation:rise .7s ease-out forwards; z-index:5;
+  }
+  @keyframes rise { from{transform:translateY(0);opacity:1} to{transform:translateY(-34px);opacity:0} }
+
+  /* Overlay (waiting / round / game over) */
+  #ov {
+    position:fixed; inset:0; z-index:50; display:none;
+    flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(6,8,15,.92); text-align:center; padding:30px;
+  }
+  #ov.show { display:flex; }
+  #ov .emo { font-size:3.4rem; margin-bottom:14px; }
+  #ov h1 { font-size:1.5rem; font-weight:800; margin-bottom:8px; }
+  #ov p  { font-size:.95rem; color:rgba(255,255,255,.6); margin-bottom:22px; line-height:1.6; }
+  #ov .big { font-size:2.4rem; font-weight:800; margin:8px 0 16px; }
+  .btn {
+    background:linear-gradient(90deg,#1877F2,#0a5dc2); color:#fff; border:none;
+    padding:14px 40px; border-radius:30px; font-size:1rem; font-weight:800;
+    font-family:inherit; cursor:pointer; box-shadow:0 8px 22px rgba(24,120,242,.4);
+  }
+  .btn:active { transform:scale(.96); }
+  .spinner { width:30px; height:30px; border:3px solid rgba(255,255,255,.15); border-top-color:#1877F2; border-radius:50%; animation:sp 1s linear infinite; }
+  @keyframes sp { to{ transform:rotate(360deg) } }
+</style>
+</head>
+<body>
+
+  <div id="hud">
+    <div class="score-card me" id="meCard">
+      <div class="lbl">أنت</div>
+      <div class="val" id="meScore">0</div>
+    </div>
+    <div id="vs">VS</div>
+    <div class="score-card" id="opCard">
+      <div class="lbl">الخصم</div>
+      <div class="val" id="opScore">0</div>
+    </div>
+  </div>
+
+  <div id="banner" class="hide">استعد...</div>
+
+  <div id="timerWrap"><div id="timerBar"></div></div>
+
+  <div id="arena"></div>
+
+  <!-- Overlay -->
+  <div id="ov" class="show">
+    <div class="spinner" id="ovSpin"></div>
+    <div class="emo" id="ovEmo" style="display:none"></div>
+    <h1 id="ovTitle">جارٍ الاتصال...</h1>
+    <p id="ovMsg">بانتظار صديقك للانضمام...</p>
+    <div class="big" id="ovBig" style="display:none"></div>
+    <button class="btn" id="ovBtn" style="display:none">العب مرة أخرى</button>
+  </div>
+
+<script>
+(function(){
+"use strict";
+
+// ══════════════════════════════════════════════════
+// URL PARAMS
+// ══════════════════════════════════════════════════
+const params  = new URLSearchParams(window.location.search);
+const ROOM_ID = params.get('room');
+const MY_IDX  = parseInt(params.get('player') || '0', 10); // 0 or 1
+const IS_MP   = !!ROOM_ID;
+
+// ══════════════════════════════════════════════════
+// FIREBASE CONFIG (must be present!)
+// ══════════════════════════════════════════════════
+const _fbConfig = {
+  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:        "ingames-9c93b.firebaseapp.com",
+  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:         "ingames-9c93b",
+  storageBucket:     "ingames-9c93b.firebasestorage.app",
+  messagingSenderId: "711825788462",
+  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+
+// ══════════════════════════════════════════════════
+// GAME CONFIG
+// ══════════════════════════════════════════════════
+const HOLES        = 12;            // 3 x 4 grid
+const POPS_PER_ROUND = 10;          // how many times the hider appears per round
+const POP_MIN      = 700;           // ms a target stays up (gets faster)
+const POP_MAX      = 1300;
+const GAP_MIN      = 350;           // ms between pops
+const GAP_MAX      = 900;
+const ROUND_TIME   = 30;            // seconds cap per round (safety)
+
+// Roles per round:
+//  round 0 -> player 0 hides, player 1 shoots
+//  round 1 -> player 1 hides, player 0 shoots
+// hider index for a given round:
+function hiderForRound(r){ return r % 2; }
+
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+let round       = 0;       // 0 then 1
+let myRole       = null;   // 'hide' | 'shoot'
+let scores      = [0, 0];  // total hits scored, indexed by shooter player idx
+let popsDone    = 0;
+let activeHole  = -1;      // hole index currently showing a target
+let activeUp    = false;   // is the target currently hittable
+let roundActive = false;
+let popTimer    = null, gapTimer = null, roundTimer = null;
+let roundEndsAt = 0;
+
+// ══════════════════════════════════════════════════
+// DOM
+// ══════════════════════════════════════════════════
+const arena    = document.getElementById('arena');
+const banner   = document.getElementById('banner');
+const meScoreEl= document.getElementById('meScore');
+const opScoreEl= document.getElementById('opScore');
+const meCard   = document.getElementById('meCard');
+const opCard   = document.getElementById('opCard');
+const timerBar = document.getElementById('timerBar');
+const ov       = document.getElementById('ov');
+
+const holes = [];
+for(let i=0;i<HOLES;i++){
+  const h = document.createElement('div');
+  h.className = 'hole';
+  h.innerHTML = '<div class="lip"></div><div class="target">🤺</div>';
+  h.addEventListener('click', () => onShoot(i));
+  arena.appendChild(h);
+  holes.push(h);
+}
+function targetEl(i){ return holes[i].querySelector('.target'); }
+
+// ══════════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════════
+function updateScores(){
+  // my score = times I scored as shooter; opp = times they scored
+  meScoreEl.textContent = scores[MY_IDX];
+  opScoreEl.textContent = scores[1 - MY_IDX];
+}
+function setBanner(){
+  if(myRole === 'shoot'){
+    banner.className = 'shoot';
+    banner.textContent = '🎯 صوّب واضرب الهارب!';
+  } else {
+    banner.className = 'hide';
+    banner.textContent = '🥷 اظهر واختبئ — لا يصيبك!';
+  }
+}
+function floatText(holeIdx, text, color){
+  const f = document.createElement('div');
+  f.className = 'float'; f.textContent = text; f.style.color = color;
+  const r = holes[holeIdx].getBoundingClientRect();
+  f.style.left = (r.left + r.width/2 - 14) + 'px';
+  f.style.top  = (r.top + r.height/2 - 14) + 'px';
+  document.body.appendChild(f);
+  setTimeout(()=>f.remove(), 700);
+}
+function showOverlay({emo, title, msg, big, btn, spin}){
+  document.getElementById('ovSpin').style.display  = spin ? 'block':'none';
+  document.getElementById('ovEmo').style.display   = emo ? 'block':'none';
+  document.getElementById('ovEmo').textContent     = emo || '';
+  document.getElementById('ovTitle').textContent   = title || '';
+  document.getElementById('ovMsg').textContent     = msg || '';
+  const bigEl = document.getElementById('ovBig');
+  bigEl.style.display = big ? 'block':'none'; bigEl.textContent = big || '';
+  const b = document.getElementById('ovBtn');
+  b.style.display = btn ? 'inline-block':'none'; b.textContent = btn || '';
+  ov.classList.add('show');
+}
+function hideOverlay(){ ov.classList.remove('show'); }
+
+// ══════════════════════════════════════════════════
+// ROUND FLOW
+// ══════════════════════════════════════════════════
+function startRound(){
+  popsDone = 0; activeHole = -1; activeUp = false; roundActive = true;
+  myRole = (hiderForRound(round) === MY_IDX) ? 'hide' : 'shoot';
+  setBanner();
+  updateScores();
+  hideOverlay();
+  roundEndsAt = Date.now() + ROUND_TIME*1000;
+  tickTimer();
+  // Only the HIDER drives the popping; the shooter reacts to broadcasts.
+  if(myRole === 'hide'){
+    scheduleNextPop();
+  }
+}
+
+function tickTimer(){
+  clearTimeout(roundTimer);
+  const left = Math.max(0, roundEndsAt - Date.now());
+  timerBar.style.width = (left/(ROUND_TIME*1000)*100) + '%';
+  if(left <= 0){ endRound(); return; }
+  roundTimer = setTimeout(tickTimer, 100);
+}
+
+function scheduleNextPop(){
+  if(!roundActive || myRole !== 'hide') return;
+  if(popsDone >= POPS_PER_ROUND){ endRound(); broadcast('roundEnd', { round }); return; }
+  const gap = rand(GAP_MIN, GAP_MAX);
+  gapTimer = setTimeout(() => {
+    if(!roundActive) return;
+    const hole = Math.floor(Math.random()*HOLES);
+    // pops get a little faster as the round goes on
+    const upTime = Math.max(POP_MIN, POP_MAX - popsDone*55);
+    popsDone++;
+    showTargetLocal(hole);
+    broadcast('pop', { hole, upTime, n: popsDone });
+    popTimer = setTimeout(() => {
+      hideTargetLocal();           // missed (or hidden again)
+      scheduleNextPop();
+    }, upTime);
+  }, gap);
+}
+
+// Hider side: I am showing myself
+function showTargetLocal(hole){
+  activeHole = hole; activeUp = true;
+  const t = targetEl(hole); t.classList.remove('hit'); t.classList.add('up');
+}
+function hideTargetLocal(){
+  if(activeHole >= 0){ targetEl(activeHole).classList.remove('up'); }
+  activeHole = -1; activeUp = false;
+}
+
+// Shooter side: a target appeared (from hider broadcast)
+function remotePop(hole, upTime){
+  // clear any previous
+  if(activeHole >= 0) targetEl(activeHole).classList.remove('up');
+  activeHole = hole; activeUp = true;
+  const t = targetEl(hole); t.classList.remove('hit'); t.classList.add('up');
+  clearTimeout(popTimer);
+  popTimer = setTimeout(() => {
+    if(activeHole === hole){ targetEl(hole).classList.remove('up'); activeHole=-1; activeUp=false; }
+  }, upTime + 120); // small grace for network latency
+}
+
+// ══════════════════════════════════════════════════
+// SHOOTING
+// ══════════════════════════════════════════════════
+function onShoot(hole){
+  if(myRole !== 'shoot' || !roundActive) return;
+  holes[hole].classList.add('flash');
+  setTimeout(()=>holes[hole].classList.remove('flash'), 250);
+
+  if(activeUp && hole === activeHole){
+    // HIT!
+    activeUp = false;
+    const t = targetEl(hole); t.classList.add('hit');
+    scores[MY_IDX]++;
+    updateScores();
+    floatText(hole, '+1', '#7dff9a');
+    setTimeout(()=>{ t.classList.remove('up','hit'); }, 200);
+    activeHole = -1;
+    broadcast('hit', { hole, shooter: MY_IDX, score: scores[MY_IDX] });
+  } else {
+    floatText(hole, 'خطأ', '#ff8aa0');
+  }
+}
+
+function endRound(){
+  if(!roundActive) return;
+  roundActive = false;
+  clearTimeout(popTimer); clearTimeout(gapTimer); clearTimeout(roundTimer);
+  hideTargetLocal();
+
+  if(round === 0){
+    // swap roles for round 2
+    round = 1;
+    showOverlay({
+      emo:'🔄', title:'انتهت الجولة الأولى',
+      msg: myRole==='shoot' ? 'الآن دورك في الاختباء!' : 'الآن دورك في التصويب!',
+      big:'النتيجة  ' + scores[MY_IDX] + ' - ' + scores[1-MY_IDX],
+      btn: null, spin:false
+    });
+    // Player 0 controls the countdown to keep both in sync
+    if(MY_IDX === 0){
+      setTimeout(() => { broadcast('startRound', { round:1 }); startRound(); }, 2600);
+    }
+  } else {
+    gameOver();
+  }
+}
+
+function gameOver(){
+  roundActive = false;
+  const me = scores[MY_IDX], op = scores[1-MY_IDX];
+  let emo, title;
+  if(me > op){ emo='🏆'; title='فزت!'; }
+  else if(me < op){ emo='💥'; title='خسرت!'; }
+  else { emo='🤝'; title='تعادل!'; }
+  showOverlay({ emo, title, msg:'', big: me + ' - ' + op, btn:'العب مرة أخرى', spin:false });
+  if(IS_MP && typeof FlutterBridge !== 'undefined'){
+    try { FlutterBridge.postMessage('gameOver'); } catch(e){}
+  }
+}
+
+document.getElementById('ovBtn').addEventListener('click', () => {
+  // Either player can request a rematch; player 0 owns the reset broadcast.
+  broadcast('rematch', {});
+  doRematch();
+});
+function doRematch(){
+  round = 0; scores = [0,0]; updateScores();
+  startRound();
+}
+
+// ══════════════════════════════════════════════════
+// FIREBASE MULTIPLAYER
+// ══════════════════════════════════════════════════
+let _db=null, _roomRef=null, _connectedAt=0, _started=false;
+
+function broadcast(type, payload){
+  if(!_roomRef) return;
+  _roomRef.child('ev').set({ type, ...payload, from: MY_IDX, ts: Date.now() });
+}
+
+function handleEvent(ev){
+  switch(ev.type){
+    case 'pop':
+      if(myRole === 'shoot') remotePop(ev.hole, ev.upTime);
+      break;
+    case 'hit':
+      // shooter told us they scored — keep both score boards identical
+      scores[ev.shooter] = ev.score;
+      updateScores();
+      if(myRole === 'hide' && ev.hole === activeHole){
+        const t = targetEl(ev.hole); t.classList.add('hit');
+        setTimeout(()=>{ t.classList.remove('up','hit'); }, 200);
+        activeHole = -1; activeUp = false;
+        clearTimeout(popTimer);
+        scheduleNextPop();
+      }
+      break;
+    case 'roundEnd':
+      if(roundActive) endRound();
+      break;
+    case 'startRound':
+      startRound();
+      break;
+    case 'rematch':
+      doRematch();
+      break;
+  }
+}
+
+async function initFirebase(){
+  if(!IS_MP){
+    // Local fallback: single device, you are the shooter vs an auto-hider.
+    myRole = 'shoot'; round = 0; roundActive = true; setBanner();
+    hideOverlay();
+    autoHiderLocal();
+    return;
+  }
+  try{
+    const app = firebase.initializeApp(_fbConfig);
+    await firebase.auth(app).signInAnonymously();
+    _db = firebase.database(app);
+    _roomRef = _db.ref('rooms/' + ROOM_ID + '/shootduel');
+    _connectedAt = Date.now();
+
+    // presence
+    _roomRef.child('players/' + MY_IDX).set(true);
+    try { _roomRef.child('players/' + MY_IDX).onDisconnect().remove(); } catch(e){}
+
+    // event channel
+    _roomRef.child('ev').on('value', snap => {
+      const ev = snap.val();
+      if(!ev || ev.from === MY_IDX) return;
+      if(!ev.ts || ev.ts < _connectedAt) return;
+      handleEvent(ev);
+    });
+
+    // wait for both players
+    _roomRef.child('players').on('value', snap => {
+      const count = Object.keys(snap.val() || {}).length;
+      if(count >= 2 && !_started){
+        _started = true;
+        _roomRef.child('players').off('value');
+        // brief "get ready", then player 0 starts both
+        showOverlay({ emo:'⚔️', title:'استعدوا!', msg:'الجولة الأولى تبدأ الآن', spin:false });
+        if(MY_IDX === 0){
+          setTimeout(() => { broadcast('startRound', { round:0 }); startRound(); }, 1500);
+        } else {
+          // guest waits for the startRound broadcast (handled in handleEvent),
+          // but start locally too after a fallback delay in case it's missed
+          setTimeout(() => { if(!roundActive) startRound(); }, 2200);
+        }
+      }
+    });
+  }catch(e){
+    console.error('Firebase error', e);
+    showOverlay({ emo:'⚠️', title:'تعذّر الاتصال', msg:'حاول مرة أخرى', spin:false });
+  }
+}
+
+// ── Local single-device fallback hider (only when no room) ──
+function autoHiderLocal(){
+  let n = 0;
+  function pop(){
+    if(n >= POPS_PER_ROUND){ endRound(); return; }
+    const hole = Math.floor(Math.random()*HOLES);
+    const upTime = Math.max(POP_MIN, POP_MAX - n*55); n++;
+    showTargetLocal(hole);
+    popTimer = setTimeout(() => { hideTargetLocal(); setTimeout(pop, rand(GAP_MIN,GAP_MAX)); }, upTime);
+  }
+  // in local mode, shooting checks against the locally-shown target
+  roundEndsAt = Date.now() + ROUND_TIME*1000; tickTimer();
+  setTimeout(pop, 800);
+}
+
+// ══════════════════════════════════════════════════
+// UTIL
+// ══════════════════════════════════════════════════
+function rand(a,b){ return a + Math.random()*(b-a); }
+
+// ══════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════
+updateScores();
+initFirebase();
+
+})();
+</script>
+</body>
+</html>
