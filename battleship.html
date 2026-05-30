@@ -219,7 +219,7 @@
 /* ---------- room / player ---------- */
 const params  = new URLSearchParams(window.location.search);
 const ROOM_ID = params.get('room');
-const MY_IDX  = parseInt(params.get('player') || '0', 10); // 0 = host, 1 = guest
+let MY_IDX    = parseInt(params.get('player') || '0', 10); // hint; verified via slot claim
 const IS_MP   = !!ROOM_ID;
 const GAME_KEY= 'battleship';
 
@@ -310,67 +310,91 @@ async function initFirebase(){
     // persistence hang forever. In-memory persistence avoids that entirely.
     try{ await _auth.setPersistence(firebase.auth.Auth.Persistence.NONE); }catch(_){}
     // race the sign-in against a timeout so a silent stall surfaces as an error
-    await Promise.race([
+    const _cred = await Promise.race([
       _auth.signInAnonymously(),
       new Promise((_,rej)=>setTimeout(()=>rej(new Error('auth/timeout — تعذّر تسجيل الدخول (قد يكون التخزين محجوباً في WebView أو Anonymous Auth غير مفعّل)')),7000))
     ]);
+    const MY_UID = (_cred && _cred.user && _cred.user.uid) || ('u'+Date.now()+Math.random());
 
     stage('فتح الغرفة');
     _db = firebase.database(app);
     _roomRef = _db.ref('rooms/'+ROOM_ID+'/'+GAME_KEY);
     _connectedAt = Date.now();
 
-    // confirm we can actually WRITE (rules / URL failures surface here)
+    // ---- claim a player slot atomically so both clients ALWAYS end up as 0 & 1,
+    //      even if the app passed the same/missing player index to both. ----
+    stage('الانضمام للغرفة');
+    const seatRef = _roomRef.child('seats');
+    const claim = await seatRef.transaction(seats=>{
+      seats = seats || {};
+      // already seated? keep my seat (reconnect)
+      if(seats['0']===MY_UID) { MY_IDX=0; return seats; }
+      if(seats['1']===MY_UID) { MY_IDX=1; return seats; }
+      // prefer my hinted index if free, else take the other free seat
+      const hint = (MY_IDX===1)?1:0;
+      if(seats[String(hint)]==null){ seats[String(hint)]=MY_UID; return seats; }
+      const other = String(1-hint);
+      if(seats[other]==null){ seats[other]=MY_UID; return seats; }
+      return; // both taken -> abort (room full)
+    });
+    if(!claim.committed || !claim.snapshot.exists()){
+      throw new Error('room/full — الغرفة ممتلئة بالفعل (لاعبان متصلان).');
+    }
+    const seats = claim.snapshot.val()||{};
+    MY_IDX = (seats['0']===MY_UID) ? 0 : 1;   // authoritative index from my seat
+    seatRef.child(String(MY_IDX)).onDisconnect().remove();
+
+    // confirm we can WRITE under players (legacy presence key, kept in sync)
     await _roomRef.child('players/'+MY_IDX).set(true);
     _roomRef.child('players/'+MY_IDX).onDisconnect().remove();
 
-    // write succeeded — reset watchdog for the "waiting for player 2" stage,
-    // which legitimately can take a while, so give it longer & don't auto-fail.
+    // write succeeded — clear the connect watchdog; waiting for P2 may take a while.
     if(_watchdog){clearTimeout(_watchdog);_watchdog=null;}
     stage('بانتظار صديقك');
     $('waitMsg').textContent='بانتظار صديقك للانضمام...';
 
-    _roomRef.child('players').on('value', snap=>{
-      const count = Object.keys(snap.val()||{}).length;
+    // both seated? watch the seats node (not players) as source of truth
+    seatRef.on('value', snap=>{
+      const s=snap.val()||{};
+      const count=(s['0']?1:0)+(s['1']?1:0);
       if(count>=2 && !_bothPresent){
         _bothPresent=true;
-        _roomRef.child('players').off('value');
+        seatRef.off('value');
+        rewireListeners();          // (re)bind opponent listeners with final MY_IDX
         beginPlacement();
       } else if(count<2){
         $('waitMsg').textContent='بانتظار صديقك للانضمام... (متصل: '+count+'/2)';
       }
     });
 
-    // opponent readiness
-    _roomRef.child('ready/'+(1-MY_IDX)).on('value', s=>{
-      oppReady = !!s.val();
-      maybeStartBattle();
-    });
-
-    // incoming shots fired AT me -> resolve and reply
-    _roomRef.child('shots/'+(1-MY_IDX)).on('value', s=>{
-      const shot=s.val();
-      if(!shot || shot.ts<_connectedAt) return;
-      resolveIncomingShot(shot);
-    });
-
-    // results of MY shots (opponent's reply)
-    _roomRef.child('results/'+(1-MY_IDX)).on('value', s=>{
-      const res=s.val();
-      if(!res || res.ts<_connectedAt) return;
-      applyShotResult(res);
-    });
-
-    // rematch signal
-    _roomRef.child('rematch').on('value', s=>{
-      const r=s.val();
-      if(!r || r.ts<_connectedAt) return;
-      if(r.from!==MY_IDX) doRematch(false);
-    });
   }catch(e){
     console.error('Firebase error',e);
     showFail((e && (e.code||e.message)) ? ((e.code?e.code+' — ':'')+(e.message||'')) : 'خطأ غير معروف');
   }
+}
+
+/* bind opponent listeners once MY_IDX is finalized by the seat claim */
+function rewireListeners(){
+  const OPP = 1-MY_IDX;
+  _roomRef.child('ready/'+OPP).on('value', s=>{
+    oppReady = !!s.val();
+    maybeStartBattle();
+  });
+  _roomRef.child('shots/'+OPP).on('value', s=>{
+    const shot=s.val();
+    if(!shot || shot.ts<_connectedAt) return;
+    resolveIncomingShot(shot);
+  });
+  _roomRef.child('results/'+OPP).on('value', s=>{
+    const res=s.val();
+    if(!res || res.ts<_connectedAt) return;
+    applyShotResult(res);
+  });
+  _roomRef.child('rematch').on('value', s=>{
+    const r=s.val();
+    if(!r || r.ts<_connectedAt) return;
+    if(r.from!==MY_IDX) doRematch(false);
+  });
 }
 
 /* ---------- placement phase ---------- */
