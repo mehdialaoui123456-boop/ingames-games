@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>إكس أو</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#eef3fb; --bg2:#e4ebf7; --panel:#ffffff; --panel2:#f3f7ff;
+    --ink:#27324a; --ink-soft:#5b6a85; --muted:#94a2bd;
+    --x:#ff5d7e; --x-soft:rgba(255,93,126,.12); --x-glow:rgba(255,93,126,.4);
+    --o:#2a8fe0; --o-soft:rgba(42,143,224,.12); --o-glow:rgba(42,143,224,.4);
+    --line:rgba(60,90,150,.14);
+    --shadow:0 8px 22px rgba(60,90,150,.14);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html,body { height:100%; }
+  body {
+    font-family:'Cairo', system-ui, sans-serif; color:var(--ink); overflow:hidden;
+    display:flex; flex-direction:column; height:100dvh;
+    background:radial-gradient(120% 80% at 50% 0%, var(--bg2), var(--bg));
+  }
+
+  /* HUD */
+  #hud { display:flex; align-items:stretch; justify-content:space-between; gap:10px; padding:16px 16px 6px; }
+  .pcard { flex:1; position:relative; border-radius:18px; padding:11px 8px 12px; text-align:center;
+    background:var(--panel); border:2px solid var(--line); box-shadow:var(--shadow); transition:.28s; overflow:hidden; }
+  .pcard .mk { font-family:'Fredoka',sans-serif; font-size:1.5rem; font-weight:700; line-height:1; }
+  .pcard.x .mk { color:var(--x); } .pcard.o .mk { color:var(--o); }
+  .pcard .nm { font-size:.66rem; font-weight:800; color:var(--ink-soft); margin-top:3px; letter-spacing:.3px; }
+  .pcard .sc { font-family:'Fredoka',sans-serif; font-size:1.35rem; font-weight:700; margin-top:2px; }
+  .pcard.x.turn { border-color:var(--x); box-shadow:0 0 0 2px var(--x-soft),0 8px 22px var(--x-glow); transform:translateY(-2px); }
+  .pcard.o.turn { border-color:var(--o); box-shadow:0 0 0 2px var(--o-soft),0 8px 22px var(--o-glow); transform:translateY(-2px); }
+  #mid { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:44px; }
+  #mid .vs { font-family:'Fredoka',sans-serif; font-size:.85rem; font-weight:700; color:var(--muted); }
+  #mid .rd { font-size:.56rem; font-weight:800; color:var(--muted); letter-spacing:1px; margin-top:2px; }
+
+  #status { text-align:center; font-size:1rem; font-weight:800; padding:10px 16px 2px; min-height:26px; transition:.2s; }
+
+  /* board */
+  #wrap { flex:1; display:flex; align-items:center; justify-content:center; padding:14px; }
+  #board {
+    width:min(86vw, 360px); aspect-ratio:1; display:grid;
+    grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:10px;
+  }
+  .cell {
+    border-radius:20px; background:var(--panel); border:2px solid var(--line);
+    box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;
+    font-family:'Fredoka',sans-serif; font-weight:700; cursor:pointer; position:relative;
+    transition:transform .12s, border-color .2s, background .2s;
+  }
+  .cell:active { transform:scale(.96); }
+  .cell.dis { cursor:default; }
+  .cell svg { width:56%; height:56%; }
+  .cell.win { background:#fffbe6; border-color:#ffd54a; box-shadow:0 0 0 3px rgba(255,213,74,.4),0 8px 22px rgba(255,200,60,.35); }
+  .stroke-x { stroke:var(--x); } .stroke-o { stroke:var(--o); }
+  .draw-in { stroke-dasharray:100; stroke-dashoffset:100; animation:draw .3s ease forwards; }
+  @keyframes draw { to { stroke-dashoffset:0; } }
+  .draw-o { stroke-dasharray:189; stroke-dashoffset:189; animation:drawO .35s ease forwards; }
+  @keyframes drawO { to { stroke-dashoffset:0; } }
+  .pop-in { animation:pin .2s cubic-bezier(.34,1.6,.55,1); }
+  @keyframes pin { from{ transform:scale(.4); opacity:0 } to{ transform:scale(1); opacity:1 } }
+
+  #hint { text-align:center; font-size:.78rem; color:var(--muted); font-weight:700; padding:0 16px 14px; min-height:18px; }
+
+  /* overlay */
+  #ov { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(40,55,85,.4); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); text-align:center; padding:30px; }
+  #ov.hide { display:none; }
+  .pop { background:var(--panel); border-radius:26px; padding:30px 26px; max-width:300px; width:100%;
+    box-shadow:0 24px 60px rgba(40,55,85,.3); transform:scale(.92); transition:transform .35s cubic-bezier(.34,1.56,.64,1); }
+  #ov:not(.hide) .pop { transform:scale(1); }
+  .pop .emo { font-size:3.4rem; margin-bottom:8px; }
+  .pop h1 { font-family:'Fredoka',sans-serif; font-size:1.7rem; font-weight:700; margin-bottom:6px; }
+  .pop p { font-size:.9rem; color:var(--ink-soft); margin-bottom:18px; line-height:1.6; }
+  .pop .big { font-family:'Fredoka',sans-serif; font-size:2.4rem; font-weight:700; margin:4px 0 18px; }
+  .spinner { width:34px; height:34px; border:3px solid rgba(60,90,150,.18); border-top-color:var(--o); border-radius:50%; animation:sp 1s linear infinite; margin:0 auto 16px; }
+  @keyframes sp { to{ transform:rotate(360deg) } }
+  .btn { background:linear-gradient(180deg,#2a8fe0,#1f6fb8); color:#fff; border:none; padding:14px 42px;
+    border-radius:16px; font-size:1.02rem; font-weight:900; font-family:'Cairo',sans-serif;
+    box-shadow:0 8px 20px rgba(42,143,224,.4); }
+  .btn:active { transform:translateY(2px); }
+</style>
+</head>
+<body>
+
+  <div id="hud">
+    <div class="pcard x" id="cardX">
+      <div class="mk">✕</div><div class="nm" id="nmX">لاعب 1</div><div class="sc" id="scX">0</div>
+    </div>
+    <div id="mid"><div class="vs">VS</div><div class="rd" id="rd">جولة 1</div></div>
+    <div class="pcard o" id="cardO">
+      <div class="mk">◯</div><div class="nm" id="nmO">لاعب 2</div><div class="sc" id="scO">0</div>
+    </div>
+  </div>
+
+  <div id="status">…</div>
+  <div id="wrap"><div id="board"></div></div>
+  <div id="hint"></div>
+
+  <div id="ov">
+    <div class="pop">
+      <div class="spinner" id="ovSpin"></div>
+      <div class="emo" id="ovEmo" style="display:none"></div>
+      <h1 id="ovTitle">جارٍ الاتصال...</h1>
+      <p id="ovMsg">بانتظار صديقك للانضمام...</p>
+      <div class="big" id="ovBig" style="display:none"></div>
+      <button class="btn" id="ovBtn" style="display:none">جولة جديدة</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+"use strict";
+
+// ── URL params ──
+const params  = new URLSearchParams(window.location.search);
+const ROOM_ID = params.get('room');
+const MY_IDX  = parseInt(params.get('player') || '0', 10); // 0 = X, 1 = O
+const IS_MP   = !!ROOM_ID;
+const MY_MARK = MY_IDX === 0 ? 'X' : 'O';
+
+// ── Firebase config (mandatory) ──
+const _fbConfig = {
+  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:        "ingames-9c93b.firebaseapp.com",
+  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:         "ingames-9c93b",
+  storageBucket:     "ingames-9c93b.firebasestorage.app",
+  messagingSenderId: "711825788462",
+  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+
+// ── State ──
+// board: array of 9, each '' | 'X' | 'O'
+let board   = Array(9).fill('');
+let turn    = 'X';          // whose mark moves now
+let round   = 1;
+let starter = 'X';          // who starts this round (alternates each round)
+let scores  = { X:0, O:0 }; // wins per mark
+let over    = false;
+let winLine = null;
+
+const WINS = [
+  [0,1,2],[3,4,5],[6,7,8], // rows
+  [0,3,6],[1,4,7],[2,5,8], // cols
+  [0,4,8],[2,4,6],         // diagonals
+];
+
+// ── DOM ──
+const boardEl = document.getElementById('board');
+const statusEl= document.getElementById('status');
+const hintEl  = document.getElementById('hint');
+const cardX   = document.getElementById('cardX');
+const cardO   = document.getElementById('cardO');
+const ov      = document.getElementById('ov');
+const cells   = [];
+
+for(let i=0;i<9;i++){
+  const c = document.createElement('div');
+  c.className = 'cell';
+  c.addEventListener('click', ()=> onTap(i));
+  boardEl.appendChild(c);
+  cells.push(c);
+}
+
+// SVG marks
+function markSVG(mark, animate){
+  const cls = mark==='X' ? 'stroke-x' : 'stroke-o';
+  const dash = animate ? ' draw-in' : '';
+  if(mark==='X'){
+    return '<svg viewBox="0 0 100 100" fill="none" stroke-width="12" stroke-linecap="round">'
+      + '<line class="'+cls+dash+'" x1="22" y1="22" x2="78" y2="78"/>'
+      + '<line class="'+cls+dash+'" x1="78" y1="22" x2="22" y2="78"/></svg>';
+  }
+  return '<svg viewBox="0 0 100 100" fill="none" stroke-width="12">'
+    + '<circle class="'+cls+(animate?' draw-o':'')+'" cx="50" cy="50" r="30"/></svg>';
+}
+
+// ── Render ──
+function render(animateIdx){
+  for(let i=0;i<9;i++){
+    const c = cells[i];
+    const m = board[i];
+    if(m){
+      if(c.dataset.mark !== m){
+        c.innerHTML = markSVG(m, i===animateIdx);
+        c.dataset.mark = m;
+        if(i===animateIdx) c.classList.add('pop-in');
+      }
+      c.classList.add('dis');
+    } else {
+      if(c.dataset.mark){ c.innerHTML=''; delete c.dataset.mark; }
+      c.classList.remove('dis','win','pop-in');
+    }
+  }
+  if(winLine) winLine.forEach(i=> cells[i].classList.add('win'));
+  // turn highlight
+  cardX.classList.toggle('turn', !over && turn==='X');
+  cardO.classList.toggle('turn', !over && turn==='O');
+  // scores + round
+  document.getElementById('scX').textContent = scores.X;
+  document.getElementById('scO').textContent = scores.O;
+  document.getElementById('rd').textContent  = 'جولة ' + round;
+  // status + hint
+  if(over){
+    statusEl.textContent = '';
+    hintEl.textContent = '';
+  } else if(IS_MP){
+    const myTurn = turn === MY_MARK;
+    statusEl.style.color = turn==='X' ? 'var(--x)' : 'var(--o)';
+    statusEl.textContent = myTurn ? 'دورك' : 'دور الخصم';
+    hintEl.textContent = myTurn ? 'اختر مربعاً' : 'انتظر حركة الخصم...';
+  } else {
+    statusEl.style.color = turn==='X' ? 'var(--x)' : 'var(--o)';
+    statusEl.textContent = 'دور ' + (turn==='X'?'✕':'◯');
+    hintEl.textContent = '';
+  }
+}
+
+// ── Win / draw check ──
+function checkWin(b){
+  for(const line of WINS){
+    const [a,c,d] = line;
+    if(b[a] && b[a]===b[c] && b[a]===b[d]) return { mark:b[a], line };
+  }
+  if(b.every(x=>x)) return { mark:'draw', line:null };
+  return null;
+}
+
+// ── Tap a cell ──
+function onTap(i){
+  if(over || board[i]) return;
+  if(IS_MP && turn !== MY_MARK) return;     // not my turn
+  placeMark(i, turn);
+  if(IS_MP) broadcastState(i);
+}
+
+function placeMark(i, mark){
+  board[i] = mark;
+  const res = checkWin(board);
+  if(res){
+    over = true;
+    if(res.mark==='draw'){
+      winLine = null;
+      render(i);
+      showResult('draw');
+    } else {
+      winLine = res.line;
+      scores[res.mark]++;
+      render(i);
+      setTimeout(()=> showResult(res.mark), 650);
+    }
+  } else {
+    turn = (mark==='X') ? 'O' : 'X';
+    render(i);
+  }
+}
+
+// ── Result overlay ──
+function showResult(result){
+  let emo, title, msg='';
+  if(result==='draw'){
+    emo='🤝'; title='تعادل!';
+  } else if(IS_MP){
+    const iWon = result === MY_MARK;
+    emo = iWon ? '🎉' : '😞';
+    title = iWon ? 'فزت بالجولة!' : 'خسرت الجولة';
+  } else {
+    emo='🎉'; title=(result==='X'?'✕':'◯')+' فاز!';
+  }
+  msg = 'النتيجة  ✕ ' + scores.X + ' — ' + scores.O + ' ◯';
+  showOverlay({ emo, title, msg, big:null, btn:'جولة جديدة', spin:false });
+}
+
+// ── New round ──
+function newRound(){
+  board = Array(9).fill('');
+  over = false; winLine = null;
+  starter = (starter==='X') ? 'O' : 'X';  // loser/other mark starts next
+  turn = starter;
+  round++;
+  hideOverlay();
+  render(-1);
+}
+
+document.getElementById('ovBtn').addEventListener('click', ()=>{
+  if(IS_MP){
+    // both must reset together — player 0 owns the reset broadcast
+    if(MY_IDX === 0){ newRound(); broadcastState(-1, true); }
+    else { showOverlay({ spin:true, title:'بانتظار جولة جديدة...' }); broadcast('rematchReq', {}); }
+  } else {
+    newRound();
+  }
+});
+
+// ── Overlay helpers ──
+function showOverlay(o){
+  document.getElementById('ovSpin').style.display = o.spin?'block':'none';
+  const e=document.getElementById('ovEmo'); e.style.display=o.emo?'block':'none'; e.textContent=o.emo||'';
+  document.getElementById('ovTitle').textContent=o.title||'';
+  document.getElementById('ovMsg').textContent=o.msg||'';
+  const b=document.getElementById('ovBig'); b.style.display=o.big?'block':'none'; b.textContent=o.big||'';
+  const btn=document.getElementById('ovBtn'); btn.style.display=o.btn?'inline-block':'none'; btn.textContent=o.btn||'';
+  ov.classList.remove('hide');
+  if(over && IS_MP && typeof FlutterBridge!=='undefined' && o.btn){
+    try{ FlutterBridge.postMessage('gameOver'); }catch(e){}
+  }
+}
+function hideOverlay(){ ov.classList.add('hide'); }
+
+// ── Firebase ──
+let _db=null, _roomRef=null, _connectedAt=0, _started=false;
+
+function broadcast(type, payload){
+  if(!_roomRef) return;
+  _roomRef.child('ev').set({ type, ...payload, from:MY_IDX, ts:Date.now() });
+}
+
+// push the full state (board + turn + scores) after each move/reset
+function broadcastState(lastIdx, isReset){
+  if(!_roomRef) return;
+  _roomRef.child('state').set({
+    board: board.join(''),     // 9-char string, '' becomes '-'
+    boardStr: board.map(c=>c||'-').join(''),
+    turn, round, starter, over, winLine,
+    scoreX: scores.X, scoreO: scores.O,
+    lastIdx: (lastIdx===undefined? -1 : lastIdx),
+    reset: !!isReset,
+    from: MY_IDX, ts: Date.now(),
+  });
+}
+
+function applyState(s){
+  if(!s) return;
+  const str = s.boardStr || '---------';
+  board = str.split('').map(ch => ch==='-' ? '' : ch);
+  turn    = s.turn   || 'X';
+  round   = s.round  || 1;
+  starter = s.starter|| 'X';
+  scores.X= s.scoreX || 0;
+  scores.O= s.scoreO || 0;
+  over    = !!s.over;
+  winLine = s.winLine || null;
+  if(s.reset) hideOverlay();
+  render(s.lastIdx);
+  // if the incoming state ended the game, show the result on this side too
+  if(over){
+    const res = checkWin(board);
+    if(res){
+      if(res.mark==='draw') showResult('draw');
+      else setTimeout(()=> showResult(res.mark), 650);
+    }
+  }
+}
+
+function handleEvent(ev){
+  if(ev.type==='rematchReq' && MY_IDX===0){
+    newRound(); broadcastState(-1, true);
+  }
+}
+
+async function initFirebase(){
+  if(!IS_MP){
+    // local hot-seat fallback: two players share one device
+    hideOverlay();
+    render(-1);
+    return;
+  }
+  try{
+    const app = firebase.initializeApp(_fbConfig);
+    await firebase.auth(app).signInAnonymously();
+    _db = firebase.database(app);
+    _roomRef = _db.ref('rooms/' + ROOM_ID + '/xo');
+    _connectedAt = Date.now();
+
+    _roomRef.child('players/' + MY_IDX).set(true);
+    try { _roomRef.child('players/' + MY_IDX).onDisconnect().remove(); } catch(e){}
+
+    // state sync
+    _roomRef.child('state').on('value', snap => {
+      const s = snap.val();
+      if(!s || s.from === MY_IDX) return;
+      if(!s.ts || s.ts < _connectedAt) return;
+      applyState(s);
+    });
+    // event channel (rematch requests)
+    _roomRef.child('ev').on('value', snap => {
+      const ev = snap.val();
+      if(!ev || ev.from === MY_IDX) return;
+      if(!ev.ts || ev.ts < _connectedAt) return;
+      handleEvent(ev);
+    });
+
+    // wait for both players
+    _roomRef.child('players').on('value', snap => {
+      const count = Object.keys(snap.val() || {}).length;
+      if(count >= 2 && !_started){
+        _started = true;
+        _roomRef.child('players').off('value');
+        hideOverlay();
+        render(-1);
+        // player 0 seeds the opening state so both boards match
+        if(MY_IDX === 0) broadcastState(-1, true);
+      }
+    });
+  }catch(e){
+    console.error('Firebase error', e);
+    showOverlay({ emo:'⚠️', title:'تعذّر الاتصال', msg:'حاول مرة أخرى', spin:false });
+  }
+}
+
+// ── Boot ──
+render(-1);
+initFirebase();
+
+})();
+</script>
+</body>
+</html>
