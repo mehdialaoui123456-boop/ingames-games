@@ -11,59 +11,76 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <title>مونوبولي</title>
 <style>
+:root{
+  --bg:#f4ede0; --bg2:#efe6d4; --panel:#fffaf0; --panel2:#f7efe0;
+  --ink:#3a2c1a; --ink-soft:#6b5b45; --muted:#9b8a70;
+  --gold:#b8862e; --gold-d:#946a1f; --gold-soft:rgba(184,134,46,.14);
+  --line:rgba(120,90,40,.18);
+  --p1:#c0392b; --p1-soft:rgba(192,57,43,.14);
+  --p2:#2a6fb0; --p2-soft:rgba(42,111,176,.14);
+  --shadow:0 4px 14px rgba(120,90,40,.14);
+}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 html,body{width:100%;height:100%;overflow:hidden}
-body{touch-action:none;position:fixed;inset:0;background:#0c0c10;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;color:#eae6df;font-variant-numeric:lining-nums}
-svg.noise{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:999;opacity:.02}
+body{touch-action:none;position:fixed;inset:0;background:var(--bg);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;color:var(--ink);font-variant-numeric:lining-nums}
+svg.noise{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:999;opacity:.03;mix-blend-mode:multiply}
 .screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .5s ease,transform .5s ease;z-index:50}
 .screen.hidden{opacity:0;pointer-events:none;transform:translateY(14px)}
-#startScreen{background:linear-gradient(170deg,#0c0c10 0%,#141218 50%,#0c0c10 100%)}
-#startScreen::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(212,175,85,.07) 0%,transparent 60%);pointer-events:none}
+#startScreen{background:linear-gradient(170deg,var(--bg) 0%,var(--bg2) 50%,var(--bg) 100%)}
+#startScreen::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(184,134,46,.12) 0%,transparent 60%);pointer-events:none}
 .s-icon{font-size:2.4rem;margin-bottom:12px;filter:grayscale(.3)}
-.s-title{font-size:clamp(2rem,7vw,2.8rem);font-weight:200;letter-spacing:8px;color:#d4af55;margin-bottom:4px;text-shadow:0 0 40px rgba(212,175,85,.15)}
-.s-sub{font-size:.72rem;color:rgba(255,255,255,.25);letter-spacing:5px;margin-bottom:36px;font-weight:300;text-transform:uppercase}
-.s-info{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:20px;padding:18px 24px;max-width:300px;width:88%;text-align:center;font-size:.8rem;line-height:1.8;color:rgba(255,255,255,.4);margin-bottom:32px}
-.btn-g{background:linear-gradient(135deg,#d4af55 0%,#b8912e 100%);color:#0c0c10;border:none;border-radius:999px;padding:15px 52px;font-size:1rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:2px;box-shadow:0 5px 0 #8a6b1e,0 0 40px rgba(212,175,85,.12);transition:transform .12s cubic-bezier(.34,1.56,.64,1),box-shadow .12s ease}
-.btn-g:active{transform:translateY(3px);box-shadow:0 2px 0 #8a6b1e,0 0 25px rgba(212,175,85,.08)}
-#gameScreen{position:fixed;inset:0;display:flex;flex-direction:column;z-index:10;background:#0c0c10;transition:opacity .4s ease}
+.s-title{font-size:clamp(2rem,7vw,2.8rem);font-weight:300;letter-spacing:8px;color:var(--gold);margin-bottom:4px;text-shadow:0 2px 20px rgba(184,134,46,.2)}
+.s-sub{font-size:.72rem;color:var(--muted);letter-spacing:5px;margin-bottom:36px;font-weight:500;text-transform:uppercase}
+.s-info{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:18px 24px;max-width:300px;width:88%;text-align:center;font-size:.8rem;line-height:1.8;color:var(--ink-soft);margin-bottom:32px;box-shadow:var(--shadow)}
+.btn-g{background:linear-gradient(135deg,#e0b659 0%,#b8862e 100%);color:#fff;border:none;border-radius:999px;padding:15px 52px;font-size:1rem;font-weight:800;font-family:inherit;cursor:pointer;letter-spacing:2px;box-shadow:0 5px 0 #946a1f,0 8px 20px rgba(184,134,46,.3);transition:transform .12s cubic-bezier(.34,1.56,.64,1),box-shadow .12s ease}
+.btn-g:active{transform:translateY(3px);box-shadow:0 2px 0 #946a1f,0 4px 12px rgba(184,134,46,.2)}
+#gameScreen{position:fixed;inset:0;display:flex;flex-direction:column;z-index:10;background:var(--bg);transition:opacity .4s ease}
 #gameScreen.hidden{opacity:0;pointer-events:none}
-.top-hud{display:flex;justify-content:space-between;padding:6px 8px;flex-shrink:0;background:rgba(0,0,0,.3)}
-.p-card{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;font-size:.72rem;font-weight:600;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);transition:all .3s ease;font-variant-numeric:lining-nums}
-.p-card.on{border-color:rgba(212,175,85,.35);box-shadow:0 0 14px rgba(212,175,85,.08),inset 0 0 12px rgba(212,175,85,.03)}
-.p-card .av{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#0c0c10;font-weight:800}
-.p-card .bal{color:#d4af55;font-weight:700;font-size:.75rem}
+.top-hud{display:flex;justify-content:space-between;padding:6px 8px;flex-shrink:0;background:var(--panel2);border-bottom:1px solid var(--line)}
+.p-card{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;font-size:.72rem;font-weight:700;background:var(--panel);border:1px solid var(--line);transition:all .3s ease;font-variant-numeric:lining-nums;box-shadow:var(--shadow)}
+.p-card.on{border-color:var(--gold);box-shadow:0 0 0 1.5px var(--gold-soft),0 4px 14px rgba(184,134,46,.18)}
+.p-card .av{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#fff;font-weight:800}
+.p-card .bal{color:var(--gold);font-weight:800;font-size:.75rem}
 .board-area{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
 canvas{display:block}
-.bot-panel{flex-shrink:0;background:rgba(0,0,0,.45);border-top:1px solid rgba(212,175,85,.08);padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px}
-.msg-line{text-align:center;font-size:.73rem;color:rgba(255,255,255,.45);min-height:16px;font-variant-numeric:lining-nums}
+.bot-panel{flex-shrink:0;background:var(--panel2);border-top:1px solid var(--line);padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px}
+.msg-line{text-align:center;font-size:.76rem;color:var(--ink-soft);min-height:16px;font-variant-numeric:lining-nums;font-weight:600}
+.log-panel{max-height:78px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding:6px 8px;margin-bottom:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:inset 0 1px 4px rgba(120,90,40,.06)}
+.log-panel::-webkit-scrollbar{width:4px}
+.log-panel::-webkit-scrollbar-thumb{background:rgba(184,134,46,.3);border-radius:9px}
+.log-entry{font-size:.7rem;line-height:1.5;color:var(--ink-soft);font-variant-numeric:lining-nums;display:flex;gap:6px;align-items:center;animation:logIn .25s ease}
+.log-entry .who{font-weight:800;flex-shrink:0}
+.log-entry .who.p1{color:var(--p1)} .log-entry .who.p2{color:var(--p2)}
+.log-entry.sys .who{color:var(--gold)}
+@keyframes logIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .dice-strip{display:flex;align-items:center;justify-content:center;gap:10px}
 .die{width:46px;height:46px;background:linear-gradient(145deg,#faf5ea,#e8e0cc);border-radius:10px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:6px;gap:1px;box-shadow:0 3px 0 #baa87c,0 5px 12px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.7);transition:transform .1s ease}
 .die.roll{animation:dr .35s ease}
 @keyframes dr{0%{transform:scale(1) rotate(0)}30%{transform:scale(.88) rotate(18deg)}60%{transform:scale(1.06) rotate(-12deg)}100%{transform:scale(1) rotate(0)}}
 .dd{border-radius:50%;background:transparent;aspect-ratio:1}
 .dd.on{background:#2a1e0e;box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
-.rbtn{background:linear-gradient(135deg,#d4af55,#b8912e);color:#0c0c10;border:none;border-radius:999px;padding:11px 30px;font-size:.82rem;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:1px;box-shadow:0 3px 0 #8a6b1e;transition:transform .1s ease,opacity .3s ease}
-.rbtn:active{transform:translateY(2px);box-shadow:0 1px 0 #8a6b1e}
+.rbtn{background:linear-gradient(135deg,#e0b659,#b8862e);color:#fff;border:none;border-radius:999px;padding:11px 30px;font-size:.82rem;font-weight:800;font-family:inherit;cursor:pointer;letter-spacing:1px;box-shadow:0 3px 0 #946a1f,0 6px 14px rgba(184,134,46,.25);transition:transform .1s ease,opacity .3s ease}
+.rbtn:active{transform:translateY(2px);box-shadow:0 1px 0 #946a1f}
 .rbtn:disabled{opacity:.25;pointer-events:none}
 .act-row{display:flex;gap:6px;justify-content:center;min-height:34px;align-items:center;flex-wrap:wrap}
-.ab{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:7px 16px;font-size:.72rem;color:#eae6df;font-family:inherit;cursor:pointer;transition:all .12s ease}
-.ab:active{background:rgba(212,175,85,.12);border-color:rgba(212,175,85,.25)}
-.ab.pri{background:rgba(212,175,85,.12);border-color:rgba(212,175,85,.3);color:#d4af55}
+.ab{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 16px;font-size:.72rem;color:var(--ink);font-family:inherit;cursor:pointer;transition:all .12s ease;font-weight:700;box-shadow:var(--shadow)}
+.ab:active{background:var(--gold-soft);border-color:var(--gold)}
+.ab.pri{background:linear-gradient(135deg,#e0b659,#b8862e);border-color:transparent;color:#fff}
 /* Overlay */
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;z-index:40;transition:opacity .3s ease;padding:20px}
+.ov{position:fixed;inset:0;background:rgba(60,44,26,.4);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:40;transition:opacity .3s ease;padding:20px}
 .ov.hidden{opacity:0;pointer-events:none}
-.cpop{background:linear-gradient(150deg,#1e1c18,#15130f);border:1px solid rgba(212,175,85,.15);border-radius:22px;padding:28px 22px;max-width:300px;width:100%;text-align:center;transform:scale(.92);transition:transform .35s cubic-bezier(.34,1.56,.64,1)}
+.cpop{background:linear-gradient(150deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:22px;padding:28px 22px;max-width:300px;width:100%;text-align:center;transform:scale(.92);transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 20px 50px rgba(120,90,40,.3)}
 .ov:not(.hidden) .cpop{transform:scale(1)}
-.ch{font-size:.6rem;letter-spacing:4px;color:rgba(212,175,85,.5);text-transform:uppercase;margin-bottom:8px}
+.ch{font-size:.6rem;letter-spacing:4px;color:var(--gold);text-transform:uppercase;margin-bottom:8px;font-weight:700}
 .cn{font-size:1.2rem;font-weight:700;margin-bottom:5px}
-.cp{font-size:.9rem;color:#d4af55;margin-bottom:16px;font-variant-numeric:lining-nums}
-.cd{font-size:.72rem;color:rgba(255,255,255,.35);line-height:1.8;margin-bottom:18px;font-variant-numeric:lining-nums;white-space:pre-line}
+.cp{font-size:.9rem;color:var(--gold);margin-bottom:16px;font-variant-numeric:lining-nums;font-weight:700}
+.cd{font-size:.72rem;color:var(--ink-soft);line-height:1.8;margin-bottom:18px;font-variant-numeric:lining-nums;white-space:pre-line}
 .ca{display:flex;gap:8px;justify-content:center}
-#endScreen{background:linear-gradient(170deg,#0c0c10 0%,#141218 50%,#0c0c10 100%)}
-#endScreen::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(212,175,85,.06) 0%,transparent 50%);pointer-events:none}
-.et{font-size:1.6rem;font-weight:200;color:#d4af55;letter-spacing:4px;margin-bottom:6px;margin-top:8px}
-.es{font-size:.85rem;color:rgba(255,255,255,.4);margin-bottom:10px}
-.esc{font-size:2.2rem;font-weight:700;color:#d4af55;margin-bottom:30px;font-variant-numeric:lining-nums}
+#endScreen{background:linear-gradient(170deg,var(--bg) 0%,var(--bg2) 50%,var(--bg) 100%)}
+#endScreen::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(184,134,46,.12) 0%,transparent 50%);pointer-events:none}
+.et{font-size:1.6rem;font-weight:300;color:var(--gold);letter-spacing:4px;margin-bottom:6px;margin-top:8px}
+.es{font-size:.85rem;color:var(--ink-soft);margin-bottom:10px}
+.esc{font-size:2.2rem;font-weight:800;color:var(--gold);margin-bottom:30px;font-variant-numeric:lining-nums}
 .money-float{position:fixed;z-index:30;font-weight:800;font-size:.95rem;pointer-events:none;font-variant-numeric:lining-nums;text-shadow:0 0 12px currentColor;animation:mfloat .9s cubic-bezier(.2,.6,.3,1) forwards;white-space:nowrap;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif}
 .money-float.gain{color:#4ade80}
 .money-float.lose{color:#f87171}
@@ -88,6 +105,7 @@ canvas{display:block}
   </div>
   <div class="board-area"><canvas id="bc"></canvas></div>
   <div class="bot-panel">
+    <div class="log-panel" id="logPanel"></div>
     <div class="msg-line" id="msg">دور اللاعب 1</div>
     <div class="dice-strip">
       <div class="die" id="d0"></div>
@@ -193,8 +211,8 @@ const CHANCE=[
 const cv=document.getElementById('bc'),cx=cv.getContext('2d');
 let W,H,BS,DPR=1;
 const P=[
-  {pos:0,money:1500,col:'#d4af55',props:[],jail:false,jt:0,dead:false},
-  {pos:0,money:1500,col:'#6aade4',props:[],jail:false,jt:0,dead:false}
+  {pos:0,money:1500,col:'#c0392b',props:[],jail:false,jt:0,dead:false},
+  {pos:0,money:1500,col:'#2a6fb0',props:[],jail:false,jt:0,dead:false}
 ];
 let cp=0,dice=[1,1],hasRolled=false,isMoving=false,gameOver=false;
 let propOwn=new Array(TOT).fill(-1),propH=new Array(TOT).fill(0);
@@ -251,15 +269,15 @@ function rr(x,y,w,h,r){cx.beginPath();cx.moveTo(x+r,y);cx.lineTo(x+w-r,y);cx.qua
 function draw(){
   cx.clearRect(0,0,BS,BS);
   // board bg
-  cx.fillStyle='#111114';rr(0,0,BS,BS,12);cx.fill();
-  cx.strokeStyle='rgba(212,175,85,.12)';cx.lineWidth=1;rr(1,1,BS-2,BS-2,12);cx.stroke();
+  cx.fillStyle='#fbf6ea';rr(0,0,BS,BS,12);cx.fill();
+  cx.strokeStyle='rgba(184,134,46,.35)';cx.lineWidth=1.5;rr(1,1,BS-2,BS-2,12);cx.stroke();
   // inner area
   const c0=cellCoords[0];
   const corner=c0.w;
-  cx.fillStyle='#0a0a0e';
+  cx.fillStyle='#f0e7d4';
   rr(corner+1,corner+1,BS-corner*2-2,BS-corner*2-2,6);cx.fill();
   // center branding
-  cx.save();cx.globalAlpha=.04;cx.fillStyle='#d4af55';
+  cx.save();cx.globalAlpha=.08;cx.fillStyle='#b8862e';
   cx.font=`700 ${Math.floor(BS*.07)}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
   cx.fillText('مونوبولي',BS/2,BS/2-BS*.03);
   cx.font=`300 ${Math.floor(BS*.03)}px system-ui`;
@@ -277,14 +295,14 @@ function draw(){
     const tr=Math.max(5,Math.min(cc.w,cc.h)*.14);
     // glow
     cx.beginPath();cx.arc(tx,ty,tr+4,0,Math.PI*2);
-    cx.fillStyle=p===0?'rgba(212,175,85,.2)':'rgba(106,173,228,.2)';cx.fill();
+    cx.fillStyle=p===0?'rgba(192,57,43,.25)':'rgba(42,111,176,.25)';cx.fill();
     // token
     cx.beginPath();cx.arc(tx,ty,tr,0,Math.PI*2);
     const tg=cx.createRadialGradient(tx-1,ty-1,0,tx,ty,tr);
-    tg.addColorStop(0,p===0?'#f0d878':'#8fc8f0');tg.addColorStop(1,P[p].col);
+    tg.addColorStop(0,p===0?'#e8786c':'#7db4e0');tg.addColorStop(1,P[p].col);
     cx.fillStyle=tg;cx.fill();
     cx.strokeStyle='rgba(0,0,0,.4)';cx.lineWidth=1;cx.stroke();
-    cx.fillStyle='#0c0c10';cx.font=`800 ${Math.floor(tr*1.1)}px system-ui`;
+    cx.fillStyle='#fff';cx.font=`800 ${Math.floor(tr*1.1)}px system-ui`;
     cx.textAlign='center';cx.textBaseline='middle';cx.fillText(wn(p+1),tx,ty+.5);
   }
 }
@@ -301,10 +319,10 @@ function drawCell(i){
   if(owned>=0){
     // bright ownership glow
     const oc=P[owned].col;
-    cx.fillStyle=owned===0?'rgba(212,175,85,.12)':'rgba(106,173,228,.12)';
+    cx.fillStyle=owned===0?'rgba(192,57,43,.10)':'rgba(42,111,176,.10)';
     rr(x+m,y+m,w-m*2,h-m*2,rad);cx.fill();
     // border glow
-    cx.strokeStyle=owned===0?'rgba(212,175,85,.5)':'rgba(106,173,228,.5)';
+    cx.strokeStyle=owned===0?'rgba(192,57,43,.55)':'rgba(42,111,176,.55)';
     cx.lineWidth=1.5;
     rr(x+m,y+m,w-m*2,h-m*2,rad);cx.stroke();
     // outer glow
@@ -312,9 +330,9 @@ function drawCell(i){
     cx.strokeStyle='transparent';rr(x+m,y+m,w-m*2,h-m*2,rad);cx.stroke();
     cx.shadowBlur=0;
   } else {
-    cx.fillStyle='rgba(255,255,255,.025)';
+    cx.fillStyle='rgba(255,255,255,.6)';
     rr(x+m,y+m,w-m*2,h-m*2,rad);cx.fill();
-    cx.strokeStyle='rgba(255,255,255,.05)';cx.lineWidth=.5;
+    cx.strokeStyle='rgba(120,90,40,.18)';cx.lineWidth=.75;
     rr(x+m,y+m,w-m*2,h-m*2,rad);cx.stroke();
   }
 
@@ -368,19 +386,19 @@ function drawCell(i){
       cx.font=`${iconS}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
       cx.fillText(sp.icon,centerX,centerY-(isC?h*.14:h*.1));
     }
-    cx.fillStyle='rgba(255,255,255,.8)';
+    cx.fillStyle='rgba(58,44,26,.85)';
     const fs=Math.max(8,Math.min(w,h)*.17);
     cx.font=`700 ${fs}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
     wrapText(cx,sp.n,centerX,centerY+(isC?h*.14:h*.18),w-6,fs+2);
   }else{
     // property cell: name + price
-    cx.fillStyle=owned>=0?'rgba(255,255,255,.95)':'rgba(255,255,255,.75)';
+    cx.fillStyle=owned>=0?'rgba(58,44,26,1)':'rgba(58,44,26,.8)';
     const fs=Math.max(7.5,Math.min(w,h)*.155);
     cx.font=`700 ${fs}px system-ui`;cx.textAlign='center';cx.textBaseline='middle';
     wrapText(cx,sp.n,centerX,centerY-h*.06,w-4,fs+1.5);
     // price
     if(sp.pr){
-      cx.fillStyle=owned>=0?P[owned].col:'#d4af55';
+      cx.fillStyle=owned>=0?P[owned].col:'#b8862e';
       const pfs=Math.max(8,fs*1.05);
       cx.font=`800 ${pfs}px system-ui`;
       cx.fillText(wn(sp.pr),centerX,centerY+h*.26);
@@ -410,6 +428,31 @@ function wrapText(ctx,text,x,y,maxW,lineH){
 function uMon(){document.getElementById('m0').textContent=wn(P[0].money);document.getElementById('m1').textContent=wn(P[1].money);}
 function uChip(){document.getElementById('pc0').classList.toggle('on',cp===0);document.getElementById('pc1').classList.toggle('on',cp===1);}
 function sMsg(m){document.getElementById('msg').textContent=m;}
+
+// ── Action log: shows exactly what happened, mirrored to both players ──
+function logEntry(who, text){
+  const panel=document.getElementById('logPanel');
+  if(!panel) return;
+  const e=document.createElement('div');
+  e.className='log-entry'+(who===null?' sys':'');
+  const w=document.createElement('span');
+  w.className='who'+(who===0?' p1':who===1?' p2':'');
+  w.textContent = who===null ? '•' : ('لاعب '+wn(who+1));
+  const t=document.createElement('span');
+  t.textContent=text;
+  e.appendChild(w); e.appendChild(t);
+  panel.appendChild(e);
+  panel.scrollTop=panel.scrollHeight;
+  // keep the log from growing unbounded
+  while(panel.children.length>40) panel.removeChild(panel.firstChild);
+}
+// Local + broadcast: log an action so BOTH players see the same line.
+function logAction(who, text){
+  logEntry(who, text);
+  if(_isMP && _roomRef){
+    _roomRef.child('log').push({ who, text, ts:Date.now(), from:_myIdx });
+  }
+}
 function moneyAnim(pi,amt){
   if(amt===0)return;
   const chip=document.getElementById('pc'+pi);
@@ -450,11 +493,17 @@ function showCard(sp,idx,acts){
 function gName(g){return{brown:'الحي البني',sky:'الحي السماوي',pink:'الحي الوردي',orange:'البرتقالي',red:'الأحمر',gold:'الذهبي',green:'الأخضر',navy:'الأزرق الداكن',station:'محطات'}[g]||'عقار';}
 
 // ── Dice ──
-function _coreRollDice(){
+function _coreRollDice(preset){
   if(hasRolled||isMoving||gameOver)return;
   ea();snd('roll');hasRolled=true;
   document.getElementById('rb').disabled=true;
-  dice=[Math.ceil(Math.random()*6),Math.ceil(Math.random()*6)];
+  dice = preset ? preset.slice() : [Math.ceil(Math.random()*6),Math.ceil(Math.random()*6)];
+  // If I'm the active player in MP, tell the opponent the dice NOW so they
+  // animate the same roll + movement live (before the turn resolves).
+  if(!preset && _isMP && _myTurn()){
+    _broadcastTurn(dice);
+  }
+  logAction(cp, 'رمى النرد: '+wn(dice[0])+' + '+wn(dice[1])+' = '+wn(dice[0]+dice[1]));
   document.getElementById('d0').classList.add('roll');
   document.getElementById('d1').classList.add('roll');
   let f=0;const iv=setInterval(()=>{rdie('d0',Math.ceil(Math.random()*6));rdie('d1',Math.ceil(Math.random()*6));f++;
@@ -475,7 +524,7 @@ function afterRoll(){
 function moveP(steps){
   isMoving=true;const p=P[cp];let s=0;
   const iv=setInterval(()=>{p.pos=(p.pos+1)%TOT;s++;snd('step');draw();
-    if(p.pos===0&&s>0){chMon(cp,200);sMsg('مررت بالبداية +200');}
+    if(p.pos===0&&s>0){chMon(cp,200);sMsg('مررت بالبداية +200');logAction(cp,'مرّ بالبداية +200');}
     if(s>=steps){clearInterval(iv);isMoving=false;resolve();}
   },150);
 }
@@ -486,19 +535,19 @@ function resolve(){
   else if(sp.t==='p'){
     if(propOwn[i]===-1){
       if(p.money>=sp.pr){
-        showCard(sp,i,[{l:'اشترِ ('+wn(sp.pr)+')',pri:true,fn:()=>{chMon(cp,-sp.pr);propOwn[i]=cp;p.props.push(i);snd('buy');sMsg('اشتريت '+sp.n);draw();setTimeout(endTurn,500);}},{l:'تجاوز',fn:()=>{sMsg('تجاوزت');endTurn();}}]);
+        showCard(sp,i,[{l:'اشترِ ('+wn(sp.pr)+')',pri:true,fn:()=>{chMon(cp,-sp.pr);propOwn[i]=cp;p.props.push(i);snd('buy');sMsg('اشتريت '+sp.n);logAction(cp,'اشترى '+sp.n+' بمبلغ '+wn(sp.pr));draw();setTimeout(endTurn,500);}},{l:'تجاوز',fn:()=>{sMsg('تجاوزت');logAction(cp,'تجاوز شراء '+sp.n);endTurn();}}]);
       }else{sMsg(sp.n+' — رصيد غير كافٍ');setTimeout(endTurn,700);}
     }else if(propOwn[i]===cp){offerBuild(i);}
     else{
       const ow=propOwn[i];let rent=calcRent(i);chMon(cp,-rent);chMon(ow,rent);snd('rent');
-      sMsg('إيجار '+wn(rent)+' للاعب '+wn(ow+1));
-      if(p.money<0){p.dead=true;sMsg('اللاعب '+wn(cp+1)+' أفلس!');setTimeout(()=>endGame(ow),1000);return;}
+      sMsg('إيجار '+wn(rent)+' للاعب '+wn(ow+1));logAction(cp,'دفع إيجار '+wn(rent)+' للاعب '+wn(ow+1)+' ('+sp.n+')');
+      if(p.money<0){p.dead=true;sMsg('اللاعب '+wn(cp+1)+' أفلس!');logAction(null,'اللاعب '+wn(cp+1)+' أفلس! فاز اللاعب '+wn(ow+1));setTimeout(()=>endGame(ow),1000);return;}
       setTimeout(endTurn,900);
     }
-  }else if(sp.t==='tx'){chMon(cp,-sp.amt);snd('bad');sMsg('ضريبة: -'+wn(sp.amt));
+  }else if(sp.t==='tx'){chMon(cp,-sp.amt);snd('bad');sMsg('ضريبة: -'+wn(sp.amt));logAction(cp,'دفع ضريبة '+wn(sp.amt));
     if(p.money<0){p.dead=true;setTimeout(()=>endGame(cp===0?1:0),900);return;}setTimeout(endTurn,700);
   }else if(sp.t==='ch'){
-    const c=CHANCE[Math.floor(Math.random()*CHANCE.length)];sMsg(c.text);
+    const c=CHANCE[Math.floor(Math.random()*CHANCE.length)];sMsg(c.text);logAction(cp,'بطاقة حظ: '+c.text);
     if(c.m){chMon(cp,c.m);snd(c.m>0?'buy':'bad');}
     if(c.mv!==undefined){if(c.b)chMon(cp,c.b);p.pos=c.mv;draw();}
     if(c.gj){p.pos=SIDE;p.jail=true;draw();}
@@ -506,7 +555,7 @@ function resolve(){
     setTimeout(endTurn,1000);
   }else if(sp.t==='jail'){sMsg('زيارة فقط');setTimeout(endTurn,500);}
   else if(sp.t==='free'){sMsg('موقف حر');setTimeout(endTurn,500);}
-  else if(sp.t==='gj'){p.pos=SIDE;p.jail=true;snd('bad');sMsg('اذهب للسجن!');draw();setTimeout(endTurn,900);}
+  else if(sp.t==='gj'){p.pos=SIDE;p.jail=true;snd('bad');sMsg('اذهب للسجن!');logAction(cp,'ذهب إلى السجن');draw();setTimeout(endTurn,900);}
   else setTimeout(endTurn,400);
 }
 function calcRent(i){const sp=SPACES[i];if(sp.g==='station'){const ow=propOwn[i];const c=P[ow].props.filter(j=>SPACES[j].g==='station').length;return sp.rn[Math.min(c-1,3)];}return sp.rn[Math.min(propH[i],sp.rn.length-1)];}
@@ -516,13 +565,13 @@ function offerBuild(i){
   const cost=Math.floor(sp.pr*.6),p=P[cp];
   if(p.money<cost){sMsg('عقارك — رصيد غير كافٍ للبناء');setTimeout(endTurn,500);return;}
   const lb=propH[i]<4?'ابنِ بيت ('+wn(cost)+')':'ابنِ فندق ('+wn(cost)+')';
-  sActs([{l:lb,pri:true,fn:()=>{chMon(cp,-cost);propH[i]++;snd('buy');sMsg('تم البناء');draw();sActs([]);setTimeout(endTurn,500);}},{l:'تجاوز',fn:()=>{sActs([]);endTurn();}}]);
+  sActs([{l:lb,pri:true,fn:()=>{chMon(cp,-cost);propH[i]++;snd('buy');sMsg('تم البناء');logAction(cp,'بنى على '+sp.n+' بمبلغ '+wn(cost));draw();sActs([]);setTimeout(endTurn,500);}},{l:'تجاوز',fn:()=>{sActs([]);endTurn();}}]);
 }
 function _coreEndTurn(){
   sActs([]);const dbl=dice[0]===dice[1]&&!P[cp].jail;
   if(!dbl)cp=(cp+1)%2;else sMsg('دبل! ارمِ مرة أخرى');
   hasRolled=false;document.getElementById('rb').disabled=false;uChip();
-  if(!dbl)sMsg('دور اللاعب '+wn(cp+1));draw();
+  if(!dbl){sMsg('دور اللاعب '+wn(cp+1));}else{logAction(cp,'حصل على دبل — يلعب مجدداً');}draw();
 }
 function _coreEndGame(w){
   gameOver=true;snd('win');
@@ -564,9 +613,26 @@ const _authToken = _params.get('token');
 
 let _db = null;
 let _roomRef = null;
-let _isMaster = false; // player 0 is master (rolls dice, resolves turns)
-let _suppressRemote = false; // prevent echo when we push our own state
 let _connectedAt = 0;
+
+// ── Waiting overlay (shown until both players are connected) ──
+function _showWait(){
+  if (!_isMP || document.getElementById('mpWait')) return;
+  const w = document.createElement('div');
+  w.id = 'mpWait';
+  w.style.cssText = 'position:fixed;inset:0;background:#f4ede0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;font-family:system-ui;color:#b8862e;text-align:center;padding:24px';
+  w.innerHTML = '<div style="font-size:3rem">🎲</div>'
+    + '<div style="margin-top:12px;font-size:1rem;letter-spacing:2px">جارٍ الاتصال...</div>'
+    + '<div id="mpWaitMsg" style="margin-top:8px;font-size:.8rem;color:rgba(107,91,69,.7)">بانتظار صديقك للانضمام...</div>';
+  document.body.appendChild(w);
+}
+function _hideWait(){
+  const w = document.getElementById('mpWait');
+  if (!w) return;
+  w.style.transition = 'opacity .4s';
+  w.style.opacity = '0';
+  setTimeout(() => w.remove(), 400);
+}
 
 async function _initFirebase() {
   if (!_isMP) return;
@@ -578,55 +644,121 @@ async function _initFirebase() {
 
     _db = firebase.database(app);
     _roomRef = _db.ref('rooms/' + _roomId);
-    _isMaster = (_myIdx === 0);
     _connectedAt = Date.now();
 
-    // Listen for remote state changes
-    _roomRef.on('value', snap => {
-      if (_suppressRemote) return;
-      const data = snap.val();
-      if (!data || !data.state) return;
-      // Ignore stale state pushed before we connected
-      if (!data.state.ts || data.state.ts < _connectedAt) return;
-      _applyRemoteState(data.state);
+    // Listen for full game-state pushes from the other player. Whoever's
+    // turn it is is authoritative for that turn and pushes state; the other
+    // peer just applies it. We ignore our OWN pushes and stale ones.
+    _roomRef.child('state').on('value', snap => {
+      const st = snap.val();
+      if (!st) return;
+      if (st.from === _myIdx) return;            // our own echo
+      if (!st.ts || st.ts < _connectedAt) return; // stale (pre-connect)
+      _applyRemoteState(st);
     });
 
-    // Listen for actions from the other player
-    _roomRef.child('action').on('value', snap => {
-      const action = snap.val();
-      if (!action) return;
-      if (action.from === _myIdx) return; // ignore our own echoes
-      // Ignore stale actions from before we connected
-      if (!action.ts || action.ts < _connectedAt) return;
-      _handleRemoteAction(action);
+    // Live turn feed: when the active player rolls, they push the dice here.
+    // The opponent replays the SAME dice + token movement live (movement only;
+    // the authoritative outcome still arrives via the state push at endTurn).
+    _roomRef.child('turn').on('value', snap => {
+      const t = snap.val();
+      if (!t) return;
+      if (t.from === _myIdx) return;
+      if (!t.ts || t.ts < _connectedAt) return;
+      _replayRemoteTurn(t);
     });
 
-    // If master, push initial state after game loads
-    if (_isMaster) {
-      setTimeout(_pushState, 800);
-    }
-  } catch(e) { console.error('Firebase init failed', e); }
+    // Mirrored action log so each player sees exactly what happened.
+    _roomRef.child('log').on('child_added', snap => {
+      const e = snap.val();
+      if (!e) return;
+      if (e.from === _myIdx) return;            // we already logged our own
+      if (!e.ts || e.ts < _connectedAt) return; // skip history before we joined
+      logEntry(e.who, e.text);
+    });
+
+    // Register my presence in the room.
+    _roomRef.child('players/' + _myIdx).set(true);
+    try { _roomRef.child('players/' + _myIdx).onDisconnect().remove(); } catch(e){}
+
+    // Wait for BOTH players before starting. Once two are present, reveal the
+    // board on both devices (skip the manual start screen in multiplayer),
+    // hide the waiting overlay, and let player 0 seed the starting state.
+    let _begun = false;
+    _roomRef.child('players').on('value', psnap => {
+      const count = Object.keys(psnap.val() || {}).length;
+      if (count >= 2 && !_begun) {
+        _begun = true;
+        _roomRef.child('players').off('value');
+        _hideWait();
+        // Reveal the game screen on both sides automatically.
+        document.getElementById('startScreen').classList.add('hidden');
+        document.getElementById('gameScreen').classList.remove('hidden');
+        initGame();
+        // Player 0 is the authority for the opening board.
+        if (_myIdx === 0) _pushState();
+        _lockUI();
+      }
+    });
+  } catch(e) { console.error('Firebase init failed', e); _hideWait(); }
 }
 
-// Push current full game state to Firebase
+// Push the FULL current game state. Anyone may push; we stamp who pushed
+// it and when, so the receiver can ignore its own echoes and stale data.
+let _suppressPush = false;
+
+// Tell the opponent the dice the instant the active player rolls, so they
+// can animate the same roll + token walk live.
+function _broadcastTurn(d){
+  if(!_roomRef) return;
+  _roomRef.child('turn').set({ cp, dice:d, from:_myIdx, ts:Date.now() });
+}
+
+// Opponent side: replay the active player's roll + movement (visual only).
+let _replaying = false;
+function _replayRemoteTurn(t){
+  if(_replaying || isMoving) return;
+  _replaying = true;
+  cp = t.cp;                 // make sure the right token moves
+  dice = t.dice.slice();
+  uChip();
+  // (the roll itself is already logged via the broadcast 'log' feed)
+  // animate the dice faces, then walk the token the rolled number of steps
+  document.getElementById('d0').classList.add('roll');
+  document.getElementById('d1').classList.add('roll');
+  let f=0;const iv=setInterval(()=>{rdie('d0',Math.ceil(Math.random()*6));rdie('d1',Math.ceil(Math.random()*6));f++;
+    if(f>9){clearInterval(iv);rdie('d0',dice[0]);rdie('d1',dice[1]);
+      document.getElementById('d0').classList.remove('roll');document.getElementById('d1').classList.remove('roll');
+      _walkRemote(dice[0]+dice[1]);
+    }
+  },55);
+}
+function _walkRemote(steps){
+  const p=P[cp];let s=0;isMoving=true;
+  const iv=setInterval(()=>{p.pos=(p.pos+1)%TOT;s++;snd('step');draw();
+    if(s>=steps){clearInterval(iv);isMoving=false;_replaying=false;
+      // we do NOT resolve here — the authoritative result arrives via state push
+    }
+  },150);
+}
+
 function _pushState() {
-  if (!_roomRef || !_isMaster) return;
-  _suppressRemote = true;
+  if (!_roomRef || _suppressPush) return;
   const state = {
     P: P.map(p => ({pos:p.pos,money:p.money,props:p.props,jail:p.jail,jt:p.jt,dead:p.dead})),
     propOwn: Array.from(propOwn),
     propH:   Array.from(propH),
     cp, dice, hasRolled, gameOver,
+    from: _myIdx,
     ts: Date.now(),
   };
-  _roomRef.child('state').set(state).then(() => {
-    _suppressRemote = false;
-  });
+  _roomRef.child('state').set(state);
 }
 
-// Apply state received from master
+// Apply a state pushed by the other player.
 function _applyRemoteState(s) {
   if (!s) return;
+  _suppressPush = true;               // applying remote => don't re-push
   if (s.P) s.P.forEach((sp, i) => {
     P[i].pos   = sp.pos;
     P[i].money = sp.money;
@@ -641,89 +773,62 @@ function _applyRemoteState(s) {
   if (s.dice)    dice = s.dice;
   if (s.hasRolled !== undefined) hasRolled = s.hasRolled;
   if (s.gameOver  !== undefined) gameOver  = s.gameOver;
+  hasRolled = false;       // a fresh turn arrives to us
+  isMoving  = false;
+  sActs([]);               // clear any leftover action buttons
   uMon(); uChip(); draw();
-  // Update roll button state for the non-master player
-  document.getElementById('rb').disabled = (cp !== _myIdx) || hasRolled || isMoving || gameOver;
+  _lockUI();
+  if (s.gameOver) {
+    // mirror the end screen on this side
+    const w = (P[0].dead ? 1 : (P[1].dead ? 0 : (P[0].money>=P[1].money?0:1)));
+    _coreEndGame(w);
+  }
+  _suppressPush = false;
 }
 
-// Send a discrete action (for non-master player interactions)
-function _sendAction(type, payload) {
-  if (!_roomRef) return;
-  _roomRef.child('action').set({ from: _myIdx, type, payload, ts: Date.now() });
-}
-
-// Handle action from remote player
-function _handleRemoteAction(action) {
-  if (action.type === 'roll' && _isMaster) {
-    // Non-master requested a roll — execute it as master
-    rollDice();
-  } else if (action.type === 'buy' && _isMaster) {
-    const i = action.payload.spaceIdx;
-    const p = P[cp];
-    const sp = SPACES[i];
-    if (propOwn[i] === -1 && p.money >= sp.pr) {
-      chMon(cp, -sp.pr); propOwn[i] = cp; p.props.push(i);
-      snd('buy'); sMsg('اشتريت ' + sp.n); draw();
-      setTimeout(() => { endTurn(); _pushState(); }, 500);
-    }
-  } else if (action.type === 'pass') {
-    if (_isMaster) { endTurn(); _pushState(); }
+// ── Turn ownership / input lock ──
+function _myTurn() { return !_isMP || cp === _myIdx; }
+function _lockUI() {
+  const rb = document.getElementById('rb');
+  if (rb) rb.disabled = !_myTurn() || hasRolled || isMoving || gameOver;
+  if (_isMP) {
+    sMsg(_myTurn() ? ('دورك — ارمِ النرد') : ('دور الخصم...'));
   }
 }
 
-// ── Wrapper functions that add multiplayer sync ──
+// ── Wrappers: the ACTIVE player runs the full turn locally, then syncs ──
 function rollDice() {
   if (!_isMP) { _coreRollDice(); return; }
-  if (cp !== _myIdx) return;
-  if (!_isMaster) {
-    _sendAction('roll', {});
-    return;
-  }
-  _coreRollDice();
+  if (!_myTurn() || hasRolled || isMoving || gameOver) return;
+  _coreRollDice();   // runs the entire turn locally on the active device
 }
 
 function endTurn() {
   _coreEndTurn();
-  if (_isMP && _isMaster) {
-    setTimeout(_pushState, 200);
-    document.getElementById('rb').disabled = (cp !== _myIdx) || gameOver;
+  if (_isMP) {
+    // push the resolved state to the opponent, then lock our UI since the
+    // turn has (usually) passed to them.
+    _pushState();
+    _lockUI();
   }
 }
 
 function endGame(w) {
   _coreEndGame(w);
   if (_isMP) {
+    gameOver = true;
+    _pushState();   // tell the opponent the game is over
     if (typeof FlutterBridge !== 'undefined') {
-      FlutterBridge.postMessage('gameOver');
+      try { FlutterBridge.postMessage('gameOver'); } catch(e){}
     }
-    if (_roomRef) _roomRef.child('state').update({ gameOver: true });
   }
-}
-
-// ── Lock UI for non-active player ──
-function _updateUI() {
-  if (!_isMP) return;
-  const myTurn = (cp === _myIdx);
-  document.getElementById('rb').disabled = !myTurn || hasRolled || isMoving || gameOver;
 }
 
 // ── Init ──
 (async function(){
+  _showWait();
   await _initFirebase();
 
-  // In MP mode, show a "waiting" overlay until Firebase connects
-  if (_isMP && _roomRef) {
-    const waiter = document.createElement('div');
-    waiter.id = 'mpWait';
-    waiter.style.cssText = 'position:fixed;inset:0;background:#0c0c10;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;font-family:system-ui;color:#d4af55';
-    waiter.innerHTML = '<div style="font-size:3rem">🎲</div><div style="margin-top:12px;font-size:1rem;letter-spacing:2px">جارٍ الاتصال...</div>';
-    document.body.appendChild(waiter);
-    _roomRef.once('value', () => {
-      waiter.style.opacity = '0';
-      waiter.style.transition = 'opacity .4s';
-      setTimeout(() => waiter.remove(), 400);
-    });
-  }
 })();
 
 })();
