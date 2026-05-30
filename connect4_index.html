@@ -244,18 +244,25 @@ function onDrop(col){
   if(IS_MP && turn!==MY_COL) return;
   const r = landingRow(col);
   if(r<0) return; // column full
-  doDrop(col, r, turn, true);
-  if(IS_MP) broadcastState(col, r);
+  doDrop(col, r, turn, true, /*broadcast=*/IS_MP);
 }
 
-function doDrop(col, r, color, animate){
+function doDrop(col, r, color, animate, sync){
   const i = idx(r,col);
   board[i] = color;
   if(animate){
     busy = true;
     const el = cellEls[i];
     el.classList.add(color==='R'?'r':'y','drop');
-    setTimeout(()=>{ el.classList.remove('drop'); busy=false; resolveAfter(color); render(); }, 330);
+    setTimeout(()=>{
+      el.classList.remove('drop'); busy=false;
+      resolveAfter(color);
+      // Broadcast AFTER resolveAfter has flipped `turn` / set the win/draw
+      // state — otherwise the opponent receives turn still on the mover and
+      // can never act.
+      if(sync) broadcastState(col, r);
+      render();
+    }, 330);
     render();
   } else {
     render();
