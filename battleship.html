@@ -305,7 +305,15 @@ async function initFirebase(){
     const app = firebase.initializeApp(_fbConfig);
 
     stage('تسجيل الدخول');
-    await firebase.auth(app).signInAnonymously();
+    const _auth = firebase.auth(app);
+    // Android WebViews often block storage, which makes the default LOCAL
+    // persistence hang forever. In-memory persistence avoids that entirely.
+    try{ await _auth.setPersistence(firebase.auth.Auth.Persistence.NONE); }catch(_){}
+    // race the sign-in against a timeout so a silent stall surfaces as an error
+    await Promise.race([
+      _auth.signInAnonymously(),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('auth/timeout — تعذّر تسجيل الدخول (قد يكون التخزين محجوباً في WebView أو Anonymous Auth غير مفعّل)')),7000))
+    ]);
 
     stage('فتح الغرفة');
     _db = firebase.database(app);
