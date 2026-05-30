@@ -273,29 +273,55 @@ function makeGrid(){ return Array.from({length:N},()=>Array(N).fill(0)); }
 let _db=null, _roomRef=null, _connectedAt=0, _bothPresent=false;
 let oppReady=false, iAmReady=false, battleStarted=false;
 
+let _watchdog=null, _lastStage='';
+function showFail(msg){
+  if(_watchdog){clearTimeout(_watchdog);_watchdog=null;}
+  elWait.classList.remove('hidden');
+  const sp=elWait.querySelector('.spinner'); if(sp) sp.classList.add('hidden');
+  $('waitTitle').textContent='تعذر الاتصال';
+  $('waitMsg').innerHTML =
+    'توقّف عند: <b>'+_lastStage+'</b><br>'+
+    '<span style="color:var(--hit);font-size:13px">'+msg+'</span>'+
+    '<br><br>تحقق من Firebase: تفعيل Anonymous Auth، وإنشاء Realtime Database، وصحة databaseURL.';
+  if(!elWait.querySelector('#soloEscape')){
+    const b=document.createElement('button');
+    b.id='soloEscape'; b.className='bigBtn'; b.textContent='اللعب ضد الكمبيوتر';
+    b.style.marginTop='18px';
+    b.onclick=()=>{ elWait.classList.add('hidden'); soloSetup(); beginPlacement(); };
+    elWait.appendChild(b);
+  }
+}
+
 async function initFirebase(){
   if(!IS_MP){ elWait.classList.add('hidden'); elStart.classList.remove('hidden'); return; }
-  const stage = m => { $('waitMsg').textContent = m; };
+  const stage = m => { _lastStage=m; $('waitTitle').textContent=m; };
+  // watchdog: if a stage stalls >8s, report where we got stuck
+  _watchdog = setTimeout(()=>showFail('انتهت المهلة — لم تكتمل هذه الخطوة خلال 8 ثوانٍ.'), 8000);
   try{
     if(typeof firebase==='undefined'){
-      throw new Error('لم يتم تحميل Firebase SDK (تحقق من الإنترنت).');
+      throw new Error('لم يتم تحميل Firebase SDK — قد تكون الشبكة محجوبة.');
     }
-    stage('جارٍ تهيئة الاتصال...');
+    stage('تهيئة الاتصال');
     const app = firebase.initializeApp(_fbConfig);
 
-    stage('جارٍ تسجيل الدخول...');
+    stage('تسجيل الدخول');
     await firebase.auth(app).signInAnonymously();
 
-    stage('جارٍ فتح الغرفة...');
+    stage('فتح الغرفة');
     _db = firebase.database(app);
     _roomRef = _db.ref('rooms/'+ROOM_ID+'/'+GAME_KEY);
     _connectedAt = Date.now();
 
-    // confirm we can actually WRITE (this is where rules failures show up)
+    // confirm we can actually WRITE (rules / URL failures surface here)
     await _roomRef.child('players/'+MY_IDX).set(true);
     _roomRef.child('players/'+MY_IDX).onDisconnect().remove();
 
-    stage('بانتظار صديقك للانضمام...');
+    // write succeeded — reset watchdog for the "waiting for player 2" stage,
+    // which legitimately can take a while, so give it longer & don't auto-fail.
+    if(_watchdog){clearTimeout(_watchdog);_watchdog=null;}
+    stage('بانتظار صديقك');
+    $('waitMsg').textContent='بانتظار صديقك للانضمام...';
+
     _roomRef.child('players').on('value', snap=>{
       const count = Object.keys(snap.val()||{}).length;
       if(count>=2 && !_bothPresent){
@@ -303,7 +329,7 @@ async function initFirebase(){
         _roomRef.child('players').off('value');
         beginPlacement();
       } else if(count<2){
-        $('waitMsg').textContent='بانتظار صديقك للانضمام...';
+        $('waitMsg').textContent='بانتظار صديقك للانضمام... (متصل: '+count+'/2)';
       }
     });
 
@@ -335,18 +361,7 @@ async function initFirebase(){
     });
   }catch(e){
     console.error('Firebase error',e);
-    const msg = (e && e.message) ? e.message : 'خطأ غير معروف';
-    elWait.classList.remove('hidden');
-    elWait.querySelector('.spinner').classList.add('hidden');
-    $('waitTitle').textContent='تعذر الاتصال';
-    $('waitMsg').innerHTML =
-      'سبب المشكلة:<br><span style="color:var(--hit);font-size:13px">'+msg+'</span>'+
-      '<br><br>تأكد من تفعيل «Anonymous Auth» و«Realtime Database» في Firebase.';
-    const b=document.createElement('button');
-    b.className='bigBtn'; b.textContent='اللعب ضد الكمبيوتر';
-    b.style.marginTop='18px';
-    b.onclick=()=>{ elWait.classList.add('hidden'); soloSetup(); beginPlacement(); };
-    elWait.appendChild(b);
+    showFail((e && (e.code||e.message)) ? ((e.code?e.code+' — ':'')+(e.message||'')) : 'خطأ غير معروف');
   }
 }
 
