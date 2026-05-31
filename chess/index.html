@@ -179,8 +179,8 @@ function resize(){
 
 // Convert rank/file to canvas coords (flip for black)
 function sq2xy(r, f){
-  if(MY_COLOR === 'b') return { x: (7-f)*SQ, y: r*SQ };
-  return { x: f*SQ, y: (7-r)*SQ };
+  if(MY_COLOR === 'b') return { x: (7-f)*SQ, y: (7-r)*SQ };
+  return { x: f*SQ, y: r*SQ };
 }
 
 function render(){
@@ -241,7 +241,7 @@ function render(){
   cx.font = `bold ${Math.max(9,Math.floor(SQ*.18))}px system-ui`;
   cx.textBaseline = 'top';
   for(let i=0;i<8;i++){
-    const rank = MY_COLOR==='b' ? i+1 : 8-i;
+    const rank = MY_COLOR==='b' ? 8-i : i+1;
     const file = MY_COLOR==='b' ? FILES[7-i] : FILES[i];
     cx.fillStyle = i%2===0?'#b58863':'#f0d9b5';
     cx.textAlign='left';
@@ -512,8 +512,8 @@ function handleTap(e){
   const sf=px/rect.width*BS, sy=py/rect.height*BS;
 
   let f=Math.floor(sf/SQ), r;
-  if(MY_COLOR==='b'){ f=7-f; r=Math.floor(sy/SQ); }
-  else { r=7-Math.floor(sy/SQ); }
+  if(MY_COLOR==='b'){ f=7-f; r=7-Math.floor(sy/SQ); }
+  else { r=Math.floor(sy/SQ); }
   if(r<0||r>7||f<0||f>7) return;
 
   if(selected){
