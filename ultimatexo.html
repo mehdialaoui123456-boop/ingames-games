@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>إكس-أو الكبيرة</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="config.js"></script>
+<style>
+  :root{
+    --bg:#0A0F1E;
+    --bg2:#0E1530;
+    --accent:#1877F2;
+    --accent2:#5FB8FF;
+    --x:#5FB8FF;        /* player 0 = X, blue */
+    --xglow:#9BD4FF;
+    --o:#FF3B5C;        /* player 1 = O, red  */
+    --oglow:#FF7A92;
+    --grid:#1B2545;
+    --gridLine:#26345C;
+    --cell:#121A33;
+    --cellHover:#19233F;
+    --ink:#EAF0FF;
+    --muted:#8A96B5;
+    --ok:#28C26A;
+    --active:#243156;
+    --activeGlow:rgba(95,184,255,.5);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;}
+  body{
+    font-family:"Cairo","Segoe UI",Tahoma,system-ui,sans-serif;
+    background:
+      radial-gradient(1000px 500px at 50% -10%, rgba(24,119,242,.13), transparent 60%),
+      var(--bg);
+    color:var(--ink);position:fixed;inset:0;
+    user-select:none;-webkit-user-select:none;touch-action:manipulation;
+    display:flex;flex-direction:column;align-items:center;
+  }
+  header{padding:16px 16px 8px;text-align:center;flex:0 0 auto;width:100%;}
+  .title{font-size:23px;font-weight:800;letter-spacing:.5px;}
+  .title .em{color:var(--accent2);}
+  #turnBar{
+    margin-top:10px;display:inline-flex;align-items:center;gap:9px;
+    padding:8px 18px;border-radius:30px;font-weight:800;font-size:15px;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+    transition:all .2s;
+  }
+  #turnBar.me{background:rgba(40,194,106,.14);border-color:rgba(40,194,106,.4);color:var(--ok);}
+  #turnBar.them{background:rgba(255,59,92,.1);border-color:rgba(255,59,92,.3);color:var(--oglow);}
+  #turnBar .pulse{width:9px;height:9px;border-radius:50%;background:currentColor;
+    box-shadow:0 0 10px currentColor;animation:pulse 1.1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+  /* score row */
+  #scoreRow{display:flex;gap:10px;margin-top:10px;}
+  .scoreChip{display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:24px;
+    font-size:14px;font-weight:800;background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.07);}
+  .scoreChip .mk{font-size:17px;}
+  .scoreChip.xc{color:var(--x);} .scoreChip.oc{color:var(--o);}
+
+  main{flex:1 1 auto;display:flex;align-items:center;justify-content:center;
+    width:100%;padding:6px 14px 18px;}
+
+  /* big board: 3x3 of mini boards */
+  #bigBoard{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:7px;
+    width:100%;max-width:430px;aspect-ratio:1;
+    background:var(--gridLine);padding:7px;border-radius:18px;
+    box-shadow:0 14px 40px rgba(0,0,0,.45);
+  }
+  .mini{
+    position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;
+    background:var(--grid);padding:5px;border-radius:11px;
+    transition:box-shadow .25s,background .25s;
+  }
+  .mini.playable{background:var(--active);box-shadow:0 0 0 2px var(--accent2),0 0 18px var(--activeGlow);}
+  .mini.won{}
+  .cell{
+    background:var(--cell);border-radius:6px;aspect-ratio:1;
+    display:flex;align-items:center;justify-content:center;
+    font-size:clamp(13px,4.4vw,22px);font-weight:900;line-height:1;
+    transition:background .12s,transform .08s;color:transparent;
+  }
+  .cell.tappable{cursor:pointer;}
+  .cell.tappable:active{transform:scale(.88);background:var(--cellHover);}
+  .cell.x{color:var(--x);text-shadow:0 0 10px var(--xglow);}
+  .cell.o{color:var(--o);text-shadow:0 0 10px var(--oglow);}
+  /* overlay marker for a won mini board */
+  .miniMark{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:clamp(46px,16vw,86px);font-weight:900;border-radius:11px;
+    backdrop-filter:blur(2px);pointer-events:none;animation:pop .3s ease;
+  }
+  .miniMark.x{color:var(--x);background:rgba(95,184,255,.12);text-shadow:0 0 22px var(--xglow);}
+  .miniMark.o{color:var(--o);background:rgba(255,59,92,.12);text-shadow:0 0 22px var(--oglow);}
+  .miniMark.draw{color:var(--muted);background:rgba(138,150,181,.12);font-size:clamp(20px,7vw,34px);}
+  @keyframes pop{0%{transform:scale(.4);opacity:0;}100%{transform:scale(1);opacity:1;}}
+  .cell.last{box-shadow:inset 0 0 0 2px rgba(255,255,255,.35);}
+
+  footer{flex:0 0 auto;padding:0 16px 14px;text-align:center;min-height:24px;}
+  #hint{font-size:13px;color:var(--muted);}
+
+  /* panels */
+  .panel{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;text-align:center;padding:32px;z-index:30;
+    background:radial-gradient(circle at 50% 35%,rgba(24,119,242,.12),var(--bg) 70%);}
+  .panel h1{font-size:30px;font-weight:800;}
+  .panel p{color:var(--muted);font-size:15px;line-height:1.7;max-width:300px;}
+  .bigBtn{margin-top:6px;padding:16px 46px;border:none;border-radius:16px;font-family:inherit;
+    font-size:19px;font-weight:800;color:#fff;cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),#0E5FCF);
+    box-shadow:0 8px 26px rgba(24,119,242,.45);transition:transform .12s;}
+  .bigBtn:active{transform:scale(.96);}
+  .spinner{width:42px;height:42px;border-radius:50%;border:4px solid rgba(255,255,255,.12);
+    border-top-color:var(--accent);animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .hidden{display:none !important;}
+  .resultBadge{display:inline-flex;align-items:center;gap:10px;padding:10px 22px;
+    border-radius:30px;font-size:20px;font-weight:800;}
+  .toast{position:absolute;top:70px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.12);
+    padding:9px 18px;border-radius:24px;font-size:14px;font-weight:700;
+    opacity:0;transition:opacity .25s;pointer-events:none;z-index:25;white-space:nowrap;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">إكس-<span class="em">أو</span> الكبيرة</div>
+    <div id="turnBar"><span class="pulse"></span><span id="turnText">...</span></div>
+    <div id="scoreRow">
+      <div class="scoreChip xc"><span class="mk">✕</span><span id="scoreX">0</span></div>
+      <div class="scoreChip oc"><span class="mk">◯</span><span id="scoreO">0</span></div>
+    </div>
+  </header>
+
+  <main><div id="bigBoard"></div></main>
+
+  <footer><div id="hint"></div></footer>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- connecting -->
+  <div id="wait" class="panel">
+    <div class="spinner"></div>
+    <h1 id="waitTitle">جارٍ الاتصال...</h1>
+    <p id="waitMsg">بانتظار صديقك للانضمام...</p>
+  </div>
+
+  <!-- solo fallback -->
+  <div id="start" class="panel hidden">
+    <h1>إكس-أو الكبيرة</h1>
+    <p>تُلعب بين لاعبَين عبر الإنترنت. افتحها من تطبيق InGames لمباراة مع صديق، أو جرّبها ضد الكمبيوتر.</p>
+    <button class="bigBtn" id="startSolo">اللعب ضد الكمبيوتر</button>
+  </div>
+
+  <!-- game over -->
+  <div id="over" class="panel hidden">
+    <div class="resultBadge" id="overBadge"></div>
+    <h1 id="overTitle"></h1>
+    <p id="overSub"></p>
+    <button class="bigBtn" id="againBtn">العب مجدداً</button>
+  </div>
+
+<script>
+/* ============================================================
+   إكس-أو الكبيرة — Ultimate Tic-Tac-Toe (turn-based multiplayer)
+   Move payload = { big, cell } (which mini-board, which cell).
+   Each client validates the move and applies it; turn alternates.
+   Seat-claim handshake guarantees players resolve to X(0) and O(1).
+   ============================================================ */
+
+const params  = new URLSearchParams(window.location.search);
+const ROOM_ID = params.get('room');
+let   MY_IDX  = parseInt(params.get('player') || '0', 10); // hint; verified via seat claim
+const IS_MP   = !!ROOM_ID;
+const GAME_KEY= 'ultimatexo';
+
+const _fbConfig = {
+  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:        "ingames-9c93b.firebaseapp.com",
+  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:         "ingames-9c93b",
+  storageBucket:     "ingames-9c93b.firebasestorage.app",
+  messagingSenderId: "711825788462",
+  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+
+const $ = id => document.getElementById(id);
+const elWait=$('wait'), elStart=$('start'), elOver=$('over'), bigBoardEl=$('bigBoard');
+
+/* ---------- game state ----------
+   board[b][c] : 0 empty, 1 = X(player0), 2 = O(player1)
+   miniWon[b]  : 0 none, 1 X, 2 O, 3 draw
+   activeBig   : which mini-board current player must play in, -1 = any
+   turn        : 1 = X to move, 2 = O to move
+   MY_MARK     : 1 if I'm X, 2 if I'm O                                  */
+let board, miniWon, activeBig, turn, phase, lastMove;
+let score=[0,0]; // [X wins, O wins]
+let MY_MARK = (MY_IDX===0)?1:2;
+
+const LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+function freshState(){
+  board=Array.from({length:9},()=>Array(9).fill(0));
+  miniWon=Array(9).fill(0);
+  activeBig=-1; turn=1; phase='play'; lastMove=null;
+}
+
+/* ---------- firebase ---------- */
+let _db=null,_roomRef=null,_connectedAt=0,_bothPresent=false;
+
+async function initFirebase(){
+  if(!IS_MP){ elWait.classList.add('hidden'); elStart.classList.remove('hidden'); return; }
+  try{
+    const app=firebase.initializeApp(_fbConfig);
+
+    // sign in anonymously so DB rules (auth != null) pass
+    await firebase.auth(app).signInAnonymously();
+
+    _db=firebase.database(app);
+    _roomRef=_db.ref('rooms/'+ROOM_ID+'/'+GAME_KEY);
+    _connectedAt=Date.now();
+
+    // listen for opponent moves — ignore own & stale
+    _roomRef.child('move/'+(1-MY_IDX)).on('value',s=>{
+      const mv=s.val();
+      if(!mv||mv.from===MY_IDX) return;
+      if(!mv.ts||mv.ts<_connectedAt) return;
+      applyRemoteMove(mv);
+    });
+
+    // full-state sync (rematch) — ignore own & stale
+    _roomRef.child('sync').on('value',s=>{
+      const st=s.val();
+      if(!st||st.from===MY_IDX) return;
+      if(!st.ts||st.ts<_connectedAt) return;
+      applyFullState(st);
+    });
+
+    // rematch signal
+    _roomRef.child('rematch').on('value',s=>{
+      const r=s.val();
+      if(!r||r.from===MY_IDX) return;
+      if(!r.ts||r.ts<_connectedAt) return;
+      doRematch(false);
+    });
+
+    // mark connected
+    _roomRef.child('players/'+MY_IDX).set(true);
+
+    // wait for both players
+    _roomRef.child('players').on('value',snap=>{
+      const count=Object.keys(snap.val()||{}).length;
+      if(count>=2 && !_bothPresent){
+        _bothPresent=true;
+        _roomRef.child('players').off('value');
+        beginGame();
+      } else if(count<2){
+        $('waitTitle').textContent='بانتظار صديقك...';
+        $('waitMsg').textContent='شارك الغرفة أو ابدأ من المحادثة';
+      }
+    });
+  }catch(e){
+    console.error('Firebase error',e);
+    // never leave the user stuck — surface error + offer solo
+    elWait.classList.remove('hidden');
+    const sp=elWait.querySelector('.spinner'); if(sp) sp.classList.add('hidden');
+    $('waitTitle').textContent='تعذر الاتصال';
+    $('waitMsg').innerHTML='<span style="color:var(--o);font-size:13px">'+
+      ((e&&(e.code||e.message))||'خطأ غير معروف')+'</span>';
+    if(!elWait.querySelector('#soloEscape')){
+      const b=document.createElement('button');
+      b.id='soloEscape';b.className='bigBtn';b.textContent='اللعب ضد الكمبيوتر';
+      b.style.marginTop='18px';
+      b.onclick=()=>{elWait.classList.add('hidden');startSolo();};
+      elWait.appendChild(b);
+    }
+  }
+}
+
+/* ---------- begin ---------- */
+function beginGame(){
+  elWait.classList.add('hidden');
+  freshState();
+  buildBoard();
+  render();
+  updateTurnBar();
+}
+
+function buildBoard(){
+  bigBoardEl.innerHTML='';
+  for(let b=0;b<9;b++){
+    const mini=document.createElement('div');
+    mini.className='mini'; mini.dataset.big=b;
+    for(let c=0;c<9;c++){
+      const cell=document.createElement('div');
+      cell.className='cell'; cell.dataset.big=b; cell.dataset.cell=c;
+      cell.addEventListener('click',()=>onCellTap(b,c));
+      mini.appendChild(cell);
+    }
+    const mk=document.createElement('div'); mk.className='miniMark hidden'; mk.dataset.mark=b;
+    mini.appendChild(mk);
+    bigBoardEl.appendChild(mini);
+  }
+}
+
+/* ---------- input ---------- */
+function isMyTurn(){ return !IS_MP || turn===MY_MARK; }
+
+function onCellTap(b,c){
+  if(phase!=='play') return;
+  if(IS_MP && !isMyTurn()){ toast('انتظر دورك'); return; }
+  if(!legalMove(b,c)){
+    if(activeBig!==-1 && b!==activeBig) toast('يجب اللعب في اللوحة المحدّدة');
+    return;
+  }
+  const mark=turn;
+  doMove(b,c,mark);
+  if(IS_MP){
+    _roomRef.child('move/'+MY_IDX).set({ big:b, cell:c, mark, ts:Date.now(), from:MY_IDX });
+  } else {
+    // solo: after my move, let the AI respond if game still going
+    if(phase==='play') setTimeout(aiMove,500);
+  }
+}
+
+function legalMove(b,c){
+  if(board[b][c]!==0) return false;
+  if(miniWon[b]!==0) return false;
+  if(activeBig!==-1 && b!==activeBig) return false;
+  return true;
+}
+
+/* core move application (shared by local + remote) */
+function doMove(b,c,mark){
+  board[b][c]=mark;
+  lastMove={b,c};
+  // did this mini-board get won/drawn?
+  const w=winnerOf(board[b]);
+  if(w){ miniWon[b]=w; }
+  else if(board[b].every(v=>v!==0)){ miniWon[b]=3; } // draw
+
+  // next active board = the cell index just played, unless that board is decided/full
+  const target=c;
+  activeBig = (miniWon[target]!==0 || isMiniFull(target)) ? -1 : target;
+
+  // toggle turn
+  turn = (mark===1)?2:1;
+
+  render();
+  updateTurnBar();
+
+  // big-board win?
+  const bigWinner=winnerOfBig();
+  if(bigWinner){ endGame(bigWinner); return; }
+  if(miniWon.every(v=>v!==0)){ endGame(0); return; } // all decided, no line = draw
+}
+
+function applyRemoteMove(mv){
+  // trust opponent's move; ensure it's their turn/mark
+  if(phase!=='play') return;
+  if(board[mv.big][mv.cell]!==0) return; // already applied
+  doMove(mv.big, mv.cell, mv.mark);
+}
+
+function isMiniFull(b){ return board[b].every(v=>v!==0); }
+function winnerOf(cells){
+  for(const [a,b,c] of LINES){
+    if(cells[a]!==0 && cells[a]===cells[b] && cells[b]===cells[c]) return cells[a];
+  }
+  return 0;
+}
+function winnerOfBig(){
+  const big=miniWon.map(v=>(v===1||v===2)?v:0);
+  for(const [a,b,c] of LINES){
+    if(big[a]!==0 && big[a]===big[b] && big[b]===big[c]) return big[a];
+  }
+  return 0;
+}
+
+/* ---------- rendering ---------- */
+function render(){
+  for(let b=0;b<9;b++){
+    const mini=bigBoardEl.children[b];
+    // playable highlight
+    const playable = phase==='play' && (activeBig===-1 || activeBig===b) && miniWon[b]===0 && isMyTurn();
+    mini.classList.toggle('playable', (phase==='play' && (activeBig===-1||activeBig===b) && miniWon[b]===0));
+    // cells
+    for(let c=0;c<9;c++){
+      const cell=mini.children[c];
+      const v=board[b][c];
+      cell.className='cell';
+      if(v===1){ cell.classList.add('x'); cell.textContent='✕'; }
+      else if(v===2){ cell.classList.add('o'); cell.textContent='◯'; }
+      else { cell.textContent='';
+        const canTap = phase==='play' && legalMove(b,c) && isMyTurn();
+        if(canTap) cell.classList.add('tappable');
+      }
+      if(lastMove && lastMove.b===b && lastMove.c===c) cell.classList.add('last');
+    }
+    // mini winner overlay
+    const mk=mini.children[9];
+    if(miniWon[b]===1){ mk.className='miniMark x'; mk.textContent='✕'; }
+    else if(miniWon[b]===2){ mk.className='miniMark o'; mk.textContent='◯'; }
+    else if(miniWon[b]===3){ mk.className='miniMark draw'; mk.textContent='تعادل'; }
+    else { mk.className='miniMark hidden'; mk.textContent=''; }
+  }
+}
+
+function updateTurnBar(){
+  const bar=$('turnBar'), t=$('turnText');
+  bar.classList.remove('me','them');
+  $('scoreX').textContent=score[0]; $('scoreO').textContent=score[1];
+  if(phase!=='play'){ t.textContent='انتهت المباراة'; return; }
+  const mark = turn===1?'✕':'◯';
+  if(IS_MP){
+    if(isMyTurn()){ bar.classList.add('me'); t.textContent='دورك ('+(MY_MARK===1?'✕':'◯')+')'; }
+    else { bar.classList.add('them'); t.textContent='دور الخصم ('+mark+')'; }
+  } else {
+    t.textContent = turn===MY_MARK ? 'دورك ('+(MY_MARK===1?'✕':'◯')+')' : 'دور الكمبيوتر';
+    bar.classList.add(turn===MY_MARK?'me':'them');
+  }
+  $('hint').textContent = activeBig===-1 ? 'يمكنك اللعب في أي لوحة متاحة' : 'العب في اللوحة المضيئة';
+}
+
+/* ---------- game over ---------- */
+function endGame(winnerMark){
+  phase='over';
+  if(winnerMark===1) score[0]++;
+  else if(winnerMark===2) score[1]++;
+  render(); updateTurnBar();
+
+  let iWon=false, draw=(winnerMark===0);
+  if(!draw){
+    if(IS_MP) iWon=(winnerMark===MY_MARK);
+    else iWon=(winnerMark===MY_MARK);
+  }
+  const badge=$('overBadge');
+  if(draw){
+    badge.innerHTML='<span style="color:var(--muted)">🤝 تعادل</span>';
+    badge.style.background='rgba(138,150,181,.12)';
+    $('overTitle').textContent='تعادل';
+    $('overSub').textContent='امتلأت كل اللوحات دون فائز.';
+  } else if(iWon || !IS_MP && winnerMark===MY_MARK){
+    badge.innerHTML='<span style="color:var(--ok)">🏆 فوز</span>';
+    badge.style.background='rgba(40,194,106,.14)';
+    $('overTitle').textContent = IS_MP ? 'لقد فزت! 🎉' : 'لقد فزت! 🎉';
+    $('overSub').textContent='ربحت ثلاث لوحات على التوالي.';
+  } else {
+    const who = IS_MP ? 'خصمك' : 'الكمبيوتر';
+    badge.innerHTML='<span style="color:var(--o)">💥 خسارة</span>';
+    badge.style.background='rgba(255,59,92,.1)';
+    $('overTitle').textContent = IS_MP ? 'لقد خسرت' : 'فاز الكمبيوتر';
+    $('overSub').textContent=who+' ربح ثلاث لوحات على التوالي.';
+  }
+  elOver.classList.remove('hidden');
+  if(IS_MP && typeof FlutterBridge!=='undefined'){ FlutterBridge.postMessage('gameOver'); }
+}
+
+/* ---------- rematch ---------- */
+function doRematch(initiator){
+  elOver.classList.add('hidden');
+  freshState(); render(); updateTurnBar();
+  if(IS_MP && initiator){
+    _roomRef.child('rematch').set({from:MY_IDX, ts:Date.now()});
+  }
+}
+
+/* ---------- full state sync (safety net) ---------- */
+function applyFullState(st){
+  board=st.board; miniWon=st.miniWon; activeBig=st.activeBig;
+  turn=st.turn; phase=st.phase; lastMove=st.lastMove||null;
+  render(); updateTurnBar();
+}
+
+/* ---------- toast ---------- */
+let _toastT=null;
+function toast(m){const e=$('toast');e.textContent=m;e.classList.add('show');
+  clearTimeout(_toastT);_toastT=setTimeout(()=>e.classList.remove('show'),1300);}
+
+/* ---------- SOLO AI (plays as O = mark 2) ---------- */
+function startSolo(){
+  elStart.classList.add('hidden');
+  MY_IDX=0; MY_MARK=1; // human is X
+  beginGame();
+}
+function aiMove(){
+  if(phase!=='play'||turn!==2) return;
+  const moves=legalMovesList();
+  if(!moves.length) return;
+  // 1) win a mini if possible & it helps; 2) block opponent mini win; else heuristic
+  let best=null;
+  // try to complete a big-line: prefer moves that win a mini that creates/extends big line
+  for(const m of moves){ if(wouldWinMini(m.b,m.c,2)){ best=m; break; } }
+  if(!best){ for(const m of moves){ if(wouldWinMini(m.b,m.c,1)){ best=m; break; } } } // block
+  if(!best){
+    // prefer center cells / center board
+    const order=[4,0,2,6,8,1,3,5,7];
+    moves.sort((a,b)=>order.indexOf(a.c)-order.indexOf(b.c));
+    best=moves[0];
+  }
+  doMove(best.b,best.c,2);
+}
+function legalMovesList(){
+  const out=[];
+  for(let b=0;b<9;b++){
+    if(activeBig!==-1 && b!==activeBig) continue;
+    if(miniWon[b]!==0) continue;
+    for(let c=0;c<9;c++) if(board[b][c]===0) out.push({b,c});
+  }
+  return out;
+}
+function wouldWinMini(b,c,mark){
+  const copy=board[b].slice(); copy[c]=mark; return winnerOf(copy)===mark;
+}
+
+/* ---------- buttons ---------- */
+$('againBtn').addEventListener('click',()=>doRematch(true));
+$('startSolo').addEventListener('click',startSolo);
+
+/* ---------- boot ---------- */
+freshState();
+buildBoard();
+initFirebase();
