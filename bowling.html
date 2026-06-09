@@ -156,7 +156,7 @@ function $i(id){return document.getElementById(id);}
 
 // ── DIMENSIONS (meters) ─────────────────────────────────────────────────────
 var LANE_W   = 1.06;
-var LANE_LEN = 19.0;
+var LANE_LEN = 22.8;        // extends back into the approach so floor sits under the camera
 var FOUL_Z   =  8.4;        // ball start
 var PIN_APEX_Z = -7.0;      // nearest pin
 var ROW_DZ   = -0.30;       // depth between pin rows
@@ -236,7 +236,8 @@ var laneMesh=new THREE.Mesh(
   new THREE.BoxGeometry(LANE_W,0.2,LANE_LEN),
   new THREE.MeshStandardMaterial({map:woodTexture(),roughness:0.35,metalness:0.05})
 );
-laneMesh.position.set(0,-0.1,(FOUL_Z+PIN_APEX_Z-2.0)/2);
+// front edge stays near the pit (~-9.8); back edge extended to ~+13 (the approach)
+laneMesh.position.set(0,-0.1,1.6);
 laneMesh.receiveShadow=true; laneGroup.add(laneMesh);
 staticBox(LANE_W,0.2,LANE_LEN,0,-0.1,laneMesh.position.z,matLane);
 
@@ -639,20 +640,21 @@ function gameOver(){
 // viewFit grows on tall/narrow (portrait phone) screens so the lane width and
 // pins stay framed: the camera is pulled back and raised, never cropping.
 var camPos=new THREE.Vector3(), camLook=new THREE.Vector3();
-var viewFit=1;
+var portraitT=0;                     // 0 = landscape, 1 = very tall phone
 function updateCamera(dt){
   var tp, tl;
-  var back=viewFit, rise=(viewFit-1)*0.5;
+  // On portrait, RAISE the camera and look further down the lane (steeper top-down)
+  // instead of dollying back past the lane — this fills the tall frame with floor.
+  var rise = portraitT*1.15;
+  var back = portraitT*1.7;          // modest pull-back, always stays over the lane
   if(state===STATE.AIM || state===STATE.OVER){
-    // centered on the lane, just behind & above the ball, tilted down enough
-    // that the ball is visible in the lower-middle with the pins centered above.
-    tp=new THREE.Vector3(0, 1.45+rise, FOUL_Z + 3.0*back);
-    tl=new THREE.Vector3(0, 0.18, FOUL_Z - 6.5);
+    tp=new THREE.Vector3(0, 1.40+rise, FOUL_Z + 2.2 + back);
+    tl=new THREE.Vector3(0, 0.16, FOUL_Z - 6.5 - portraitT*1.6);
   } else {
-    // follow the ball down the lane while staying near the centerline
+    // follow the ball down the lane while staying centered over the lane
     var bz=ballBody.position.z;
-    tp=new THREE.Vector3(ballBody.position.x*0.2, 1.35+rise, Math.min(FOUL_Z+3.0*back, bz+3.2*back));
-    tl=new THREE.Vector3(ballBody.position.x*0.15, 0.22, Math.max(PIN_APEX_Z-0.5, bz-5.0));
+    tp=new THREE.Vector3(ballBody.position.x*0.18, 1.35+rise, Math.min(FOUL_Z+2.2+back, bz+3.0));
+    tl=new THREE.Vector3(ballBody.position.x*0.12, 0.18, Math.max(PIN_APEX_Z-0.5, bz-5.0));
   }
   var k=1-Math.pow(0.0009,dt);
   camera.position.lerp(tp,k);
@@ -695,8 +697,8 @@ function resize(){
   // portrait → tall & narrow: widen FOV and pull the camera back so the full
   // lane width and the pin rack are always captured on-screen on phones.
   var t=Math.max(0, Math.min(1, (1-aspect)/0.55));   // 0 = landscape, 1 = very tall
-  camera.fov = 55 + t*15;                            // 55° (wide) → 70° (tall)
-  viewFit   = 1 + t*1.25;                            // pull-back / rise factor
+  camera.fov = 55 + t*16;                            // 55° (wide) → 71° (tall)
+  portraitT = t;                                     // drives camera raise / tilt
   camera.updateProjectionMatrix();
   renderer.setSize(vw,vh,false);
 }
