@@ -2,567 +2,712 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>البولينج</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>لعبة البولينج 3D</title>
 <style>
-  * {
-    margin: 0; padding: 0; box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none; -webkit-user-select: none;
-    -webkit-touch-callout: none;
-  }
-  html, body { width: 100%; height: 100%; overflow: hidden; }
+  * { margin:0; padding:0; box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
+      user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+  html, body { width:100%; height:100%; overflow:hidden; }
   body {
-    touch-action: none;
-    position: fixed; inset: 0;
     font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
-    background: linear-gradient(160deg, #ffe6f0 0%, #e6f0ff 50%, #e6fff4 100%);
-    color: #2a2a40;
+    background:#0a0f1a; color:#fff; touch-action:none; position:fixed; inset:0;
   }
-
-  #game { position: fixed; inset: 0; overflow: hidden; }
-
-  .screen {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    text-align: center; padding: 24px;
-    gap: 18px;
-  }
-  .hidden { display: none !important; }
-
-  h1 {
-    font-size: 13vw; font-weight: 800;
-    color: #ff5c8a;
-    text-shadow: 0 4px 0 #ffd0e0;
-    line-height: 1.1;
-  }
-  .emoji-big { font-size: 22vw; line-height: 1; }
-
-  .card {
-    background: rgba(255,255,255,0.7);
-    border-radius: 28px;
-    padding: 22px 24px;
-    max-width: 460px;
-    box-shadow: 0 10px 30px rgba(120,120,160,0.18);
-  }
-  .howto { font-size: 5vw; line-height: 1.7; color: #4a4a66; font-weight: 600; }
-
-  .btn {
-    font-family: inherit;
-    font-size: 6.5vw; font-weight: 800;
-    color: #fff;
-    background: #ff5c8a;
-    border: none;
-    border-radius: 999px;
-    padding: 18px 44px;
-    min-width: 60px; min-height: 60px;
-    box-shadow: 0 6px 0 #d63e6c;
-    cursor: pointer;
-    position: relative;
-  }
-  .btn:active { transform: translateY(3px); box-shadow: 0 3px 0 #d63e6c; }
-  .btn.green { background: #34c97a; box-shadow: 0 6px 0 #239e5d; }
-  .btn.green:active { box-shadow: 0 3px 0 #239e5d; }
+  #game { position:absolute; inset:0; overflow:hidden; }
+  canvas#scene { position:absolute; inset:0; display:block; }
 
   /* HUD */
-  #hud {
-    position: absolute; top: 14px; left: 14px; right: 14px;
-    display: flex; justify-content: space-between;
-    pointer-events: none; z-index: 20;
-  }
-  .pill {
-    background: rgba(0,0,0,0.6);
-    color: #fff;
-    font-size: 5vw; font-weight: 800;
-    padding: 8px 18px;
-    border-radius: 999px;
-    min-height: 38px;
-    display: flex; align-items: center; gap: 6px;
-  }
+  #hud { position:absolute; top:0; left:0; right:0; padding:12px 14px;
+         display:flex; justify-content:space-between; align-items:center; z-index:10; pointer-events:none; }
+  .pill { background:rgba(0,0,0,0.55); color:#fff; padding:7px 15px; border-radius:999px;
+          font-size:16px; font-weight:800; display:flex; align-items:center; gap:6px;
+          backdrop-filter:blur(6px); }
+  .pill small { font-weight:600; opacity:.7; font-size:12px; }
+  #total .v { color:#FFD93D; font-size:19px; }
 
-  /* Lane */
-  #lane {
-    position: absolute; inset: 0;
-    background: linear-gradient(180deg, #fff7e6 0%, #ffeccc 55%, #f7d9a8 100%);
-  }
-  #laneStrip {
-    position: absolute; top: 0; bottom: 0; left: 50%;
-    transform: translateX(-50%);
-    background: linear-gradient(180deg, #ffe3b3, #f0c887);
-    border-left: 4px dashed #e0a85a;
-    border-right: 4px dashed #e0a85a;
-  }
+  /* Scoreboard */
+  #board { position:absolute; bottom:0; left:0; right:0; z-index:10; display:flex;
+           justify-content:center; padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+           pointer-events:none; }
+  #board .row { display:flex; gap:2px; background:rgba(0,0,0,0.45); padding:3px;
+                border-radius:10px; backdrop-filter:blur(6px); }
+  .frame { width:30px; border-radius:6px; overflow:hidden; background:rgba(255,255,255,0.06); }
+  .frame.tenth { width:42px; }
+  .frame.cur { box-shadow:0 0 0 2px #4fc3f7 inset; }
+  .frame .rolls { display:flex; height:15px; border-bottom:1px solid rgba(255,255,255,0.12); }
+  .frame .rolls span { flex:1; display:flex; align-items:center; justify-content:center;
+                       font-size:10px; font-weight:800; border-left:1px solid rgba(255,255,255,0.12); }
+  .frame .rolls span:first-child { border-left:none; }
+  .frame .cum { height:16px; display:flex; align-items:center; justify-content:center;
+                font-size:11px; font-weight:800; color:#FFD93D; }
 
-  .pin {
-    position: absolute;
-    width: 7%; max-width: 46px;
-    aspect-ratio: 1 / 1.6;
-    pointer-events: none;
-    will-change: transform, opacity;
-  }
-  .pin .body {
-    position: absolute; inset: 0;
-    background: #ffffff;
-    border-radius: 50% 50% 42% 42% / 60% 60% 40% 40%;
-    box-shadow: inset 0 -6px 0 rgba(0,0,0,0.06), 0 4px 6px rgba(0,0,0,0.12);
-  }
-  .pin .stripe {
-    position: absolute; top: 22%; left: 0; right: 0; height: 16%;
-    background: #ff5c8a;
-  }
+  /* Hint / power */
+  #hint { position:absolute; left:0; right:0; bottom:64px; text-align:center; z-index:9;
+          font-size:14px; font-weight:700; color:#bcd; opacity:.9; pointer-events:none;
+          text-shadow:0 2px 8px rgba(0,0,0,.6); transition:opacity .3s; }
+  #power { position:absolute; left:50%; transform:translateX(-50%); bottom:90px; width:160px;
+           height:9px; border-radius:6px; background:rgba(255,255,255,0.15); z-index:9;
+           overflow:hidden; opacity:0; transition:opacity .15s; pointer-events:none; }
+  #power i { display:block; height:100%; width:0%;
+             background:linear-gradient(90deg,#4fc3f7,#FFD93D,#ff5252); }
 
-  #ball {
-    position: absolute;
-    width: 13%; max-width: 78px;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #6fb4ff, #2566c9 70%, #173d80);
-    box-shadow: 0 6px 14px rgba(0,0,0,0.28);
-    z-index: 10;
-    will-change: transform;
-  }
-  #ball::after {
-    content: "";
-    position: absolute; top: 26%; left: 30%;
-    width: 14%; height: 14%;
-    background: rgba(20,40,80,0.85);
-    border-radius: 50%;
-    box-shadow: 22px 4px 0 rgba(20,40,80,0.85), 11px 20px 0 rgba(20,40,80,0.85);
-  }
+  /* Overlays */
+  .overlay { position:absolute; inset:0; background:rgba(10,15,26,0.9);
+             display:flex; flex-direction:column; justify-content:center; align-items:center;
+             z-index:100; text-align:center; padding:26px; backdrop-filter:blur(5px); }
+  .overlay h1 { font-size:34px; margin-bottom:10px; }
+  .overlay .big { font-size:62px; font-weight:900; margin:4px 0 18px; color:#FFD93D;
+                  text-shadow:0 4px 14px rgba(0,0,0,.5); }
+  .overlay p { font-size:15px; margin-bottom:22px; opacity:.85; line-height:1.7; max-width:300px; }
+  .btn { background:linear-gradient(135deg,#4fc3f7,#2196f3); color:#06121f; border:none;
+         font-family:inherit; font-size:19px; font-weight:900; padding:15px 42px;
+         border-radius:999px; cursor:pointer; box-shadow:0 8px 22px rgba(33,150,243,.4); }
+  .btn:active { transform:scale(.96); }
+  .hidden { display:none !important; }
 
-  /* Power meter */
-  #aim {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    z-index: 15;
-    display: flex; flex-direction: column; align-items: center;
-    gap: 10px; padding-bottom: 18px;
-  }
-  #meterWrap {
-    width: 70%; max-width: 360px; height: 26px;
-    background: rgba(255,255,255,0.8);
-    border-radius: 999px; overflow: hidden;
-    box-shadow: inset 0 2px 5px rgba(0,0,0,0.15);
-  }
-  #meterFill {
-    height: 100%; width: 0%;
-    background: linear-gradient(90deg, #34c97a, #ffd23f, #ff5c8a);
-    border-radius: 999px;
-  }
-  #aimHint {
-    background: rgba(0,0,0,0.6); color: #fff;
-    font-size: 4.5vw; font-weight: 700;
-    padding: 8px 20px; border-radius: 999px;
-  }
-
-  /* floating message */
-  #flash {
-    position: absolute; top: 38%; left: 0; right: 0;
-    text-align: center; z-index: 30;
-    font-size: 16vw; font-weight: 800;
-    color: #ff5c8a; text-shadow: 0 4px 0 #fff;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.25s, transform 0.25s;
-    transform: scale(0.6);
-  }
-  #flash.show { opacity: 1; transform: scale(1); }
-
-  .stat { font-size: 6vw; font-weight: 700; color: #4a4a66; }
-  .stat b { color: #ff5c8a; font-size: 9vw; }
+  /* Roll banner (strike/spare) */
+  #banner { position:absolute; left:0; right:0; top:34%; text-align:center; z-index:50;
+            font-size:54px; font-weight:900; letter-spacing:2px; pointer-events:none;
+            opacity:0; transform:scale(.6); transition:all .35s cubic-bezier(.2,1.4,.5,1);
+            text-shadow:0 6px 20px rgba(0,0,0,.6); }
+  #banner.show { opacity:1; transform:scale(1); }
 </style>
 </head>
 <body>
 <div id="game">
+  <canvas id="scene"></canvas>
 
-  <!-- START -->
-  <section id="startScreen" class="screen">
-    <div class="emoji-big">🎳</div>
-    <h1>البولينج</h1>
-    <div class="card">
-      <p class="howto">
-        اسحب الكرة لأعلى وأفلتها لترميها 👆<br>
-        صوّب جيداً وأسقط كل الدبابيس!<br>
-        لديك ٥ رميات فقط
-      </p>
-    </div>
-    <button id="startBtn" class="btn">ابدأ اللعب</button>
-  </section>
+  <div id="hud">
+    <div class="pill" id="frameP">الإطار <span class="v">1</span><small>/10</small></div>
+    <div class="pill" id="total">المجموع <span class="v">0</span></div>
+  </div>
 
-  <!-- GAME -->
-  <section id="playScreen" class="screen hidden" style="padding:0; display:block;">
-    <div id="lane"><div id="laneStrip"></div></div>
-    <div id="hud">
-      <div class="pill">🎯 <span id="scoreVal">0</span></div>
-      <div class="pill">🎳 <span id="throwsVal">5</span></div>
-    </div>
-    <div id="flash"></div>
-    <div id="ball"></div>
-    <div id="aim">
-      <div id="aimHint">اسحب الكرة وأفلتها</div>
-      <div id="meterWrap"><div id="meterFill"></div></div>
-    </div>
-  </section>
+  <div id="banner"></div>
+  <div id="power"><i></i></div>
+  <div id="hint">اسحب لأعلى لرمي الكرة<br><small>اتجاه السحب = الزاوية · سرعته = القوة</small></div>
 
-  <!-- END -->
-  <section id="endScreen" class="screen hidden">
-    <div class="emoji-big" id="endEmoji">🏆</div>
-    <h1 id="endTitle">انتهت اللعبة</h1>
-    <div class="card">
-      <p class="stat">مجموع النقاط</p>
-      <p class="stat"><b id="finalScore">0</b></p>
-    </div>
-    <button id="replayBtn" class="btn green">العب مرة أخرى</button>
-  </section>
+  <div id="board"><div class="row" id="boardRow"></div></div>
 
+  <div class="overlay" id="startOv">
+    <h1>🎳 البولينج</h1>
+    <p>مرّر إصبعك للأعلى على الشاشة لرمي الكرة.<br>
+       اتجاه السحب يحدّد الزاوية، وطوله يحدّد القوة.<br>
+       أسقط كل الدبابيس واحصل على أعلى نتيجة!</p>
+    <button class="btn" id="startBtn">ابدأ اللعب</button>
+  </div>
+
+  <div class="overlay hidden" id="endOv">
+    <h1>انتهت المباراة!</h1>
+    <div class="big" id="finalScore">0</div>
+    <p id="finalMsg"></p>
+    <button class="btn" id="againBtn">العب مرة أخرى</button>
+  </div>
 </div>
 
-<script>
-(function () {
-  "use strict";
+<script type="importmap">
+{"imports":{
+  "three":"https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js",
+  "cannon-es":"https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
+(function(){
+"use strict";
 
-  // ---------- elements ----------
-  var game = document.getElementById("game");
-  var startScreen = document.getElementById("startScreen");
-  var playScreen = document.getElementById("playScreen");
-  var endScreen = document.getElementById("endScreen");
-  var startBtn = document.getElementById("startBtn");
-  var replayBtn = document.getElementById("replayBtn");
-  var ball = document.getElementById("ball");
-  var lane = document.getElementById("lane");
-  var laneStrip = document.getElementById("laneStrip");
-  var scoreVal = document.getElementById("scoreVal");
-  var throwsVal = document.getElementById("throwsVal");
-  var flash = document.getElementById("flash");
-  var meterFill = document.getElementById("meterFill");
-  var aimHint = document.getElementById("aimHint");
-  var finalScore = document.getElementById("finalScore");
-  var endEmoji = document.getElementById("endEmoji");
-  var endTitle = document.getElementById("endTitle");
-
-  // ---------- state (declared before measure(), which reads it) ----------
-  var STATE = { READY: 0, DRAG: 1, ROLL: 2, RESET: 3, OVER: 4 };
-  var state = STATE.READY;
-  var score = 0;
-  var throwsLeft = 5;
-  var TOTAL_THROWS = 5;
-
-  var ballX = 0, ballY = 0;     // center position in px
-  var ballR = 0;
-  var ballVX = 0, ballVY = 0;
-  var dragStartX = 0, dragStartY = 0, dragCurX = 0, dragCurY = 0;
-  var dragging = false;
-
-  var pins = []; // {el, x, y, r, alive, vx, vy, fall}
-
-  // ---------- dimensions ----------
-  var W = 0, H = 0;
-  function measure() {
-    W = game.clientWidth || window.innerWidth;
-    H = game.clientHeight || window.innerHeight;
-    // lane strip width relative to container
-    laneStrip.style.width = Math.min(W * 0.62, 420) + "px";
-    layoutBall();
-  }
-  window.addEventListener("resize", measure);
-  window.addEventListener("orientationchange", measure);
-  setTimeout(measure, 100);
-  setTimeout(measure, 500);
-  measure();
-
-  function ballSize() { return Math.min(W * 0.13, 78); }
-
-  function layoutBall() {
-    ballR = ballSize() / 2;
-    if (state === STATE.READY || state === STATE.RESET) {
-      ballX = W / 2;
-      ballY = H - ballR - 70;
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+var AC=null;
+function initAudio(){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}}
+function beep(type,vol){
+  if(!AC)return; vol=vol||1;
+  try{
+    var t=AC.currentTime;
+    if(type==='roll'){ // low rumble of ball on lane
+      var o=AC.createOscillator(),g=AC.createGain();
+      o.type='sawtooth';o.frequency.setValueAtTime(70,t);
+      g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.12*vol,t+.1);
+      g.gain.exponentialRampToValueAtTime(.001,t+1.6);
+      o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+1.7);return;
     }
-    drawBall();
-  }
-  function drawBall() {
-    var s = ballR * 2;
-    ball.style.width = s + "px";
-    ball.style.height = s + "px";
-    ball.style.left = (ballX - ballR) + "px";
-    ball.style.top = (ballY - ballR) + "px";
-  }
-
-  // ---------- pins ----------
-  function clearPins() {
-    pins.forEach(function (p) { if (p.el && p.el.parentNode) p.el.parentNode.removeChild(p.el); });
-    pins = [];
-  }
-  function buildPins() {
-    clearPins();
-    var pinW = Math.min(W * 0.07, 46);
-    var pinH = pinW * 1.6;
-    var topY = H * 0.16;
-    var gapX = pinW * 1.25;
-    var gapY = pinH * 0.62;
-    // standard 10-pin triangle: rows of 1,2,3,4 (apex toward player = bottom)
-    var rows = [1, 2, 3, 4];
-    var cx = W / 2;
-    for (var r = 0; r < rows.length; r++) {
-      var count = rows[r];
-      var rowY = topY + r * gapY;
-      var startX = cx - ((count - 1) * gapX) / 2;
-      for (var i = 0; i < count; i++) {
-        var px = startX + i * gapX;
-        var el = document.createElement("div");
-        el.className = "pin";
-        el.innerHTML = '<div class="body"></div><div class="stripe"></div>';
-        el.style.width = pinW + "px";
-        lane.appendChild(el);
-        var pin = { el: el, x: px, y: rowY, r: pinW / 2, h: pinH, alive: true, vx: 0, vy: 0, fall: 0 };
-        pins.push(pin);
-        drawPin(pin);
-      }
+    if(type==='pin'){ // wood clack
+      var o2=AC.createOscillator(),g2=AC.createGain();
+      o2.type='triangle';o2.frequency.setValueAtTime(420+Math.random()*260,t);
+      o2.frequency.exponentialRampToValueAtTime(140,t+.09);
+      g2.gain.setValueAtTime(.0001,t);g2.gain.exponentialRampToValueAtTime(.22*vol,t+.005);
+      g2.gain.exponentialRampToValueAtTime(.001,t+.13);
+      o2.connect(g2);g2.connect(AC.destination);o2.start(t);o2.stop(t+.14);return;
     }
-  }
-  function drawPin(p) {
-    p.el.style.left = (p.x - p.r) + "px";
-    p.el.style.top = (p.y - p.h / 2) + "px";
-    var rot = p.fall;
-    p.el.style.transform = "rotate(" + rot + "deg)";
-    p.el.style.opacity = p.alive ? 1 : Math.max(0, 1 - p.fall / 90);
-  }
+    var notes = type==='strike'?[523,659,784,1047,1319]
+              : type==='spare'?[523,659,784,1047]
+              : type==='win'?[523,659,784,1047,1319,1568]
+              : [659,880];
+    notes.forEach(function(f,i){
+      var o=AC.createOscillator(),g=AC.createGain();
+      o.type='sine';o.frequency.value=f;
+      g.gain.setValueAtTime(.0001,t+i*.1);g.gain.exponentialRampToValueAtTime(.2*vol,t+i*.1+.02);
+      g.gain.exponentialRampToValueAtTime(.001,t+i*.1+.32);
+      o.connect(g);g.connect(AC.destination);o.start(t+i*.1);o.stop(t+i*.1+.33);
+    });
+  }catch(e){}
+}
 
-  // ---------- screens ----------
-  function show(el) { el.classList.remove("hidden"); }
-  function hide(el) { el.classList.add("hidden"); }
+function $i(id){return document.getElementById(id);}
 
-  function startGame() {
-    score = 0;
-    throwsLeft = TOTAL_THROWS;
-    scoreVal.textContent = "0";
-    throwsVal.textContent = String(throwsLeft);
-    hide(startScreen); hide(endScreen); show(playScreen);
-    measure();
-    buildPins();
-    resetBall();
-  }
+// ── DIMENSIONS (meters) ─────────────────────────────────────────────────────
+var LANE_W   = 1.06;
+var LANE_LEN = 19.0;
+var FOUL_Z   =  8.4;        // ball start
+var PIN_APEX_Z = -7.0;      // nearest pin
+var ROW_DZ   = -0.30;       // depth between pin rows
+var PIN_DX   = 0.305;       // lateral spacing
+var BALL_R   = 0.108;
+var GUTTER_W = 0.16;
+var WORLD_UP = new THREE.Vector3(0,1,0);
 
-  function resetBall() {
-    state = STATE.READY;
-    ballVX = 0; ballVY = 0;
-    ballX = W / 2;
-    ballY = H - ballR - 70;
-    drawBall();
-    meterFill.style.width = "0%";
-    aimHint.textContent = "اسحب الكرة وأفلتها";
-  }
+// ── THREE SETUP ─────────────────────────────────────────────────────────────
+var canvas=$i('scene');
+var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputEncoding=THREE.sRGBEncoding;
 
-  function endGame() {
-    state = STATE.OVER;
-    finalScore.textContent = String(score);
-    if (score >= 40) { endEmoji.textContent = "🏆"; endTitle.textContent = "بطل البولينج!"; }
-    else if (score >= 25) { endEmoji.textContent = "🎉"; endTitle.textContent = "أحسنت!"; }
-    else { endEmoji.textContent = "🎳"; endTitle.textContent = "انتهت اللعبة"; }
-    hide(playScreen); show(endScreen);
-  }
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0a0f1a);
+scene.fog=new THREE.Fog(0x0a0f1a, 14, 30);
 
-  // ---------- flash message ----------
-  var flashTimer = null;
-  function showFlash(txt) {
-    flash.textContent = txt;
-    flash.classList.add("show");
-    if (flashTimer) clearTimeout(flashTimer);
-    flashTimer = setTimeout(function () { flash.classList.remove("show"); }, 900);
-  }
+var camera=new THREE.PerspectiveCamera(58, innerWidth/innerHeight, 0.1, 100);
+var camDefault={pos:new THREE.Vector3(0,1.55,10.6), look:new THREE.Vector3(0,0.35,0)};
+camera.position.copy(camDefault.pos);
 
-  // ---------- input (touch first) ----------
-  function getPoint(e) {
-    if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    if (e.changedTouches && e.changedTouches[0]) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
-    return { x: e.clientX, y: e.clientY };
-  }
-  function rectPoint(e) {
-    var p = getPoint(e);
-    var rect = game.getBoundingClientRect();
-    return { x: p.x - rect.left, y: p.y - rect.top };
-  }
+// lights
+var hemi=new THREE.HemisphereLight(0xbfd8ff, 0x202838, 0.85); scene.add(hemi);
+var key=new THREE.DirectionalLight(0xffffff, 1.05);
+key.position.set(2.5, 9, 9); key.castShadow=true;
+key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.near=1; key.shadow.camera.far=40;
+key.shadow.camera.left=-3; key.shadow.camera.right=3;
+key.shadow.camera.top=12; key.shadow.camera.bottom=-12;
+key.shadow.bias=-0.0004;
+scene.add(key);
+var fill=new THREE.DirectionalLight(0x88aaff,0.35); fill.position.set(-4,5,-6); scene.add(fill);
 
-  function onDown(e) {
-    if (state !== STATE.READY) return;
-    e.preventDefault();
-    var p = rectPoint(e);
-    dragging = true;
-    state = STATE.DRAG;
-    dragStartX = p.x; dragStartY = p.y;
-    dragCurX = p.x; dragCurY = p.y;
-    aimHint.textContent = "صوّب وأفلت!";
+// ── PHYSICS WORLD ───────────────────────────────────────────────────────────
+var world=new CANNON.World();
+world.gravity.set(0,-9.82,0);
+world.broadphase=new CANNON.SAPBroadphase(world);
+world.allowSleep=true;
+world.solver.iterations=14;
+
+var matLane=new CANNON.Material('lane');
+var matBall=new CANNON.Material('ball');
+var matPin =new CANNON.Material('pin');
+world.addContactMaterial(new CANNON.ContactMaterial(matBall,matLane,{friction:0.04,restitution:0.05}));
+world.addContactMaterial(new CANNON.ContactMaterial(matPin ,matLane,{friction:0.38,restitution:0.10}));
+world.addContactMaterial(new CANNON.ContactMaterial(matBall,matPin ,{friction:0.14,restitution:0.16}));
+world.addContactMaterial(new CANNON.ContactMaterial(matPin ,matPin ,{friction:0.16,restitution:0.12}));
+
+function staticBox(w,h,d,x,y,z,mat){
+  var body=new CANNON.Body({mass:0,material:mat||null});
+  body.addShape(new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2)));
+  body.position.set(x,y,z); world.addBody(body); return body;
+}
+
+// ── BUILD LANE ──────────────────────────────────────────────────────────────
+var laneGroup=new THREE.Group(); scene.add(laneGroup);
+
+// wood material with subtle plank stripes via canvas texture
+function woodTexture(){
+  var c=document.createElement('canvas'); c.width=64; c.height=512;
+  var x=c.getContext('2d');
+  x.fillStyle='#c79a5b'; x.fillRect(0,0,64,512);
+  for(var i=0;i<14;i++){
+    x.fillStyle='rgba(90,60,25,'+(0.10+Math.random()*0.10)+')';
+    x.fillRect(i*4.6,0,1.4,512);
   }
-  function onMove(e) {
-    if (!dragging || state !== STATE.DRAG) return;
-    e.preventDefault();
-    var p = rectPoint(e);
-    dragCurX = p.x; dragCurY = p.y;
-    var pull = Math.max(0, dragStartY - dragCurY);
-    var power = Math.min(1, pull / (H * 0.4));
-    meterFill.style.width = (power * 100) + "%";
-    // visual nudge of ball horizontally while aiming
-    var dx = dragCurX - dragStartX;
-    ballX = clamp(W / 2 + dx, ballR + 6, W - ballR - 6);
-    ballY = H - ballR - 70 + Math.min(pull * 0.15, 30);
-    drawBall();
+  for(var j=0;j<70;j++){
+    x.fillStyle='rgba(255,230,190,'+(Math.random()*0.05)+')';
+    x.fillRect(Math.random()*64,Math.random()*512,2,40);
   }
-  function onUp(e) {
-    if (!dragging || state !== STATE.DRAG) { dragging = false; return; }
-    e.preventDefault();
-    dragging = false;
-    var pull = Math.max(0, dragStartY - dragCurY);
-    var power = Math.min(1, pull / (H * 0.4));
-    if (power < 0.12) {
-      // too weak, cancel back to ready
-      state = STATE.READY;
-      meterFill.style.width = "0%";
-      ballX = W / 2; ballY = H - ballR - 70; drawBall();
-      aimHint.textContent = "اسحب بقوة أكبر";
-      return;
+  var t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(1,8); t.anisotropy=8; return t;
+}
+var laneMesh=new THREE.Mesh(
+  new THREE.BoxGeometry(LANE_W,0.2,LANE_LEN),
+  new THREE.MeshStandardMaterial({map:woodTexture(),roughness:0.35,metalness:0.05})
+);
+laneMesh.position.set(0,-0.1,(FOUL_Z+PIN_APEX_Z-2.0)/2);
+laneMesh.receiveShadow=true; laneGroup.add(laneMesh);
+staticBox(LANE_W,0.2,LANE_LEN,0,-0.1,laneMesh.position.z,matLane);
+
+// aiming guide arrows (the 7 lane arrows near foul line)
+for(var a=0;a<7;a++){
+  var ar=new THREE.Mesh(new THREE.ConeGeometry(0.028,0.16,3),
+    new THREE.MeshStandardMaterial({color:0x6a4a22,roughness:0.6}));
+  ar.rotation.x=-Math.PI/2; ar.rotation.z=Math.PI;
+  var off=(a-3); ar.position.set(off*0.12, 0.005, 3.2 - Math.abs(off)*0.18);
+  laneGroup.add(ar);
+}
+
+// gutters (lower channels) + outer walls
+function makeGutter(sign){
+  var gx=sign*(LANE_W/2 + GUTTER_W/2);
+  var gMesh=new THREE.Mesh(new THREE.BoxGeometry(GUTTER_W,0.16,LANE_LEN),
+    new THREE.MeshStandardMaterial({color:0x12161f,roughness:0.5,metalness:0.3}));
+  gMesh.position.set(gx,-0.16,laneMesh.position.z); gMesh.receiveShadow=true; laneGroup.add(gMesh);
+  staticBox(GUTTER_W,0.16,LANE_LEN,gx,-0.16,laneMesh.position.z,matLane);
+  // outer wall
+  var wx=sign*(LANE_W/2 + GUTTER_W + 0.04);
+  var wMesh=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.5,LANE_LEN),
+    new THREE.MeshStandardMaterial({color:0x1a2230,roughness:0.6}));
+  wMesh.position.set(wx,0.1,laneMesh.position.z); laneGroup.add(wMesh);
+  staticBox(0.08,0.6,LANE_LEN,wx,0.1,laneMesh.position.z,matLane);
+}
+makeGutter(1); makeGutter(-1);
+
+// pin deck + pit back wall
+var deckZ = PIN_APEX_Z - 1.1;
+var pitWall=new THREE.Mesh(new THREE.BoxGeometry(LANE_W+2*GUTTER_W+0.3,1.4,0.2),
+  new THREE.MeshStandardMaterial({color:0x141c2c,roughness:0.7}));
+pitWall.position.set(0,0.5,deckZ-1.0); pitWall.receiveShadow=true; scene.add(pitWall);
+staticBox(LANE_W+2*GUTTER_W+0.3,1.4,0.2,0,0.5,deckZ-1.0,matLane);
+// pit floor (slightly lower so knocked pins drop & settle out of count)
+staticBox(LANE_W+2*GUTTER_W+0.3,0.2,1.4,0,-0.22,deckZ-0.5,matLane);
+var pitFloor=new THREE.Mesh(new THREE.BoxGeometry(LANE_W+2*GUTTER_W+0.3,0.2,1.4),
+  new THREE.MeshStandardMaterial({color:0x0c1018,roughness:0.8}));
+pitFloor.position.set(0,-0.22,deckZ-0.5); pitFloor.receiveShadow=true; scene.add(pitFloor);
+
+// back wall far backdrop
+var bg=new THREE.Mesh(new THREE.PlaneGeometry(40,16),
+  new THREE.MeshStandardMaterial({color:0x0b1422,roughness:1}));
+bg.position.set(0,4,deckZ-3.5); scene.add(bg);
+
+// ── PIN GEOMETRY (lathe) ────────────────────────────────────────────────────
+var PIN_H=0.38;
+function pinGeometry(){
+  var p=[[0.024,0.0],[0.040,0.012],[0.047,0.045],[0.045,0.085],[0.034,0.135],
+         [0.023,0.185],[0.0235,0.205],[0.028,0.245],[0.0305,0.285],[0.026,0.325],
+         [0.014,0.362],[0.0,0.378]];
+  var pts=p.map(function(a){return new THREE.Vector2(a[0],a[1]);});
+  var g=new THREE.LatheGeometry(pts,24);
+  g.translate(0,-PIN_H/2,0);  // center at body origin
+  g.computeVertexNormals();
+  return g;
+}
+var PIN_GEO=pinGeometry();
+var pinBodyMat=new THREE.MeshStandardMaterial({color:0xfdfdfd,roughness:0.35,metalness:0.05});
+// red stripe rings near neck (two thin tori)
+function stripeMesh(y){
+  var m=new THREE.Mesh(new THREE.TorusGeometry(0.027,0.006,8,24),
+    new THREE.MeshStandardMaterial({color:0xe53935,roughness:0.4}));
+  m.rotation.x=Math.PI/2; m.position.y=y - PIN_H/2; return m;
+}
+
+// standard 10-pin triangle, apex toward bowler (+z)
+function pinLayout(){
+  var rows=[1,2,3,4], out=[], z=PIN_APEX_Z;
+  for(var r=0;r<4;r++){
+    var n=rows[r], x0=-(n-1)*PIN_DX/2;
+    for(var k=0;k<n;k++) out.push(new THREE.Vector3(x0+k*PIN_DX, PIN_H/2, z));
+    z+=ROW_DZ;
+  }
+  return out; // 10 pins
+}
+
+var pins=[];
+function createPins(){
+  var layout=pinLayout();
+  layout.forEach(function(pos){
+    var grp=new THREE.Group();
+    var mesh=new THREE.Mesh(PIN_GEO,pinBodyMat);
+    mesh.castShadow=true; mesh.receiveShadow=true;
+    grp.add(mesh); grp.add(stripeMesh(0.30)); grp.add(stripeMesh(0.245));
+    scene.add(grp);
+    var body=new CANNON.Body({mass:1.6,material:matPin,
+      linearDamping:0.32,angularDamping:0.5,allowSleep:true,sleepSpeedLimit:0.14,sleepTimeLimit:0.35});
+    body.addShape(new CANNON.Box(new CANNON.Vec3(0.05,PIN_H/2,0.05)));
+    pins.push({mesh:grp,body:body,home:pos.clone(),active:false});
+  });
+}
+function resetAllPins(){
+  pins.forEach(function(p){
+    p.active=true; p.mesh.visible=true;
+    p.body.position.set(p.home.x,p.home.y,p.home.z);
+    p.body.quaternion.set(0,0,0,1);
+    p.body.velocity.set(0,0,0); p.body.angularVelocity.set(0,0,0);
+    p.body.wakeUp();
+    if(p.body.world!==world) world.addBody(p.body);
+    syncPin(p);
+  });
+}
+function removeFallen(){ // remove pins that are down; keep standing
+  pins.forEach(function(p){
+    if(p.active && !isUpright(p)){
+      p.active=false; p.mesh.visible=false;
+      if(p.body.world===world) world.removeBody(p.body);
     }
-    var dx = (dragCurX - dragStartX);
-    // px per frame (~60fps). Strong, consistent launch toward the pins.
-    ballVY = -(power * (H * 0.018) + H * 0.010);  // upward speed (toward pins)
-    ballVX = clamp(dx * 0.10, -W * 0.020, W * 0.020);
-    state = STATE.ROLL;
-    aimHint.textContent = "...";
+  });
+}
+var _up=new THREE.Vector3(), _q=new THREE.Quaternion();
+function isUpright(p){
+  if(p.body.position.y < 0.10) return false;           // dropped off deck
+  _q.copy(p.body.quaternion);
+  _up.set(0,1,0).applyQuaternion(_q);
+  return _up.dot(WORLD_UP) > 0.72;                     // not tilted much
+}
+function syncPin(p){
+  p.mesh.position.copy(p.body.position);
+  p.mesh.quaternion.copy(p.body.quaternion);
+}
+createPins();
+
+// ── BALL ────────────────────────────────────────────────────────────────────
+var ballMesh=new THREE.Mesh(new THREE.SphereGeometry(BALL_R,32,24),
+  new THREE.MeshStandardMaterial({color:0x1565c0,roughness:0.15,metalness:0.35,
+    emissive:0x0a2540,emissiveIntensity:0.4}));
+ballMesh.castShadow=true; scene.add(ballMesh);
+// finger holes (visual)
+for(var h=0;h<3;h++){
+  var hole=new THREE.Mesh(new THREE.CircleGeometry(0.016,12),
+    new THREE.MeshStandardMaterial({color:0x07111d}));
+  var ang=h*0.5; hole.position.set(Math.sin(ang)*0.03, BALL_R-0.005, Math.cos(ang)*0.03);
+  hole.lookAt(hole.position.clone().add(new THREE.Vector3(0,1,0)));
+  // attach roughly on top
+  ballMesh.add(hole); hole.position.set(Math.sin(ang)*0.04,BALL_R-0.002,Math.cos(ang)*0.04);
+  hole.rotation.x=-Math.PI/2;
+}
+var ballBody=new CANNON.Body({mass:5.4,material:matBall,
+  linearDamping:0.015,angularDamping:0.02});
+ballBody.addShape(new CANNON.Sphere(BALL_R));
+world.addBody(ballBody);
+
+function resetBall(){
+  ballBody.velocity.set(0,0,0); ballBody.angularVelocity.set(0,0,0);
+  ballBody.position.set(0, BALL_R+0.002, FOUL_Z);
+  ballBody.wakeUp();
+  ballMesh.position.copy(ballBody.position);
+}
+
+// ── AIM GUIDE LINE ──────────────────────────────────────────────────────────
+var guideMat=new THREE.LineBasicMaterial({color:0x4fc3f7,transparent:true,opacity:0.8});
+var guideGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+var guideLine=new THREE.Line(guideGeo,guideMat); guideLine.visible=false; scene.add(guideLine);
+function updateGuide(angle){
+  var len=6.5;
+  var x=Math.sin(angle)*len, z=-Math.cos(angle)*len;
+  var s=ballBody.position;
+  var arr=guideGeo.attributes.position.array;
+  arr[0]=s.x; arr[1]=0.02; arr[2]=s.z;
+  arr[3]=s.x+x; arr[4]=0.02; arr[5]=s.z+z;
+  guideGeo.attributes.position.needsUpdate=true;
+}
+
+// ── GAME STATE ──────────────────────────────────────────────────────────────
+var STATE={AIM:0,ROLLING:1,SETTLE:2,OVER:3};
+var state=STATE.AIM;
+var running=false;
+var currentFrame=0;            // 0..9
+var framesData=[];             // array of arrays of pins-per-roll
+var pinsBeforeRoll=10;
+var settleTimer=0, rollTimer=0, lowMotion=0;
+
+function startGame(){
+  framesData=[]; for(var i=0;i<10;i++) framesData.push([]);
+  currentFrame=0;
+  resetAllPins(); resetBall();
+  state=STATE.AIM; running=true;
+  $i('startOv').classList.add('hidden');
+  $i('endOv').classList.add('hidden');
+  $i('hint').style.opacity='0.9';
+  updateBoard(); updateHud();
+}
+
+// ── INPUT (swipe to bowl) ───────────────────────────────────────────────────
+var pointerDown=false, startX=0, startY=0, curAngle=0, curPower=0;
+var MAX_ANGLE=0.34;            // ~19.5°
+function px(e){return e.touches?e.touches[0].clientX:e.clientX;}
+function py(e){return e.touches?e.touches[0].clientY:e.clientY;}
+
+function onDown(e){
+  initAudio();
+  if(!running || state!==STATE.AIM) return;
+  pointerDown=true; startX=px(e); startY=py(e);
+  curAngle=0; curPower=0;
+  guideLine.visible=true; updateGuide(0);
+  $i('power').style.opacity='1';
+  $i('hint').style.opacity='0';
+  e.preventDefault();
+}
+function onMove(e){
+  if(!pointerDown) return;
+  var dx=px(e)-startX, dy=startY-py(e);     // dy>0 means swiped up
+  var swipe=Math.max(0,dy);
+  curPower=Math.min(1, swipe/ (innerHeight*0.42));
+  curAngle=Math.max(-MAX_ANGLE,Math.min(MAX_ANGLE, dx/ (innerWidth*0.55) ));
+  updateGuide(curAngle);
+  $i('power').firstElementChild.style.width=(curPower*100)+'%';
+  e.preventDefault();
+}
+function onUp(e){
+  if(!pointerDown) return;
+  pointerDown=false;
+  guideLine.visible=false;
+  $i('power').style.opacity='0';
+  if(curPower<0.12){ // too weak — cancel
+    $i('hint').style.opacity='0.9';
+    return;
   }
+  bowl(curAngle,curPower);
+  e.preventDefault();
+}
+canvas.addEventListener('touchstart',onDown,{passive:false});
+canvas.addEventListener('touchmove',onMove,{passive:false});
+canvas.addEventListener('touchend',onUp,{passive:false});
+canvas.addEventListener('mousedown',onDown);
+window.addEventListener('mousemove',onMove);
+window.addEventListener('mouseup',onUp);
 
-  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+function bowl(angle,power){
+  state=STATE.ROLLING;
+  pinsBeforeRoll=pins.filter(function(p){return p.active;}).length;
+  var speed=5.0 + power*5.5;                 // m/s  (realistic: ~5–10.5)
+  var vx=Math.sin(angle)*speed, vz=-Math.cos(angle)*speed;
+  ballBody.velocity.set(vx,0,vz);
+  // rolling spin so it looks like it rolls forward (matched to roll, no extra energy)
+  ballBody.angularVelocity.set(vz/BALL_R, 0, -vx/BALL_R);
+  ballBody.wakeUp();
+  rollTimer=0; lowMotion=0; settleTimer=0;
+  beep('roll', 0.7+power*0.5);
+}
 
-  // bind to whole play area for drag, ball for grab
-  function bind(el, down, move, up) {
-    el.addEventListener("touchstart", down, { passive: false });
-    el.addEventListener("touchmove", move, { passive: false });
-    el.addEventListener("touchend", up, { passive: false });
-    el.addEventListener("touchcancel", up, { passive: false });
-    el.addEventListener("mousedown", down);
+// ── ROLL RESOLUTION ─────────────────────────────────────────────────────────
+function ballStopped(){
+  var v=ballBody.velocity;
+  var sp=Math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z);
+  var pastPins = ballBody.position.z < deckZ-0.2;
+  var inPit = ballBody.position.y < -0.05;
+  return (sp<0.4) || pastPins || inPit;
+}
+function pinsCalm(){
+  for(var i=0;i<pins.length;i++){
+    var p=pins[i]; if(!p.active && p.body.world!==world) continue;
+    var v=p.body.velocity, av=p.body.angularVelocity;
+    if(v.lengthSquared()>0.02 || av.lengthSquared()>0.05) return false;
   }
-  bind(playScreen, onDown, onMove, onUp);
-  // global mouse move/up for desktop testing
-  window.addEventListener("mousemove", onMove);
-  window.addEventListener("mouseup", onUp);
+  return true;
+}
 
-  startBtn.addEventListener("touchstart", function (e) { e.preventDefault(); startGame(); }, { passive: false });
-  startBtn.addEventListener("mousedown", function () { startGame(); });
-  replayBtn.addEventListener("touchstart", function (e) { e.preventDefault(); startGame(); }, { passive: false });
-  replayBtn.addEventListener("mousedown", function () { startGame(); });
+function finishRoll(){
+  state=STATE.SETTLE;  // brief hold then evaluate
+  var standing=pins.filter(function(p){return p.active && isUpright(p);}).length;
+  var knocked=pinsBeforeRoll - standing;
+  if(knocked<0) knocked=0;
+  framesData[currentFrame].push(knocked);
+  removeFallen();
+  updateBoard(); updateHud();
 
-  // ---------- physics / collisions ----------
-  function rollUpdate(dt) {
-    var f = dt / 16.6667; // normalize to ~60fps frames
-    ballX += ballVX * f;
-    ballY += ballVY * f;
+  var f=framesData[currentFrame];
+  var isStrike = f.length===1 && knocked===10;
+  var isSpare  = f.length===2 && (f[0]+f[1]===10) && f[0]!==10;
 
-    // wall bounce
-    if (ballX < ballR + 4) { ballX = ballR + 4; ballVX = -ballVX * 0.6; }
-    if (ballX > W - ballR - 4) { ballX = W - ballR - 4; ballVX = -ballVX * 0.6; }
+  if(isStrike) showBanner('STRIKE! ⚡','#FFD93D'), beep('strike');
+  else if(isSpare) showBanner('SPARE! ✨','#4fc3f7'), beep('spare');
+  else if(knocked>0) beep('pin',0.6);
 
-    // friction
-    ballVX *= Math.pow(0.995, f);
+  setTimeout(advance, 1300);
+}
 
-    // collide with pins
-    for (var i = 0; i < pins.length; i++) {
-      var p = pins[i];
-      if (!p.alive) { advanceFallen(p, f); continue; }
-      var dx = p.x - ballX, dy = p.y - ballY;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < ballR + p.r) {
-        knock(p, ballVX, ballVY);
-      }
+function advance(){
+  var f=framesData[currentFrame];
+  if(currentFrame<9){
+    var strike = f[0]===10;
+    if(strike || f.length===2){           // frame complete
+      currentFrame++; resetAllPins(); resetBall(); newRoll();
+    } else {                              // second ball, keep standing pins
+      resetBall(); newRoll();
     }
+  } else {
+    // 10th frame: up to 3 rolls
+    var rolls=f.length;
+    var sumFirstTwo=(f[0]||0)+(f[1]||0);
+    if(rolls===1){
+      if(f[0]===10) resetAllPins();       // strike → fresh rack
+      resetBall(); newRoll();
+    } else if(rolls===2){
+      var bonus = f[0]===10 || sumFirstTwo===10;
+      if(bonus){
+        if(f[0]===10 && f[1]!==10) { /* keep standing for 3rd */ }
+        else resetAllPins();              // spare, or double strike → fresh rack
+        resetBall(); newRoll();
+      } else { gameOver(); }
+    } else { gameOver(); }
+  }
+}
+function newRoll(){
+  state=STATE.AIM;
+  $i('hint').style.opacity='0.9';
+  updateHud();
+}
 
-    drawBall();
-
-    // ball left the top (past the pins) -> resolve the throw
-    if (ballY < -ballR) {
-      finishThrow();
+// ── SCORING ─────────────────────────────────────────────────────────────────
+function flatRolls(){ var r=[]; framesData.forEach(function(f){f.forEach(function(x){r.push(x);});}); return r; }
+function frameCumulatives(){
+  var rolls=flatRolls(), out=[], score=0, i=0;
+  for(var fr=0; fr<10; fr++){
+    if(framesData[fr].length===0){ out.push(null); continue; }
+    if(rolls[i]===10){ // strike
+      if(rolls[i+1]==null){ out.push(null); break; }
+      score+=10+rolls[i+1]+(rolls[i+2]||0); i+=1;
+    } else if((rolls[i]||0)+(rolls[i+1]||0)===10){ // spare
+      if(rolls[i+2]==null && fr<9){ out.push(null); break; }
+      score+=10+(rolls[i+2]||0); i+=2;
+    } else {
+      score+=(rolls[i]||0)+(rolls[i+1]||0); i+=2;
     }
+    out.push(score);
   }
+  return out;
+}
+function totalScore(){ var c=frameCumulatives().filter(function(x){return x!=null;}); return c.length?c[c.length-1]:0; }
 
-  function knock(p, bvx, bvy) {
-    p.alive = false;
-    p.fall = 1;
-    p.vx = (p.x - ballX) * 0.4 + bvx * 2 + (Math.random() - 0.5) * 4;
-    p.vy = bvy * 1.5 - 2;
-    // chain reaction: nudge neighbors slightly
-    for (var j = 0; j < pins.length; j++) {
-      var q = pins[j];
-      if (q.alive && q !== p) {
-        var dx = q.x - p.x, dy = q.y - p.y;
-        var d = Math.sqrt(dx * dx + dy * dy);
-        if (d < p.r * 3.2) {
-          // 60% chance to topple a close neighbor
-          if (Math.random() < 0.6) {
-            q.alive = false; q.fall = 1;
-            q.vx = dx * 0.25 + (Math.random() - 0.5) * 3;
-            q.vy = -1.5;
-          }
-        }
-      }
-    }
+function rollSymbol(frame, idx){
+  var f=framesData[frame]; if(f[idx]==null) return '';
+  var v=f[idx];
+  if(frame<9){
+    if(idx===0 && v===10) return 'X';
+    if(idx===1 && (f[0]+f[1]===10)) return '/';
+    return v===0?'-':v;
+  } else {
+    // tenth frame
+    if(v===10) return 'X';
+    if(idx>0 && f[idx-1]!==10 && f[idx-1]+v===10) return '/';
+    return v===0?'-':v;
   }
+}
 
-  function advanceFallen(p, f) {
-    if (p.fall <= 0) return;
-    p.x += p.vx * f;
-    p.y += p.vy * f;
-    p.vy += 0.15 * f;
-    p.fall += 7 * f;
-    if (p.fall > 95) p.fall = 95;
-    drawPin(p);
+// ── HUD / BOARD ─────────────────────────────────────────────────────────────
+function updateHud(){
+  $i('frameP').querySelector('.v').textContent=Math.min(currentFrame+1,10);
+  $i('total').querySelector('.v').textContent=totalScore();
+}
+var boardRow=$i('boardRow');
+function buildBoard(){
+  boardRow.innerHTML='';
+  for(var f=0; f<10; f++){
+    var d=document.createElement('div'); d.className='frame'+(f===9?' tenth':'');
+    var slots=f===9?3:2;
+    var rolls='<div class="rolls">';
+    for(var s=0;s<slots;s++) rolls+='<span data-f="'+f+'" data-s="'+s+'"></span>';
+    rolls+='</div>';
+    d.innerHTML=rolls+'<div class="cum" data-cum="'+f+'"></div>';
+    boardRow.appendChild(d);
   }
-
-  var pendingFinish = false;
-  function finishThrow() {
-    if (pendingFinish) return;
-    pendingFinish = true;
-    state = STATE.RESET;
-    // count knocked pins for THIS throw
-    var down = 0;
-    for (var i = 0; i < pins.length; i++) if (!pins[i].alive) down++;
-    var allDown = (down === pins.length && pins.length > 0);
-    if (down > 0) {
-      score += down;
-      scoreVal.textContent = String(score);
-    }
-    if (allDown) { showFlash("سترايك! 🎳"); score += 5; scoreVal.textContent = String(score); }
-    else if (down >= 6) showFlash("رائع! 👏");
-    else if (down > 0) showFlash("+" + down);
-    else showFlash("جرّب مجدداً");
-
-    throwsLeft--;
-    throwsVal.textContent = String(throwsLeft);
-
-    setTimeout(function () {
-      pendingFinish = false;
-      if (throwsLeft <= 0) {
-        endGame();
-      } else {
-        buildPins();
-        resetBall();
-      }
-    }, 1100);
+}
+function updateBoard(){
+  var cums=frameCumulatives();
+  for(var f=0; f<10; f++){
+    var fr=boardRow.children[f];
+    fr.classList.toggle('cur', f===currentFrame && state!==STATE.OVER);
+    var spans=fr.querySelectorAll('.rolls span');
+    for(var s=0;s<spans.length;s++) spans[s].textContent=rollSymbol(f,s);
+    fr.querySelector('.cum').textContent=(cums[f]!=null?cums[f]:'');
   }
+}
+buildBoard();
 
-  // ---------- main loop ----------
-  var last = 0;
-  function loop(ts) {
-    if (!last) last = ts;
-    var dt = ts - last;
-    last = ts;
-    if (dt > 50) dt = 50;
+// ── BANNER ──────────────────────────────────────────────────────────────────
+var bannerT=null;
+function showBanner(text,color){
+  var b=$i('banner'); b.textContent=text; b.style.color=color;
+  b.classList.add('show');
+  clearTimeout(bannerT);
+  bannerT=setTimeout(function(){b.classList.remove('show');},1100);
+}
 
-    if (state === STATE.ROLL) {
-      rollUpdate(dt);
-    } else if (state === STATE.RESET) {
-      // keep animating falling pins
-      var f = dt / 16.6667;
-      for (var i = 0; i < pins.length; i++) if (!pins[i].alive) advanceFallen(pins[i], f);
-    }
-    requestAnimationFrame(loop);
+// ── GAME OVER ───────────────────────────────────────────────────────────────
+function gameOver(){
+  state=STATE.OVER; updateBoard();
+  var sc=totalScore();
+  $i('finalScore').textContent=sc;
+  var msg = sc>=200?'أداء أسطوري! 🏆' : sc>=150?'ممتاز! 🎯' : sc>=100?'جيد جداً! 👏' : 'تدرّب أكثر! 💪';
+  $i('finalMsg').textContent=msg+' مجموعك '+sc+' من 300.';
+  $i('endOv').classList.remove('hidden');
+  beep('win');
+}
+
+// ── CAMERA ──────────────────────────────────────────────────────────────────
+// viewFit grows on tall/narrow (portrait phone) screens so the lane width and
+// pins stay framed: the camera is pulled back and raised, never cropping.
+var camPos=new THREE.Vector3(), camLook=new THREE.Vector3();
+var viewFit=1;
+function updateCamera(dt){
+  var tp, tl;
+  var back=viewFit, rise=(viewFit-1)*0.5;
+  if(state===STATE.AIM || state===STATE.OVER){
+    // centered on the lane, just behind & above the ball, tilted down enough
+    // that the ball is visible in the lower-middle with the pins centered above.
+    tp=new THREE.Vector3(0, 1.45+rise, FOUL_Z + 3.0*back);
+    tl=new THREE.Vector3(0, 0.18, FOUL_Z - 6.5);
+  } else {
+    // follow the ball down the lane while staying near the centerline
+    var bz=ballBody.position.z;
+    tp=new THREE.Vector3(ballBody.position.x*0.2, 1.35+rise, Math.min(FOUL_Z+3.0*back, bz+3.2*back));
+    tl=new THREE.Vector3(ballBody.position.x*0.15, 0.22, Math.max(PIN_APEX_Z-0.5, bz-5.0));
   }
+  var k=1-Math.pow(0.0009,dt);
+  camera.position.lerp(tp,k);
+  camLook.lerp(tl,k);
+  camera.lookAt(camLook);
+}
+camLook.copy(camDefault.look);
+
+// ── LOOP ────────────────────────────────────────────────────────────────────
+var last=performance.now(), acc=0, FIXED=1/120;
+function loop(now){
   requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000); last=now;
+
+  if(running){
+    acc+=dt;
+    while(acc>=FIXED){ world.step(FIXED); acc-=FIXED; }
+    ballMesh.position.copy(ballBody.position);
+    ballMesh.quaternion.copy(ballBody.quaternion);
+    pins.forEach(syncPin);
+
+    if(state===STATE.ROLLING){
+      rollTimer+=dt;
+      if(ballStopped() && pinsCalm()) lowMotion+=dt; else lowMotion=0;
+      if(lowMotion>0.7 || rollTimer>9){ finishRoll(); }
+    }
+  }
+  updateCamera(dt);
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(loop);
+
+// ── RESIZE ──────────────────────────────────────────────────────────────────
+function resize(){
+  // use the actual visible viewport (accounts for mobile URL bar / safe areas)
+  var vw=(window.visualViewport&&window.visualViewport.width)||innerWidth;
+  var vh=(window.visualViewport&&window.visualViewport.height)||innerHeight;
+  var aspect=vw/vh;
+  camera.aspect=aspect;
+  // portrait → tall & narrow: widen FOV and pull the camera back so the full
+  // lane width and the pin rack are always captured on-screen on phones.
+  var t=Math.max(0, Math.min(1, (1-aspect)/0.55));   // 0 = landscape, 1 = very tall
+  camera.fov = 55 + t*15;                            // 55° (wide) → 70° (tall)
+  viewFit   = 1 + t*1.25;                            // pull-back / rise factor
+  camera.updateProjectionMatrix();
+  renderer.setSize(vw,vh,false);
+}
+window.addEventListener('resize',resize);
+window.addEventListener('orientationchange',function(){setTimeout(resize,120);});
+if(window.visualViewport) window.visualViewport.addEventListener('resize',resize);
+resize();
+
+// ── UI BUTTONS ──────────────────────────────────────────────────────────────
+$i('startBtn').addEventListener('click',function(){initAudio();startGame();});
+$i('againBtn').addEventListener('click',function(){initAudio();startGame();});
 
 })();
 </script>
