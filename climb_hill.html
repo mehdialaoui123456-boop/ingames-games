@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>تسلق التلال</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none; -webkit-user-select: none;
+      -webkit-touch-callout: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+    background: #6cc4e6;
+    color: #fff;
+    touch-action: none;
+    position: fixed;
+    inset: 0;
+  }
+  #game { position: absolute; inset: 0; overflow: hidden; }
+  canvas#scene { position: absolute; inset: 0; display: block; }
+
+  /* HUD */
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .hud-col { display: flex; flex-direction: column; gap: 8px; }
+  .pill {
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 800;
+    display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    white-space: nowrap;
+  }
+  .pill .ico { font-size: 17px; }
+
+  /* Fuel bar */
+  .fuel-wrap {
+    background: rgba(0,0,0,0.55);
+    border-radius: 999px;
+    padding: 5px 8px 5px 12px;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  }
+  .fuel-track {
+    width: 110px; height: 12px; border-radius: 999px;
+    background: rgba(255,255,255,0.25); overflow: hidden;
+  }
+  .fuel-fill {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, #ff5252, #ffd24a, #5dd35d);
+    background-size: 220px 100%;
+    transition: width 0.15s linear;
+  }
+
+  /* Flip / bonus popup */
+  .popup {
+    position: absolute; top: 28%; left: 50%;
+    transform: translateX(-50%) scale(0.6);
+    font-size: 34px; font-weight: 900;
+    color: #fff;
+    text-shadow: 0 3px 0 #c54b00, 0 0 18px rgba(255,180,0,0.8);
+    pointer-events: none; z-index: 12; opacity: 0;
+    transition: opacity 0.2s, transform 0.3s cubic-bezier(.2,1.6,.4,1);
+  }
+  .popup.show { opacity: 1; transform: translateX(-50%) scale(1); }
+
+  /* Pedals */
+  .pedals {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 0 18px calc(20px + env(safe-area-inset-bottom));
+    display: flex; justify-content: space-between; align-items: flex-end;
+    z-index: 10; pointer-events: none;
+    direction: ltr; /* keep gas on the right even though the page is RTL */
+  }
+  .pedal {
+    pointer-events: auto;
+    width: 86px; height: 86px; border-radius: 26px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; font-weight: 900; color: #fff;
+    border: none; touch-action: none;
+    box-shadow: 0 6px 0 rgba(0,0,0,0.3), 0 8px 16px rgba(0,0,0,0.25);
+    transition: transform 0.05s, box-shadow 0.05s;
+  }
+  .pedal.brake { background: linear-gradient(160deg, #ff6b6b, #e03131); }
+  .pedal.gas   { background: linear-gradient(160deg, #69db7c, #2f9e44); }
+  .pedal.active { transform: translateY(5px); box-shadow: 0 1px 0 rgba(0,0,0,0.3), 0 3px 8px rgba(0,0,0,0.25); }
+  .pedal .label { font-size: 12px; font-weight: 800; position: absolute; margin-top: 52px; opacity: 0.9; }
+
+  /* Overlays */
+  .overlay {
+    position: absolute; inset: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; text-align: center; padding: 24px;
+    background: rgba(10,30,45,0.82); backdrop-filter: blur(3px);
+  }
+  .overlay.hidden { display: none; }
+  .title {
+    font-size: 40px; font-weight: 900; color: #ffd24a;
+    text-shadow: 0 4px 0 #b9540a, 0 0 22px rgba(255,180,0,0.6);
+    letter-spacing: 1px;
+  }
+  .subtitle { font-size: 16px; opacity: 0.9; max-width: 320px; line-height: 1.7; }
+  .stats {
+    display: flex; gap: 26px; margin: 6px 0 4px;
+  }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat .v { font-size: 30px; font-weight: 900; color: #ffd24a; }
+  .stat .k { font-size: 13px; opacity: 0.8; }
+  .btn {
+    margin-top: 6px;
+    background: linear-gradient(160deg, #69db7c, #2f9e44);
+    color: #fff; border: none;
+    padding: 16px 44px; border-radius: 16px;
+    font-size: 21px; font-weight: 900;
+    box-shadow: 0 5px 0 #1f7a32, 0 8px 16px rgba(0,0,0,0.3);
+    cursor: pointer; pointer-events: auto;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #1f7a32; }
+  .how { font-size: 14px; opacity: 0.85; line-height: 1.9; }
+  .how b { color: #ffd24a; }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="scene"></canvas>
+
+  <div id="hud">
+    <div class="hud-col">
+      <div class="pill"><span class="ico">📏</span><span id="distLbl">0 م</span></div>
+      <div class="fuel-wrap">
+        <span class="ico" style="font-size:16px">⛽</span>
+        <div class="fuel-track"><div class="fuel-fill" id="fuelFill"></div></div>
+      </div>
+    </div>
+    <div class="hud-col" style="align-items:flex-end">
+      <div class="pill"><span class="ico">🪙</span><span id="coinLbl">0</span></div>
+      <div class="pill"><span class="ico">🏆</span><span id="bestLbl">0 م</span></div>
+    </div>
+  </div>
+
+  <div class="popup" id="popup"></div>
+
+  <div class="pedals">
+    <button class="pedal brake" id="brakeBtn">◀<span class="label">فرامل</span></button>
+    <button class="pedal gas"   id="gasBtn">▶<span class="label">بنزين</span></button>
+  </div>
+
+  <div class="overlay" id="startScreen">
+    <div class="title">تسلق التلال</div>
+    <div class="subtitle">قُد سيارتك عبر التلال الوعرة لأبعد مسافة ممكنة. اجمع العملات والوقود ولا تكسر رقبة السائق!</div>
+    <div class="how">
+      <b>▶ بنزين</b> للتسارع للأمام &nbsp;·&nbsp; <b>◀ فرامل</b> للتباطؤ والرجوع<br>
+      في الهواء: <b>بنزين</b> = شقلبة خلفية &nbsp;·&nbsp; <b>فرامل</b> = شقلبة أمامية
+    </div>
+    <button class="btn" id="startBtn">ابدأ القيادة</button>
+  </div>
+
+  <div class="overlay hidden" id="overScreen">
+    <div class="title" id="overTitle">انتهت اللعبة</div>
+    <div class="stats">
+      <div class="stat"><span class="v" id="overDist">0</span><span class="k">المسافة (م)</span></div>
+      <div class="stat"><span class="v" id="overCoins">0</span><span class="k">العملات</span></div>
+    </div>
+    <div class="subtitle" id="overBest"></div>
+    <button class="btn" id="restartBtn">العب مرة أخرى</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function () {
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- helpers ----------
+  const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  // ---------- procedural terrain ----------
+  const SEED = Math.random() * 1000;
+  function hash(i) {
+    const s = Math.sin(i * 127.1 + SEED * 13.7) * 43758.5453;
+    return s - Math.floor(s);
+  }
+  function vnoise(x) {
+    const i = Math.floor(x), f = x - i;
+    const u = f * f * (3 - 2 * f);
+    return lerp(hash(i), hash(i + 1), u);
+  }
+  const BASE_Y = 380; // world y of flat baseline
+  function terrainHeight(x) {
+    // amplitude eases in so the start is gentle, then gets wilder with distance
+    const ease = clamp((x - 250) / 1000, 0, 1);
+    const wild = 1 + Math.min(x / 14000, 1.4); // ground gets rougher far out (slowly)
+    let h = 0;
+    h += (vnoise(x * 0.0038) - 0.5) * 150 * wild; // long, rolling hills
+    h += (vnoise(x * 0.012) - 0.5) * 36 * wild;   // medium undulation
+    h += (vnoise(x * 0.038) - 0.5) * 9;           // gentle surface texture
+    return h * ease;
+  }
+  function groundY(x) { return BASE_Y - terrainHeight(x); }       // y-down world
+  function groundSlope(x) { const e = 3; return (groundY(x + e) - groundY(x - e)) / (2 * e); }
+
+  // ---------- vehicle (single rigid body + raycast suspension) ----------
+  const G = 1800;          // gravity px/s^2
+  const ENGINE = 2300;     // drive force
+  const MU = 1.75;         // grip coefficient (tractive force <= MU * normal load)
+  const AIRCTRL = 7.0;     // air rotation control (rad/s^2)
+  const LIN_DAMP = 0.15, ANG_DAMP = 1.6;
+  const MAXSPD = 2700, MAXW = 16;
+  const SUB = 5;           // physics substeps per frame
+
+  const START_X = 120;
+  let car, input, fuel, coins, distM, best, state, lastT;
+  let popupT = 0;
+  let outOfFuelTimer = 0;
+
+  function makeCar() {
+    return {
+      p: { x: START_X, y: groundY(START_X) - 70 },
+      v: { x: 0, y: 0 },
+      a: 0, w: 0,
+      invI: 1 / 4200,
+      grounded: false, wasGrounded: true,
+      airSpin: 0,                 // accumulated rotation while airborne
+      wheels: [
+        // rear (drive), front (drive) — lx,ly local offset from COM (y-down)
+        { lx: -42, ly: 20, r: 22, rest: 24, minLen: 6, maxLen: 48, k: 150, c: 15, len: 24, lenPrev: 24, wx: 0, wy: 0, spin: 0 },
+        { lx:  44, ly: 20, r: 22, rest: 24, minLen: 6, maxLen: 48, k: 150, c: 15, len: 24, lenPrev: 24, wx: 0, wy: 0, spin: 0 }
+      ]
+    };
+  }
+
+  function applyForce(c, fx, fy, px, py, dt) {
+    c.v.x += fx * dt; c.v.y += fy * dt;       // mass = 1
+    const rx = px - c.p.x, ry = py - c.p.y;
+    const torque = rx * fy - ry * fx;
+    c.w += torque * c.invI * dt;
+  }
+
+  // upward-pointing ground normal at x
+  function groundNormal(x) {
+    const s = groundSlope(x);
+    const il = 1 / Math.hypot(s, 1);
+    return { x: s * il, y: -il };
+  }
+
+  // rigid contact for a single point of the body hitting the ground
+  function resolveContact(c, px, py, depth, e) {
+    if (depth <= 0) return;
+    const n = groundNormal(px);                 // points up (out of ground)
+    // positional correction: shove the body out along the normal
+    c.p.x += n.x * depth; c.p.y += n.y * depth;
+    const rx = px - c.p.x, ry = py - c.p.y;
+    const vpx = c.v.x - c.w * ry;
+    const vpy = c.v.y + c.w * rx;
+    const vn = vpx * n.x + vpy * n.y;
+    if (vn >= 0) return;                          // already separating
+    // normal impulse
+    const rn = rx * n.y - ry * n.x;
+    const effN = 1 / (1 + c.invI * rn * rn);
+    const j = -(1 + e) * vn * effN;
+    c.v.x += j * n.x; c.v.y += j * n.y;
+    c.w += (rx * (j * n.y) - ry * (j * n.x)) * c.invI;
+    // tangential friction (scrape)
+    const tx = -n.y, ty = n.x;
+    const vt = vpx * tx + vpy * ty;
+    const rt = rx * ty - ry * tx;
+    const effT = 1 / (1 + c.invI * rt * rt);
+    let jt = -vt * effT * 0.6;
+    const jmax = Math.abs(j);
+    jt = clamp(jt, -jmax, jmax);
+    c.v.x += jt * tx; c.v.y += jt * ty;
+    c.w += (rx * (jt * ty) - ry * (jt * tx)) * c.invI;
+  }
+
+  // body collision outline (local coords, chassis frame)
+  const HULL = [[-50, 16], [0, 17], [50, 16], [50, -8], [-50, -8]];
+  function resolveBody(c) {
+    const cosA = Math.cos(c.a), sinA = Math.sin(c.a);
+    for (let iter = 0; iter < 2; iter++) {
+      for (const h of HULL) {
+        const px = c.p.x + (h[0] * cosA - h[1] * sinA);
+        const py = c.p.y + (h[0] * sinA + h[1] * cosA);
+        resolveContact(c, px, py, py - groundY(px), 0.15);
+      }
+    }
+  }
+
+  function physicsStep(dt) {
+    const c = car;
+    c.v.y += G * dt;
+
+    const cosA = Math.cos(c.a), sinA = Math.sin(c.a);
+    const rayX = -sinA, rayY = cosA;          // "down" in car frame (suspension direction)
+    let grounded = false;
+
+    for (const wh of c.wheels) {
+      // anchor in world
+      const ax = c.p.x + (wh.lx * cosA - wh.ly * sinA);
+      const ay = c.p.y + (wh.lx * sinA + wh.ly * cosA);
+
+      // solve suspension length so wheel center sits r above ground (a few iterations)
+      let len = wh.lenPrev;
+      for (let it = 0; it < 4; it++) {
+        const cx = ax + rayX * len;
+        const cy = ay + rayY * len;
+        const target = groundY(cx) - wh.r;    // desired center y
+        if (Math.abs(rayY) > 0.25) len += (target - cy) / rayY;
+      }
+      let contact = true;
+      if (len > wh.maxLen) { len = wh.maxLen; contact = false; }
+      if (len < wh.minLen) len = wh.minLen;
+      wh.len = len; wh.lenPrev = len;
+      wh.wx = ax + rayX * len;
+      wh.wy = ay + rayY * len;
+
+      if (!contact) continue;
+      grounded = true;
+
+      // ---- suspension (one-sided spring + damper) ----
+      const rRelx = ax - c.p.x, rRely = ay - c.p.y;
+      const vax = c.v.x - c.w * rRely;
+      const vay = c.v.y + c.w * rRelx;
+      const susVel = vax * rayX + vay * rayY;     // closing speed along ray (down = compressing)
+      const compression = wh.rest - len;
+      // spring pushes apart; damper resists compression -> both add to the upward force
+      let suspMag = (compression > 0 ? wh.k * compression : 0) + wh.c * susVel;
+      if (suspMag < 0) suspMag = 0;               // suspension can only push
+      applyForce(c, -rayX * suspMag, -rayY * suspMag, ax, ay, dt);
+
+      const N = suspMag;                          // normal load -> grip budget
+      const maxGrip = MU * N;
+
+      // ---- traction along ground tangent ----
+      const slope = groundSlope(wh.wx);
+      const tl = Math.hypot(1, slope);
+      const tanX = 1 / tl, tanY = slope / tl;     // forward (+x) tangent
+      const crelx = wh.wx - c.p.x, crely = wh.wy - c.p.y;
+      const vcx = c.v.x - c.w * crely, vcy = c.v.y + c.w * crelx;
+      const vtan = vcx * tanX + vcy * tanY;
+
+      let drive = 0;
+      if (fuel > 0) {
+        if (input.gas) drive += ENGINE;
+        if (input.brake) drive -= ENGINE * 0.75;
+      }
+      // rolling resistance (small) keeps it from sliding forever with no input
+      drive += -vtan * 0.6;
+      drive = clamp(drive, -maxGrip, maxGrip);
+      applyForce(c, tanX * drive, tanY * drive, wh.wx, wh.wy, dt);
+
+      // wheel visual spin (plus a touch of wheelspin under hard throttle)
+      let surfSpeed = vtan;
+      if (input.gas && fuel > 0 && Math.abs(drive) >= maxGrip - 1) surfSpeed += 600;
+      wh.spin += (surfSpeed / wh.r) * dt;
+    }
+
+    // ---- air control ----
+    if (!grounded && fuel > 0) {
+      if (input.gas) c.w -= AIRCTRL * dt;   // backflip
+      if (input.brake) c.w += AIRCTRL * dt; // frontflip
+    }
+
+    // damping + clamps
+    c.v.x -= c.v.x * LIN_DAMP * dt;
+    c.v.y -= c.v.y * LIN_DAMP * dt;
+    c.w -= c.w * ANG_DAMP * dt;
+    const sp = Math.hypot(c.v.x, c.v.y);
+    if (sp > MAXSPD) { c.v.x *= MAXSPD / sp; c.v.y *= MAXSPD / sp; }
+    c.w = clamp(c.w, -MAXW, MAXW);
+
+    // integrate
+    c.p.x += c.v.x * dt; c.p.y += c.v.y * dt; c.a += c.w * dt;
+
+    // keep the chassis body from sinking into the terrain
+    resolveBody(c);
+
+    c.grounded = grounded;
+  }
+
+  // ---------- collectibles ----------
+  let items = [];           // {type:'coin'|'fuel', x, y, taken}
+  let genX = 0;             // generated up to this x
+  function generateAhead(toX) {
+    while (genX < toX) {
+      genX += 60 + Math.random() * 40;
+      const r = Math.random();
+      if (r < 0.22) {
+        // a little arc of coins
+        const n = 3 + (Math.random() * 4 | 0);
+        for (let i = 0; i < n; i++) {
+          const x = genX + i * 38;
+          items.push({ type: 'coin', x, y: groundY(x) - 55 - Math.sin(i / (n - 1) * Math.PI) * 50, taken: false });
+        }
+        genX += n * 38;
+      } else if (r < 0.30) {
+        const x = genX;
+        items.push({ type: 'fuel', x, y: groundY(x) - 40, taken: false });
+      }
+    }
+  }
+
+  function checkPickups() {
+    const c = car;
+    for (const it of items) {
+      if (it.taken) continue;
+      const dx = it.x - c.p.x, dy = it.y - c.p.y;
+      if (dx * dx + dy * dy < 52 * 52) {
+        it.taken = true;
+        if (it.type === 'coin') { coins += 1; }
+        else { fuel = Math.min(100, fuel + 35); showPopup('⛽ +وقود', '#ffd24a'); }
+      }
+    }
+  }
+
+  // ---------- popup ----------
+  const popupEl = document.getElementById('popup');
+  function showPopup(text, color) {
+    popupEl.textContent = text;
+    popupEl.style.color = color || '#fff';
+    popupEl.classList.add('show');
+    popupT = 1.0;
+  }
+
+  // ---------- game flow ----------
+  function reset() {
+    car = makeCar();
+    input = { gas: false, brake: false };
+    fuel = 100; coins = 0; distM = 0;
+    outOfFuelTimer = 0;
+    items = []; genX = 0;
+    generateAhead(START_X + 2400);
+    best = +(localStorage.getItem('climbhill_best') || 0);
+    document.getElementById('bestLbl').textContent = best + ' م';
+    lastT = performance.now();
+    state = 'play';
+  }
+
+  function gameOver(reason) {
+    if (state !== 'play') return;
+    state = 'over';
+    if (distM > best) { best = distM; localStorage.setItem('climbhill_best', String(best)); }
+    document.getElementById('overTitle').textContent = reason;
+    document.getElementById('overDist').textContent = distM;
+    document.getElementById('overCoins').textContent = coins;
+    document.getElementById('overBest').textContent = 'أفضل مسافة: ' + best + ' م';
+    document.getElementById('overScreen').classList.remove('hidden');
+  }
+
+  // ---------- update ----------
+  function update(dt) {
+    if (state !== 'play') return;
+
+    // fuel burn
+    let burn = 1.4;
+    if (input.gas) burn += 4.5;
+    if (input.brake) burn += 1.5;
+    fuel = Math.max(0, fuel - burn * dt);
+
+    const sub = dt / SUB;
+    for (let i = 0; i < SUB; i++) physicsStep(sub);
+
+    generateAhead(car.p.x + 2400);
+    checkPickups();
+
+    // flips: accumulate airborne rotation, award on landing
+    if (!car.grounded) {
+      car.airSpin += car.w * dt;
+    }
+    if (car.grounded && !car.wasGrounded) {
+      const flips = Math.floor(Math.abs(car.airSpin) / (Math.PI * 1.7));
+      if (flips >= 1) {
+        coins += flips * 5;
+        showPopup((flips > 1 ? flips + ' شقلبات!' : 'شقلبة!') + ' +' + (flips * 5) + '🪙', '#ffd24a');
+      }
+      car.airSpin = 0;
+    }
+    car.wasGrounded = car.grounded;
+
+    // distance
+    distM = Math.max(distM, Math.floor((car.p.x - START_X) / 45));
+
+    // ---- lose conditions ----
+    // head/neck crash: point above chassis touches ground
+    const cosA = Math.cos(car.a), sinA = Math.sin(car.a);
+    const hx = car.p.x + (0 * cosA - (-34) * sinA);
+    const hy = car.p.y + (0 * sinA + (-34) * cosA);
+    if (hy > groundY(hx) - 2) { gameOver('💥 تحطمت!'); return; }
+
+    // out of fuel and stopped
+    if (fuel <= 0) {
+      if (Math.abs(car.v.x) < 18 && car.grounded) {
+        outOfFuelTimer += dt;
+        if (outOfFuelTimer > 1.6) { gameOver('⛽ نفد الوقود'); return; }
+      } else outOfFuelTimer = 0;
+    }
+
+    // popup fade
+    if (popupT > 0) { popupT -= dt; if (popupT <= 0) popupEl.classList.remove('show'); }
+  }
+
+  // ---------- rendering ----------
+  let camX = 0, camY = 0;
+  function draw() {
+    // camera (smooth)
+    const tx = car.p.x - W * 0.32;
+    const ty = car.p.y - H * 0.58;
+    camX = lerp(camX, tx, 0.12);
+    camY = lerp(camY, ty, 0.08);
+
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#3aa3d4');
+    sky.addColorStop(0.55, '#7cc9e8');
+    sky.addColorStop(1, '#d7f0f7');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // sun
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#fff4c2';
+    ctx.beginPath(); ctx.arc(W * 0.78, H * 0.18, 46, 0, 7); ctx.fill();
+    ctx.restore();
+
+    // parallax back hills
+    drawParallaxHills(0.25, '#9fd6c4', 120, H * 0.62);
+    drawParallaxHills(0.45, '#7ec6ad', 90, H * 0.70);
+
+    // terrain
+    const stepPx = 5;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    let firstY = 0;
+    for (let sx = 0; sx <= W + stepPx; sx += stepPx) {
+      const wx = sx + camX;
+      const sy = groundY(wx) - camY;
+      if (sx === 0) firstY = sy;
+      ctx.lineTo(sx, sy);
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    const dirt = ctx.createLinearGradient(0, firstY - 40, 0, H);
+    dirt.addColorStop(0, '#7a4d28');
+    dirt.addColorStop(0.06, '#8a5a30');
+    dirt.addColorStop(1, '#5a3a20');
+    ctx.fillStyle = dirt;
+    ctx.fill();
+
+    // grass strip on top of terrain
+    ctx.lineWidth = 9;
+    ctx.strokeStyle = '#4caf50';
+    ctx.beginPath();
+    for (let sx = 0; sx <= W + stepPx; sx += stepPx) {
+      const wx = sx + camX;
+      const sy = groundY(wx) - camY;
+      if (sx === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+
+    // collectibles
+    for (const it of items) {
+      if (it.taken) continue;
+      const sx = it.x - camX, sy = it.y - camY;
+      if (sx < -40 || sx > W + 40) continue;
+      const bob = Math.sin(performance.now() / 300 + it.x) * 4;
+      if (it.type === 'coin') {
+        ctx.save();
+        ctx.translate(sx, sy + bob);
+        ctx.fillStyle = '#ffd24a';
+        ctx.strokeStyle = '#e0a400'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, 0, 12, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#e0a400'; ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('$', 0, 1);
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.translate(sx, sy + bob);
+        ctx.fillStyle = '#e03131';
+        roundRect(-13, -16, 26, 32, 5); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('⛽', 0, 1);
+        ctx.restore();
+      }
+    }
+
+    // car
+    drawCar();
+  }
+
+  function drawParallaxHills(factor, color, amp, baseY) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    const off = camX * factor;
+    for (let sx = 0; sx <= W + 20; sx += 20) {
+      const wx = (sx + off) * 0.004;
+      const y = baseY - (vnoise(wx) * amp) + (camY * factor * -0.1);
+      if (sx === 0) ctx.lineTo(0, y); else ctx.lineTo(sx, y);
+    }
+    ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawCar() {
+    const c = car;
+    const cx = c.p.x - camX, cy = c.p.y - camY;
+    const cosA = Math.cos(c.a), sinA = Math.sin(c.a);
+
+    // suspension + wheels first (behind body)
+    for (const wh of c.wheels) {
+      const ax = cx + (wh.lx * cosA - wh.ly * sinA);
+      const ay = cy + (wh.lx * sinA + wh.ly * cosA);
+      const wx = wh.wx - camX, wy = wh.wy - camY;
+      // suspension
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(wx, wy); ctx.stroke();
+      // tyre
+      ctx.save();
+      ctx.translate(wx, wy);
+      ctx.fillStyle = '#1c1c1c';
+      ctx.beginPath(); ctx.arc(0, 0, wh.r, 0, 7); ctx.fill();
+      // hub + spokes
+      ctx.rotate(wh.spin);
+      ctx.strokeStyle = '#c9ced6'; ctx.lineWidth = 3;
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath(); ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(i * Math.PI / 2) * (wh.r - 6), Math.sin(i * Math.PI / 2) * (wh.r - 6));
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#e6b800';
+      ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+
+    // body
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(c.a);
+    // chassis
+    const bodyGrad = ctx.createLinearGradient(0, -22, 0, 22);
+    bodyGrad.addColorStop(0, '#ff8a3d');
+    bodyGrad.addColorStop(1, '#e8590c');
+    ctx.fillStyle = bodyGrad;
+    roundRect(-50, -14, 100, 30, 10); ctx.fill();
+    // cabin
+    ctx.fillStyle = '#ffe08a';
+    roundRect(-22, -34, 44, 24, 8); ctx.fill();
+    ctx.fillStyle = '#7fd3ff';
+    roundRect(-15, -30, 30, 15, 5); ctx.fill();
+    // driver head
+    ctx.fillStyle = '#3b2a1a';
+    ctx.beginPath(); ctx.arc(2, -24, 7, 0, 7); ctx.fill();
+    // headlight
+    ctx.fillStyle = '#fff7d6';
+    ctx.beginPath(); ctx.arc(48, 2, 4, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  // ---------- loop ----------
+  function frame(now) {
+    let dt = (now - lastT) / 1000;
+    lastT = now;
+    if (dt > 1 / 30) dt = 1 / 30;     // clamp big stalls
+    if (state === 'play') update(dt);
+
+    // HUD
+    document.getElementById('distLbl').textContent = distM + ' م';
+    document.getElementById('coinLbl').textContent = coins;
+    document.getElementById('fuelFill').style.width = fuel + '%';
+
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  function bindPedal(el, key) {
+    const on = (e) => { e.preventDefault(); input[key] = true; el.classList.add('active'); };
+    const off = (e) => { e.preventDefault(); input[key] = false; el.classList.remove('active'); };
+    el.addEventListener('touchstart', on, { passive: false });
+    el.addEventListener('touchend', off, { passive: false });
+    el.addEventListener('touchcancel', off, { passive: false });
+    el.addEventListener('mousedown', on);
+    window.addEventListener('mouseup', off);
+  }
+  bindPedal(document.getElementById('gasBtn'), 'gas');
+  bindPedal(document.getElementById('brakeBtn'), 'brake');
+
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') input.gas = true;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') input.brake = true;
+    if ((e.key === 'r' || e.key === 'R') && state === 'over') startGame();
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') input.gas = false;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') input.brake = false;
+  });
+
+  function startGame() {
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('overScreen').classList.add('hidden');
+    reset();
+  }
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('restartBtn').addEventListener('click', startGame);
+
+  // boot in idle state so the menu shows over a live scene
+  reset();
+  state = 'menu';
+  camX = car.p.x - W * 0.32; camY = car.p.y - H * 0.58;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
