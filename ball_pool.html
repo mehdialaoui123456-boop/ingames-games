@@ -186,6 +186,7 @@
   let running = false;
   let rafId = null;
   let portrait = false;
+  let feltPattern = null;      // cached cloth texture
 
   let turn = 0;        // 0 = player, 1 = AI
   let groups = [null, null];   // 'solid' | 'stripe' per player, null until assigned
@@ -215,8 +216,11 @@
     const h = Math.max(420, Math.floor(rect.height || window.innerHeight || 640));
     const changed = (w !== W || h !== H);
     W = w; H = h;
-    canvas.width = W; canvas.height = H;
+    // High-DPI backing store for crisp rendering; draw in CSS pixels.
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Vertical (portrait) pool table: a real table is 2:1, here standing up
     // so the long axis is vertical (height = 2 × width).
@@ -241,7 +245,7 @@
     ballR = Math.max(7, Math.min(13, tableW * 0.037));
 
     // Keep the status banner in the gap above the table (never over the felt).
-    statusText.parentElement.style.top = Math.round(Math.max(84, tableY - ballR*1.25 - 32)) + 'px';
+    statusText.parentElement.style.top = Math.round(Math.max(84, tableY - ballR*1.4 - 32)) + 'px';
 
     // Power slider runs vertically alongside the table.
     powerBar = {
@@ -254,7 +258,7 @@
     // Real table pocket layout: 4 corner pockets + 2 side pockets at the
     // midpoint of the two long (left & right) rails. Corners are wider.
     const cr = ballR * 2.1;      // corner pocket radius
-    const sr = ballR * 1.75;     // side pocket radius
+    const sr = ballR * 1.78;     // side pocket radius
     const r2 = tableX + tableW, b2 = tableY + tableH, cyy = tableY + tableH/2;
     pockets = [
       { x: tableX, y: tableY, r: cr, type: 'corner' },   // top-left
@@ -495,8 +499,10 @@
 
   function checkPocket(b) {
     for (const p of pockets) {
+      // Side pockets sit flat on the rail; only slightly more forgiving.
+      const f = p.type === 'side' ? 0.9 : 0.88;
       const dx = b.x - p.x, dy = b.y - p.y;
-      if (dx*dx + dy*dy < (p.r * 0.9) * (p.r * 0.9)) { pocketBall(b); return; }
+      if (dx*dx + dy*dy < (p.r * f) * (p.r * f)) { pocketBall(b); return; }
     }
   }
 
@@ -651,35 +657,82 @@
   }
 
   // ── Drawing ────────────────────────────────────────────────────────
-  function drawScene() {
-    ctx.clearRect(0, 0, W, H);
+  // Build a small repeating cloth texture once and reuse it for the felt.
+  function getFeltPattern() {
+    if (feltPattern) return feltPattern;
+    const t = document.createElement('canvas'); t.width = t.height = 72;
+    const c = t.getContext('2d');
+    c.fillStyle = '#168a48'; c.fillRect(0, 0, 72, 72);
+    // woven nap (fine horizontal + vertical threads)
+    for (let i = 0; i < 72; i += 2) {
+      c.fillStyle = 'rgba(255,255,255,0.020)'; c.fillRect(0, i, 72, 1);
+      c.fillStyle = 'rgba(0,0,0,0.025)';       c.fillRect(i, 0, 1, 72);
+    }
+    // speckle
+    for (let i = 0; i < 650; i++) {
+      const x = Math.random()*72, y = Math.random()*72;
+      c.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.045)';
+      c.fillRect(x, y, 1, 1);
+    }
+    feltPattern = ctx.createPattern(t, 'repeat');
+    return feltPattern;
+  }
 
+  function drawScene() {
     const r2 = tableX + tableW, b2 = tableY + tableH;
     const cx = tableX + tableW/2, cy = tableY + tableH/2;
-    const fr = ballR * 1.25;     // wooden rail width
+    const fr = ballR * 1.4;      // wooden rail width
     const cw = ballR * 0.6;      // cushion (bumper) thickness
-    const cr = ballR * 2.1, sr = ballR * 1.75;
+    const cr = ballR * 2.1, sr = ballR * 1.78;
+
+    // Room backdrop
+    const bgg = ctx.createLinearGradient(0, 0, 0, H);
+    bgg.addColorStop(0, '#15271b'); bgg.addColorStop(0.5, '#0c1611'); bgg.addColorStop(1, '#060b08');
+    ctx.fillStyle = bgg; ctx.fillRect(0, 0, W, H);
 
     // Outer drop shadow
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 8;
-    roundRect(tableX - fr, tableY - fr, tableW + fr*2, tableH + fr*2, fr*0.8);
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10;
+    roundRect(tableX - fr, tableY - fr, tableW + fr*2, tableH + fr*2, fr*0.9);
     ctx.fillStyle = '#000'; ctx.fill();
     ctx.restore();
 
-    // Wooden rail frame
-    roundRect(tableX - fr, tableY - fr, tableW + fr*2, tableH + fr*2, fr*0.8);
-    const wg = ctx.createLinearGradient(0, tableY - fr, 0, b2 + fr);
-    wg.addColorStop(0, '#7a4a22'); wg.addColorStop(0.5, '#4d2e12'); wg.addColorStop(1, '#321d09');
+    // Wooden rail frame (diagonal grain for a 3D bevel)
+    roundRect(tableX - fr, tableY - fr, tableW + fr*2, tableH + fr*2, fr*0.9);
+    const wg = ctx.createLinearGradient(tableX - fr, tableY - fr, r2 + fr, b2 + fr);
+    wg.addColorStop(0, '#9a6531'); wg.addColorStop(0.35, '#683f1d');
+    wg.addColorStop(0.7, '#4a2c13'); wg.addColorStop(1, '#2c1908');
     ctx.fillStyle = wg; ctx.fill();
-    // rail wood grain sheen
-    ctx.strokeStyle = 'rgba(255,210,150,0.18)'; ctx.lineWidth = 2;
-    roundRect(tableX - fr + 3, tableY - fr + 3, tableW + fr*2 - 6, tableH + fr*2 - 6, fr*0.7);
+    // crisp outer border around the whole table
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = '#170c03';
+    roundRect(tableX - fr, tableY - fr, tableW + fr*2, tableH + fr*2, fr*0.9);
+    ctx.stroke();
+    // thin outer highlight just inside the border
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255,224,176,0.22)';
+    roundRect(tableX - fr + 4, tableY - fr + 4, tableW + fr*2 - 8, tableH + fr*2 - 8, fr*0.82);
+    ctx.stroke();
+    // top-left bevel highlight + bottom-right shade
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = 'rgba(255,224,176,0.28)';
+    roundRect(tableX - fr + 2.5, tableY - fr + 2.5, tableW + fr*2 - 5, tableH + fr*2 - 5, fr*0.8);
+    ctx.stroke();
+    // inner dark edge where the rail meets the felt
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    roundRect(tableX - 3, tableY - 3, tableW + 6, tableH + 6, 5);
     ctx.stroke();
 
-    // Sight diamonds on the rails
-    ctx.fillStyle = 'rgba(245,235,210,0.9)';
-    const diam = (x, y) => { ctx.beginPath(); ctx.arc(x, y, ballR*0.16, 0, Math.PI*2); ctx.fill(); };
+    // Sight diamonds (mother-of-pearl look: bright core + dark ring)
+    const diam = (x, y) => {
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.beginPath(); ctx.arc(x, y, ballR*0.22, 0, Math.PI*2); ctx.fill();
+      const dg = ctx.createRadialGradient(x - ballR*0.06, y - ballR*0.06, 0.5, x, y, ballR*0.2);
+      dg.addColorStop(0, '#fffdf2'); dg.addColorStop(1, '#cfc4a0');
+      ctx.fillStyle = dg;
+      ctx.beginPath(); ctx.arc(x, y, ballR*0.16, 0, Math.PI*2); ctx.fill();
+    };
     for (let i = 1; i <= 3; i++) {                     // short rails (top & bottom)
       diam(tableX + tableW*i/4, tableY - fr*0.5);
       diam(tableX + tableW*i/4, b2 + fr*0.5);
@@ -690,10 +743,14 @@
       diam(tableX - fr*0.5, yy); diam(r2 + fr*0.5, yy);
     }
 
-    // Felt playing surface
-    const fg = ctx.createRadialGradient(cx, cy, ballR, cx, cy, tableW*0.6);
-    fg.addColorStop(0, '#1f9a52'); fg.addColorStop(1, '#11603a');
-    ctx.fillStyle = fg;
+    // Felt: woven cloth texture + radial shading (lit centre, shaded edges)
+    ctx.fillStyle = getFeltPattern();
+    ctx.fillRect(tableX, tableY, tableW, tableH);
+    const vg = ctx.createRadialGradient(cx, cy - tableH*0.06, ballR, cx, cy, Math.max(tableW, tableH)*0.62);
+    vg.addColorStop(0, 'rgba(120,235,170,0.16)');
+    vg.addColorStop(0.55, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.42)');
+    ctx.fillStyle = vg;
     ctx.fillRect(tableX, tableY, tableW, tableH);
 
     // Cushions (bumpers) — felt-covered, with gaps at the pockets.
@@ -716,16 +773,21 @@
     ctx.lineTo(r2 - cw, tableY + tableH*0.74);
     ctx.stroke();
 
-    // Pockets — dark wells straddling the corners / rail midpoints
+    // Pockets — brass-rimmed dark wells at the corners / rail midpoints
     for (const p of pockets) {
-      // leather-ish ring
-      ctx.fillStyle = '#241510';
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r*1.12, 0, Math.PI*2); ctx.fill();
-      // black hole with depth gradient
-      const pg = ctx.createRadialGradient(p.x, p.y, p.r*0.2, p.x, p.y, p.r);
-      pg.addColorStop(0, '#000'); pg.addColorStop(0.7, '#050505'); pg.addColorStop(1, '#1a1a1a');
+      // brass rim
+      const ring = ctx.createRadialGradient(p.x - p.r*0.3, p.y - p.r*0.3, p.r*0.55, p.x, p.y, p.r*1.22);
+      ring.addColorStop(0, '#e6c878'); ring.addColorStop(0.5, '#9c7a33'); ring.addColorStop(1, '#4e3a16');
+      ctx.fillStyle = ring;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r*1.22, 0, Math.PI*2); ctx.fill();
+      // hole with depth
+      const pg = ctx.createRadialGradient(p.x, p.y, p.r*0.15, p.x, p.y, p.r);
+      pg.addColorStop(0, '#000'); pg.addColorStop(0.65, '#050505'); pg.addColorStop(1, '#1c1c1c');
       ctx.fillStyle = pg;
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+      // rim top highlight
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r*1.12, Math.PI*1.05, Math.PI*1.95); ctx.stroke();
     }
 
     // Balls
@@ -1054,7 +1116,7 @@
     groups = [null, null];
     assigned = false;
     shotInProgress = false;
-    ballInHand = false;
+    ballInHand = true;        // break: player places the cue ball freely
     gameOver = false;
     aiming = false; charging = false; placingCue = false; shotPower = 0;
     running = true;
@@ -1062,7 +1124,7 @@
     startView.classList.add('hidden');
     endView.classList.add('hidden');
     updateHUD();
-    setStatus('دور اللاعب ١ — صوّب ثم اسحب شريط القوة');
+    setStatus('الكسر: حرّك الكرة البيضاء بحرية ثم صوّب');
 
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(loop);
