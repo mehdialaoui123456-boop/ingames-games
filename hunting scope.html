@@ -22,208 +22,304 @@
     position: absolute;
     inset: 0;
     overflow: hidden;
-    background: linear-gradient(to bottom, #3a4a3a 0%, #5a6b4a 60%, #6a7a55 100%);
+    background: #141c12;
     cursor: crosshair;
   }
-  canvas#scene {
-    position: absolute;
-    inset: 0;
-    width: 100%; height: 100%;
-    filter: saturate(0.7) brightness(0.85);
-  }
+  #shaker { position: absolute; inset: 0; will-change: transform; }
+  canvas#scene { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-  /* Scope system - moves with drag */
+  /* ── Scope ─────────────────────────────────────────────── */
   .scope-sys {
     position: absolute;
-    width: 78%;
+    width: 82%;
+    max-width: 540px;
     aspect-ratio: 1 / 1;
     left: 50%; top: 50%;
     transform: translate(-50%, -50%);
     pointer-events: none;
+    will-change: transform;
   }
   .scope-ring {
     position: absolute; inset: 0;
     border-radius: 50%;
     box-shadow:
-      0 0 0 9999px rgba(0,0,0,0.92),
-      inset 0 0 10px rgba(0,0,0,0.6);
-    border: 3px solid #0d1a0d;
+      0 0 0 9999px rgba(3, 5, 3, 0.97),
+      inset 0 0 30px rgba(0,0,0,0.9),
+      inset 0 0 6px rgba(0,0,0,0.9);
+    border: 5px solid #0a0c0a;
   }
-  .cross-h, .cross-v { position: absolute; background: rgba(0,0,0,0.85); }
-  .cross-h { left: 6%; right: 6%; top: 50%; height: 2px; transform: translateY(-50%); }
-  .cross-v { top: 6%; bottom: 6%; left: 50%; width: 2px; transform: translateX(-50%); }
-  .scale {
-    position: absolute;
-    top: 14%; bottom: 14%;
-    left: 50%;
+  .scope-ring::before {
+    content: '';
+    position: absolute; inset: -13px;
+    border-radius: 50%;
+    border: 8px solid #181d18;
+    box-shadow: 0 0 16px rgba(0,0,0,0.8), inset 0 0 8px rgba(0,0,0,0.7);
+  }
+  .lens {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 26%, rgba(255,255,255,0.13), rgba(255,255,255,0) 36%),
+      radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 50%, rgba(8,18,12,0.25) 74%, rgba(0,0,0,0.6) 98%);
+  }
+  .cross-h, .cross-v { position: absolute; background: rgba(8,10,8,0.92); }
+  .cross-h { left: 3%; right: 3%; top: 50%; height: 2px; transform: translateY(-50%); }
+  .cross-v { top: 3%; bottom: 3%; left: 50%; width: 2px; transform: translateX(-50%); }
+  .ticks-h {
+    position: absolute; left: 13%; right: 13%; top: 50%; height: 9px;
+    transform: translateY(-50%);
+    background-image: repeating-linear-gradient(to right, rgba(8,10,8,0.85) 0 2px, transparent 2px 27px);
+  }
+  .ticks-v {
+    position: absolute; top: 13%; bottom: 13%; left: 50%; width: 9px;
     transform: translateX(-50%);
-    width: 26px;
-    color: rgba(0,0,0,0.75);
-    font-family: ui-monospace, "Courier New", monospace;
-    font-size: 9px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
+    background-image: repeating-linear-gradient(to bottom, rgba(8,10,8,0.85) 0 2px, transparent 2px 27px);
   }
   .center-cross {
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    width: 26px; height: 26px;
+    width: 30px; height: 30px;
   }
   .center-cross::before, .center-cross::after {
     content: '';
     position: absolute;
-    background: #22ff44;
-    box-shadow: 0 0 6px #22ff44;
+    background: #ffb22e;
+    box-shadow: 0 0 7px rgba(255,160,30,0.95);
   }
   .center-cross::before { top: 50%; left: 0; right: 0; height: 2px; transform: translateY(-50%); }
   .center-cross::after  { left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%); }
+  .center-dot {
+    position: absolute; top: 50%; left: 50%;
+    width: 4px; height: 4px;
+    background: #ff3b30; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px rgba(255,60,40,0.9);
+  }
 
-  /* HUD --------------------------------------------------------------- */
+  /* ── HUD ───────────────────────────────────────────────── */
   .hud {
     position: absolute;
-    top: 14px; left: 14px; right: 14px;
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    left: 14px; right: 14px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     pointer-events: none;
     z-index: 5;
   }
   .pill {
-    background: rgba(0,0,0,0.6);
+    background: rgba(8, 14, 8, 0.55);
+    border: 1px solid rgba(255,255,255,0.15);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     color: #fff;
-    padding: 8px 16px;
+    padding: 7px 15px;
     border-radius: 999px;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 800;
-    display: flex; align-items: center; gap: 6px;
+    display: flex; align-items: center; gap: 7px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
   }
+  .pill .num { font-variant-numeric: tabular-nums; min-width: 2ch; text-align: center; }
+  .pill.urgent { border-color: #ff5050; color: #ff8070; animation: pulseRed 0.5s infinite; }
+  @keyframes pulseRed { 50% { background: rgba(130, 12, 12, 0.7); } }
+
   .combo {
     position: absolute;
-    top: 56px; left: 50%;
+    top: calc(58px + env(safe-area-inset-top, 0px));
+    left: 50%;
     transform: translateX(-50%);
-    color: #ffcc00;
-    font-size: 17px;
+    color: #ffd24a;
+    font-size: 19px;
     font-weight: 900;
     letter-spacing: 1px;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+    text-shadow: 0 0 12px rgba(255,180,40,0.6), 0 2px 4px rgba(0,0,0,0.9);
     pointer-events: none;
     z-index: 5;
     opacity: 0;
-    transition: opacity 0.3s, transform 0.3s;
+    transition: opacity 0.35s;
   }
-  .combo.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+  .combo.show { animation: comboPop 0.35s ease-out forwards; }
+  @keyframes comboPop {
+    0%   { opacity: 0; transform: translateX(-50%) scale(0.5); }
+    60%  { opacity: 1; transform: translateX(-50%) scale(1.2); }
+    100% { opacity: 1; transform: translateX(-50%) scale(1); }
+  }
 
-  /* Controls (bottom row) -------------------------------------------- */
+  .bullets {
+    position: absolute;
+    bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 4px;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .bullets i {
+    width: 8px; height: 20px;
+    border-radius: 4px 4px 3px 3px;
+    background: linear-gradient(180deg, #ffd57a, #c9882a 70%, #8a5a18);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .bullets i.spent { opacity: 0.15; transform: scaleY(0.75); }
+
+  /* ── Controls ─────────────────────────────────────────── */
   .controls {
     position: absolute;
-    bottom: 16px;
-    left: 16px; right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    left: 18px; right: 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     z-index: 6;
   }
   .reload {
-    background: #1a1a1a;
-    color: #fff;
-    border: 3px solid #22ff44;
-    border-radius: 12px;
-    padding: 14px 22px;
+    background: rgba(10, 16, 10, 0.8);
+    color: #cfe8cf;
+    border: 2px solid rgba(120, 210, 120, 0.55);
+    border-radius: 14px;
+    padding: 15px 20px;
     font-family: inherit;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 900;
-    letter-spacing: 1px;
-    box-shadow: 0 0 10px rgba(34,255,68,0.4);
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.45), 0 0 10px rgba(60,200,80,0.15);
+  }
+  .reload.alert { animation: pulseGreen 0.45s infinite; }
+  .reload.busy { opacity: 0.6; }
+  @keyframes pulseGreen {
+    50% { background: rgba(30, 90, 35, 0.9); box-shadow: 0 0 18px rgba(70,255,100,0.5); }
   }
   .shoot {
-    background: radial-gradient(circle at 35% 35%, #ff5050, #cc0000);
-    color: #fff;
-    border: 4px solid #ff1a1a;
+    width: 94px; height: 94px;
     border-radius: 50%;
-    width: 86px; height: 86px;
+    border: 4px solid #7a1010;
+    background: radial-gradient(circle at 35% 30%, #ff6a5a, #d42424 55%, #8e0e0e);
+    color: #fff;
     font-family: inherit;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 900;
     letter-spacing: 1px;
-    box-shadow: 0 0 18px rgba(255,40,40,0.7), inset 0 -6px 12px rgba(0,0,0,0.3);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    box-shadow:
+      0 8px 20px rgba(0,0,0,0.5),
+      0 0 24px rgba(255,60,40,0.35),
+      inset 0 -8px 14px rgba(0,0,0,0.35),
+      inset 0 4px 8px rgba(255,255,255,0.25);
   }
-  .reload:active, .shoot:active { transform: scale(0.94); }
+  .reload:active, .shoot:active { transform: scale(0.93); }
 
-  /* Flash + hit FX --------------------------------------------------- */
+  /* ── FX ────────────────────────────────────────────────── */
   .flash {
     position: absolute; inset: 0;
-    background: rgba(255,255,255,0.85);
+    background: radial-gradient(circle at 50% 58%, rgba(255,244,210,0.95), rgba(255,170,70,0.55) 38%, rgba(0,0,0,0) 70%);
     pointer-events: none;
     opacity: 0;
     z-index: 4;
-    transition: opacity 0.12s ease-out;
+    transition: opacity 0.1s ease-out;
   }
-  .hitmark {
+  .pop {
     position: absolute;
-    color: #ff3030;
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 900;
     pointer-events: none;
     z-index: 7;
     transform: translate(-50%, -50%);
-    text-shadow: 0 0 6px #000;
-    transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+    text-shadow: 0 0 10px rgba(0,0,0,0.7), 0 2px 5px rgba(0,0,0,0.9);
+    transition: transform 0.65s cubic-bezier(0.2, 0.7, 0.3, 1), opacity 0.65s;
   }
+  .pop.norm { color: #fff; }
+  .pop.gold { color: #ffd24a; font-size: 28px; }
 
-  /* Overlays --------------------------------------------------------- */
+  /* ── Overlays ─────────────────────────────────────────── */
   .overlay {
     position: absolute; inset: 0;
-    background: rgba(0,0,0,0.78);
+    background: radial-gradient(ellipse at 50% 30%, rgba(18, 30, 16, 0.82), rgba(0,0,0,0.93));
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     z-index: 100;
     text-align: center;
     padding: 24px;
-    backdrop-filter: blur(3px);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
-  .overlay h1 { font-size: 34px; margin-bottom: 12px; }
-  .overlay p { font-size: 16px; margin-bottom: 24px; opacity: 0.85; line-height: 1.6; max-width: 280px; }
-  .big-score { font-size: 64px; font-weight: 900; margin: 6px 0 22px; color: #FFD93D; text-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+  .panel {
+    background: linear-gradient(180deg, rgba(30, 42, 26, 0.95), rgba(13, 20, 11, 0.97));
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 26px;
+    padding: 30px 26px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.65);
+    max-width: 340px;
+    width: 90%;
+  }
+  .overlay h1 {
+    font-size: 30px;
+    margin-bottom: 12px;
+    text-shadow: 0 3px 10px rgba(0,0,0,0.6);
+  }
+  .overlay p { font-size: 15px; margin-bottom: 20px; opacity: 0.85; line-height: 1.9; }
+  .big-score {
+    font-size: 62px; font-weight: 900;
+    margin: 2px 0 6px;
+    color: #FFD93D;
+    text-shadow: 0 0 24px rgba(255,200,50,0.45), 0 4px 12px rgba(0,0,0,0.5);
+    font-variant-numeric: tabular-nums;
+  }
+  .stars { font-size: 30px; letter-spacing: 8px; margin-bottom: 14px; color: #ffd24a; }
+  .stats { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; }
+  .stat {
+    flex: 1;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 10px 4px;
+  }
+  .stat b { display: block; font-size: 19px; color: #ffd24a; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 11px; opacity: 0.7; }
   .btn {
-    background: #22ff44;
+    background: linear-gradient(180deg, #3dff5e, #18d83c);
     color: #003311;
     border: none;
     font-family: inherit;
     font-size: 19px;
     font-weight: 900;
-    padding: 14px 42px;
+    padding: 14px 44px;
     border-radius: 999px;
-    box-shadow: 0 6px 0 #0a8822;
+    box-shadow: 0 6px 0 #0a8822, 0 10px 24px rgba(20,200,60,0.3);
     transition: transform 80ms, box-shadow 80ms;
     letter-spacing: 0.5px;
   }
   .btn:active { transform: translateY(3px); box-shadow: 0 3px 0 #0a8822; }
-  .hint { font-size: 13px; opacity: 0.7; margin-top: 16px; }
+  .best { font-size: 13px; color: #9fd89f; margin-top: 14px; }
+  .hint { font-size: 12px; opacity: 0.65; margin-top: 12px; line-height: 1.8; }
   .hidden { display: none !important; }
 </style>
 </head>
 <body>
 <div id="stage">
-  <canvas id="scene" width="400" height="800"></canvas>
+  <div id="shaker">
+    <canvas id="scene" width="400" height="800"></canvas>
+    <div class="scope-sys" id="scopeSys">
+      <div class="scope-ring"></div>
+      <div class="lens"></div>
+      <div class="ticks-h"></div>
+      <div class="ticks-v"></div>
+      <div class="cross-h"></div>
+      <div class="cross-v"></div>
+      <div class="center-cross"></div>
+      <div class="center-dot"></div>
+    </div>
+  </div>
   <div class="flash" id="flash"></div>
 
-  <div class="scope-sys" id="scopeSys">
-    <div class="scope-ring"></div>
-    <div class="cross-h"></div>
-    <div class="cross-v"></div>
-    <div class="scale">
-      <span>10</span><span>5</span><span>0</span><span>5</span><span>10</span>
-    </div>
-    <div class="center-cross"></div>
-  </div>
-
   <div class="hud">
-    <div class="pill">🎯 <span id="ammo">10</span>/10</div>
-    <div class="pill">⏱️ <span id="time">45</span></div>
-    <div class="pill">⭐ <span id="score">0</span></div>
+    <div class="pill">🎯 <span class="num" id="ammo">10</span></div>
+    <div class="pill" id="timePill">⏱️ <span class="num" id="time">45</span></div>
+    <div class="pill">⭐ <span class="num" id="score">0</span></div>
   </div>
-  <div class="combo" id="combo">سلسلة ×2</div>
+  <div class="combo" id="combo"></div>
+  <div class="bullets" id="bullets"></div>
 
   <div class="controls">
     <button class="reload" id="reload">إعادة التعبئة</button>
@@ -232,18 +328,29 @@
 
   <!-- Start screen -->
   <div id="start" class="overlay">
-    <h1>🎯 منظار الصيد</h1>
-    <p>اسحب لتحريك المنظار<br>اضغط على زر الإطلاق<br>دمّر الأهداف قبل نفاد الوقت</p>
-    <button class="btn" id="startBtn">ابدأ اللعب</button>
-    <div class="hint">٤٥ ثانية — ١٠ طلقات قابلة لإعادة التعبئة</div>
+    <div class="panel">
+      <h1>🎯 منظار الصيد</h1>
+      <p>اسحب الشاشة لتحريك المنظار<br>🐇 الأرنب سريع = نقاط أكثر<br>🦅 الطائر الذهبي = +٣ ثوانٍ<br>أصب بسرعة لمضاعفة السلسلة!</p>
+      <button class="btn" id="startBtn">ابدأ الصيد</button>
+      <div class="best" id="startBest"></div>
+      <div class="hint">٤٥ ثانية — ١٠ طلقات قابلة لإعادة التعبئة</div>
+    </div>
   </div>
 
   <!-- End screen -->
   <div id="end" class="overlay hidden">
-    <h1>انتهى الوقت!</h1>
-    <p>نقاطك:</p>
-    <div class="big-score" id="finalScore">0</div>
-    <button class="btn" id="restartBtn">العب مرة أخرى</button>
+    <div class="panel">
+      <h1 id="endTitle">انتهى الوقت!</h1>
+      <div class="big-score" id="finalScore">0</div>
+      <div class="stars" id="stars">☆☆☆</div>
+      <div class="stats">
+        <div class="stat"><b id="statHits">0</b><span>إصابات</span></div>
+        <div class="stat"><b id="statAcc">0%</b><span>الدقة</span></div>
+        <div class="stat"><b id="statCombo">×0</b><span>أفضل سلسلة</span></div>
+      </div>
+      <button class="btn" id="restartBtn">العب مرة أخرى</button>
+      <div class="best" id="endBest"></div>
+    </div>
   </div>
 </div>
 
@@ -251,37 +358,147 @@
 (function () {
   // ── DOM ────────────────────────────────────────────────────────────
   const stage      = document.getElementById('stage');
+  const shaker     = document.getElementById('shaker');
   const canvas     = document.getElementById('scene');
   const ctx        = canvas.getContext('2d');
   const scopeSys   = document.getElementById('scopeSys');
   const ammoEl     = document.getElementById('ammo');
   const timeEl     = document.getElementById('time');
+  const timePill   = document.getElementById('timePill');
   const scoreEl    = document.getElementById('score');
   const finalEl    = document.getElementById('finalScore');
   const flashEl    = document.getElementById('flash');
   const comboEl    = document.getElementById('combo');
+  const bulletsEl  = document.getElementById('bullets');
   const reloadBtn  = document.getElementById('reload');
   const shootBtn   = document.getElementById('shoot');
   const startView  = document.getElementById('start');
   const endView    = document.getElementById('end');
   const startBtn   = document.getElementById('startBtn');
   const restartBtn = document.getElementById('restartBtn');
+  const starsEl    = document.getElementById('stars');
+  const statHits   = document.getElementById('statHits');
+  const statAcc    = document.getElementById('statAcc');
+  const statCombo  = document.getElementById('statCombo');
+  const startBest  = document.getElementById('startBest');
+  const endBest    = document.getElementById('endBest');
+
+  // Bullet bar
+  const bulletEls = [];
+  for (let i = 0; i < 10; i++) {
+    const b = document.createElement('i');
+    bulletsEl.appendChild(b);
+    bulletEls.push(b);
+  }
 
   // ── State ──────────────────────────────────────────────────────────
+  const TAU = Math.PI * 2;
+  const TYPES = {
+    rabbit: { pts: 30, speed: [140, 200], size: [18, 24], lane: 0.56 },
+    sheep:  { pts: 15, speed: [65, 105],  size: [30, 40], lane: 0.63 },
+    boar:   { pts: 10, speed: [55, 85],   size: [36, 46], lane: 0.70 },
+  };
   let W = 400, H = 800;
   let ammo = 10, score = 0, combo = 0, timeLeft = 45;
+  let shots = 0, hits = 0, bestCombo = 0;
   let lastHitTime = 0;
-  let animals = [];
-  let trees = [];
-  let running = false;
-  let lastTime = 0;
-  let spawnTimer = 0;
-  let timerInterval = null;
-  let rafId = null;
-  let scopeOffsetX = 0, scopeOffsetY = 0;
+  let animals = [], parts = [];
+  let clouds = [], grass = [], treesArr = [], ridgeFar = [], ridgeNear = [];
+  let running = false, reloading = false;
+  let lastTime = 0, spawnTimer = 0, birdTimer = 0, elapsed = 0;
+  let timerInterval = null, rafId = null;
+  let scopeOffsetX = 0, scopeOffsetY = 0, recoil = 0, swayT = 0, shakeT = 0;
   let dragging = false;
-  let dragStartX = 0, dragStartY = 0;
-  let scopeStartX = 0, scopeStartY = 0;
+  let dragStartX = 0, dragStartY = 0, scopeStartX = 0, scopeStartY = 0;
+
+  // ── Audio (WebAudio, no assets) ────────────────────────────────────
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let ac = null, master = null, noiseBuf = null;
+  function audio() {
+    if (!AC) return null;
+    if (!ac) {
+      ac = new AC();
+      master = ac.createGain();
+      master.gain.value = 0.55;
+      master.connect(ac.destination);
+    }
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  function noise() {
+    const c = audio();
+    if (!noiseBuf) {
+      noiseBuf = c.createBuffer(1, c.sampleRate * 0.5, c.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return noiseBuf;
+  }
+  function blip(freq, type, t0, dur, vol, slideTo) {
+    const c = audio(); if (!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  function sfxShot() {
+    const c = audio(); if (!c) return;
+    const t = c.currentTime;
+    // crack (filtered noise)
+    const src = c.createBufferSource(); src.buffer = noise();
+    const f = c.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(3500, t);
+    f.frequency.exponentialRampToValueAtTime(280, t + 0.22);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.9, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t); src.stop(t + 0.3);
+    // low thump
+    blip(150, 'sine', t, 0.2, 0.9, 42);
+  }
+  function sfxHit(mult) {
+    const c = audio(); if (!c) return;
+    const t = c.currentTime;
+    blip(280 + mult * 90, 'square', t, 0.1, 0.25, 180 + mult * 60);
+    blip(560 + mult * 120, 'triangle', t + 0.05, 0.12, 0.2);
+  }
+  function sfxEmpty() {
+    const c = audio(); if (!c) return;
+    blip(1900, 'square', c.currentTime, 0.04, 0.12);
+  }
+  function sfxReload() {
+    const c = audio(); if (!c) return;
+    const t = c.currentTime;
+    blip(900, 'square', t, 0.05, 0.18);
+    blip(650, 'square', t + 0.32, 0.05, 0.18);
+    blip(1200, 'square', t + 0.62, 0.06, 0.22);
+  }
+  function sfxTick() {
+    const c = audio(); if (!c) return;
+    blip(1150, 'sine', c.currentTime, 0.07, 0.25);
+  }
+  function sfxBird() {
+    const c = audio(); if (!c) return;
+    const t = c.currentTime;
+    [660, 880, 1320, 1760].forEach((f, i) => blip(f, 'triangle', t + i * 0.07, 0.14, 0.22));
+  }
+  function sfxEnd() {
+    const c = audio(); if (!c) return;
+    const t = c.currentTime;
+    [523, 659, 784, 1047].forEach((f, i) => blip(f, 'triangle', t + i * 0.16, 0.3, 0.25));
+  }
+  function sfxStart() {
+    const c = audio(); if (!c) return;
+    const t = c.currentTime;
+    blip(440, 'triangle', t, 0.12, 0.2);
+    blip(660, 'triangle', t + 0.12, 0.16, 0.2);
+  }
 
   // ── Sizing ─────────────────────────────────────────────────────────
   function measure() {
@@ -294,13 +511,444 @@
     canvas.height = H;
     canvas.style.width  = W + 'px';
     canvas.style.height = H + 'px';
-    initTrees();
+    initScenery();
   }
   if (window.ResizeObserver) {
     new ResizeObserver(() => measure()).observe(stage);
   }
   window.addEventListener('resize', measure);
   window.addEventListener('orientationchange', () => setTimeout(measure, 100));
+
+  // ── Scenery ────────────────────────────────────────────────────────
+  function initScenery() {
+    ridgeFar = []; ridgeNear = []; clouds = []; grass = []; treesArr = [];
+    const seg = 8;
+    for (let i = 0; i <= seg; i++) ridgeFar.push({ x: i * W / seg, y: H * 0.34 - Math.random() * H * 0.06 });
+    for (let i = 0; i <= seg; i++) ridgeNear.push({ x: i * W / seg, y: H * 0.40 - Math.random() * H * 0.05 });
+    for (let i = 0; i < 5; i++) {
+      clouds.push({ x: Math.random() * W, y: H * (0.05 + Math.random() * 0.15), s: 0.6 + Math.random() * 0.9, v: 4 + Math.random() * 8 });
+    }
+    for (let i = 0; i < 7; i++) {
+      treesArr.push({ x: Math.random() * W, y: H * 0.43 + Math.random() * H * 0.02, s: 0.45 + Math.random() * 0.25, d: 0 });
+    }
+    for (let i = 0; i < 5; i++) {
+      treesArr.push({ x: (i + 0.5) * (W / 5) + (Math.random() - 0.5) * 50, y: H * 0.46 + Math.random() * H * 0.02, s: 0.8 + Math.random() * 0.35, d: 1 });
+    }
+    for (let i = 0; i < 130; i++) {
+      grass.push({ x: Math.random() * W, y: H * 0.52 + Math.random() * H * 0.46, h: 6 + Math.random() * 11, l: (Math.random() - 0.5) * 7, c: Math.random() });
+    }
+    grass.sort((a, b) => a.y - b.y);
+  }
+
+  function fillRidge(pts, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-10, H * 0.55);
+    ctx.lineTo(-10, pts[0].y);
+    for (const p of pts) ctx.lineTo(p.x, p.y);
+    ctx.lineTo(W + 10, H * 0.55);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawCloud(c) {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 22 * c.s, 0, TAU);
+    ctx.arc(c.x + 22 * c.s, c.y + 5 * c.s, 17 * c.s, 0, TAU);
+    ctx.arc(c.x - 22 * c.s, c.y + 6 * c.s, 15 * c.s, 0, TAU);
+    ctx.fill();
+  }
+
+  function blob(x, y, r, c) {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawTree(t) {
+    const s = t.s;
+    const trunkW = 11 * s, trunkH = 72 * s;
+    ctx.fillStyle = t.d ? '#4a3623' : '#564731';
+    ctx.beginPath();
+    ctx.moveTo(t.x - trunkW / 2, t.y + trunkH);
+    ctx.lineTo(t.x - trunkW * 0.3, t.y);
+    ctx.lineTo(t.x + trunkW * 0.3, t.y);
+    ctx.lineTo(t.x + trunkW / 2, t.y + trunkH);
+    ctx.closePath();
+    ctx.fill();
+    const tones = t.d ? ['#27431f', '#2f5226', '#3a6230'] : ['#314c28', '#3b5a2f', '#466e37'];
+    blob(t.x - 22 * s, t.y - 8 * s, 26 * s, tones[0]);
+    blob(t.x + 22 * s, t.y - 8 * s, 26 * s, tones[0]);
+    blob(t.x, t.y - 28 * s, 33 * s, tones[1]);
+    blob(t.x, t.y - 50 * s, 23 * s, tones[2]);
+  }
+
+  function drawGrassTuft(g) {
+    ctx.strokeStyle = g.c < 0.5 ? 'rgba(72,112,56,0.85)' : 'rgba(98,138,72,0.85)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y);
+    ctx.quadraticCurveTo(g.x + g.l, g.y - g.h * 0.7, g.x + g.l * 1.6, g.y - g.h);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y);
+    ctx.lineTo(g.x - g.l * 0.6, g.y - g.h * 0.8);
+    ctx.stroke();
+  }
+
+  // ── Animals ────────────────────────────────────────────────────────
+  function spawnAnimal() {
+    const r = Math.random();
+    const type = r < 0.4 ? 'sheep' : r < 0.7 ? 'rabbit' : 'boar';
+    const def = TYPES[type];
+    const fromLeft = Math.random() < 0.5;
+    const size = def.size[0] + Math.random() * (def.size[1] - def.size[0]);
+    const speed = (def.speed[0] + Math.random() * (def.speed[1] - def.speed[0])) * (1 + elapsed / 70);
+    animals.push({
+      type, bird: false,
+      x: fromLeft ? -80 : W + 80,
+      y: H * def.lane + (Math.random() - 0.5) * H * 0.02,
+      vx: (fromLeft ? 1 : -1) * speed,
+      size, flip: !fromLeft,
+      phase: Math.random() * TAU,
+      dying: 0, dead: false, rot: 0,
+    });
+  }
+
+  function spawnBird() {
+    const fromLeft = Math.random() < 0.5;
+    const baseY = H * (0.18 + Math.random() * 0.14);
+    animals.push({
+      type: 'bird', bird: true,
+      x: fromLeft ? -60 : W + 60,
+      y: baseY, baseY,
+      vx: (fromLeft ? 1 : -1) * (110 + Math.random() * 60),
+      size: 20, flip: !fromLeft,
+      phase: Math.random() * TAU,
+      dying: 0, dead: false, rot: 0,
+    });
+  }
+
+  function drawSheep(s) {
+    ctx.fillStyle = '#e8e2d2';
+    blob(-s * 0.6, s * 0.05, s * 0.34, '#d8d2c0');
+    blob(s * 0.55, s * 0.05, s * 0.30, '#d8d2c0');
+    ctx.fillStyle = '#f5f1e6';
+    const bumps = [[-s * 0.55, 0, s * 0.35], [-s * 0.2, -s * 0.18, s * 0.40], [s * 0.2, -s * 0.18, s * 0.40], [s * 0.5, 0, s * 0.32], [0, s * 0.05, s * 0.42]];
+    for (const [bx, by, br] of bumps) blob(bx, by, br, '#f5f1e6');
+    ctx.fillStyle = '#3a3028';
+    ctx.beginPath();
+    ctx.ellipse(s * 0.85, -s * 0.05, s * 0.26, s * 0.31, 0, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(s * 0.74, -s * 0.30, s * 0.08, s * 0.14, -0.4, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#2a2018';
+    const legW = s * 0.10;
+    [-0.45, -0.15, 0.15, 0.45].forEach(f => ctx.fillRect(s * f, s * 0.35, legW, s * 0.42));
+    blob(s * 0.94, -s * 0.10, s * 0.04, '#fff');
+  }
+
+  function drawRabbit(a, s) {
+    const hop = Math.abs(Math.sin(a.phase * 2.2)) * s * 0.3;
+    ctx.translate(0, -hop);
+    ctx.fillStyle = '#b59a7a';
+    blob(-s * 0.3, s * 0.05, s * 0.5, '#a78b6b');   // haunch
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.72, s * 0.5, 0, 0, TAU); // body
+    ctx.fillStyle = '#b59a7a';
+    ctx.fill();
+    blob(s * 0.6, -s * 0.3, s * 0.32, '#b59a7a');   // head
+    // ears
+    ctx.fillStyle = '#a78b6b';
+    ctx.beginPath();
+    ctx.ellipse(s * 0.5, -s * 0.85, s * 0.10, s * 0.38, -0.25, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(s * 0.72, -s * 0.82, s * 0.10, s * 0.36, 0.18, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#e8b8b8';
+    ctx.beginPath();
+    ctx.ellipse(s * 0.72, -s * 0.80, s * 0.05, s * 0.24, 0.18, 0, TAU);
+    ctx.fill();
+    blob(-s * 0.78, -s * 0.05, s * 0.18, '#f5efe5'); // tail
+    blob(s * 0.78, -s * 0.34, s * 0.05, '#241a10');  // eye
+    ctx.fillStyle = '#a78b6b';
+    ctx.fillRect(-s * 0.1, s * 0.35, s * 0.14, s * 0.3);
+    ctx.fillRect(s * 0.35, s * 0.35, s * 0.14, s * 0.3);
+  }
+
+  function drawBoar(s) {
+    ctx.fillStyle = '#4a3526';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.82, s * 0.5, 0, 0, TAU);
+    ctx.fill();
+    // bristle ridge
+    ctx.fillStyle = '#3a281c';
+    ctx.beginPath();
+    ctx.ellipse(-s * 0.1, -s * 0.32, s * 0.55, s * 0.18, 0, 0, TAU);
+    ctx.fill();
+    blob(s * 0.72, -s * 0.02, s * 0.36, '#4a3526');  // head
+    blob(s * 1.02, s * 0.06, s * 0.13, '#6b4f3a');   // snout
+    // tusk
+    ctx.strokeStyle = '#e8e0d0';
+    ctx.lineWidth = s * 0.07;
+    ctx.beginPath();
+    ctx.arc(s * 0.92, s * 0.14, s * 0.12, Math.PI * 0.2, Math.PI * 1.1);
+    ctx.stroke();
+    ctx.fillStyle = '#2e1f14';
+    const legW = s * 0.12;
+    [-0.5, -0.18, 0.18, 0.5].forEach(f => ctx.fillRect(s * f, s * 0.34, legW, s * 0.36));
+    blob(s * 0.82, -s * 0.14, s * 0.045, '#ffd0a0'); // eye
+  }
+
+  function drawBird(a, s) {
+    const flap = Math.sin(a.phase * 7) * s * 0.55;
+    // glow
+    const g = ctx.createRadialGradient(0, 0, 2, 0, 0, s * 1.6);
+    g.addColorStop(0, 'rgba(255,210,80,0.5)');
+    g.addColorStop(1, 'rgba(255,210,80,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 1.6, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#ffc94d';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 0.7, s * 0.4, 0, 0, TAU);  // body
+    ctx.fill();
+    blob(s * 0.62, -s * 0.22, s * 0.26, '#ffc94d');  // head
+    // beak
+    ctx.fillStyle = '#ff8c2e';
+    ctx.beginPath();
+    ctx.moveTo(s * 0.85, -s * 0.24);
+    ctx.lineTo(s * 1.08, -s * 0.16);
+    ctx.lineTo(s * 0.85, -s * 0.08);
+    ctx.closePath();
+    ctx.fill();
+    // wing
+    ctx.fillStyle = '#e8a832';
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.15, -s * 0.1);
+    ctx.quadraticCurveTo(-s * 0.45, -s * 0.2 - flap, -s * 0.85, -s * 0.15 - flap);
+    ctx.quadraticCurveTo(-s * 0.45, s * 0.15, -s * 0.05, s * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    // tail
+    ctx.fillStyle = '#e8a832';
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.6, 0);
+    ctx.lineTo(-s * 0.95, -s * 0.18);
+    ctx.lineTo(-s * 0.95, s * 0.18);
+    ctx.closePath();
+    ctx.fill();
+    blob(s * 0.7, -s * 0.28, s * 0.05, '#241a10');   // eye
+  }
+
+  function drawAnimal(a) {
+    ctx.save();
+    ctx.translate(a.x, a.y);
+    if (a.dying) {
+      ctx.globalAlpha = Math.max(0, 1 - a.dying / 0.7);
+      ctx.rotate(a.rot);
+    }
+    if (a.flip) ctx.scale(-1, 1);
+    if (a.type === 'sheep') drawSheep(a.size);
+    else if (a.type === 'rabbit') drawRabbit(a, a.size);
+    else if (a.type === 'boar') drawBoar(a.size);
+    else drawBird(a, a.size);
+    ctx.restore();
+  }
+
+  // ── Particles ──────────────────────────────────────────────────────
+  function burst(x, y, colors, n, spd) {
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * TAU;
+      const v = spd * (0.4 + Math.random() * 0.8);
+      parts.push({
+        x, y,
+        vx: Math.cos(ang) * v,
+        vy: Math.sin(ang) * v - 60,
+        life: 0.45 + Math.random() * 0.3, t: 0,
+        c: colors[(Math.random() * colors.length) | 0],
+        r: 2 + Math.random() * 3,
+      });
+    }
+  }
+  function drawParts() {
+    for (const p of parts) {
+      ctx.globalAlpha = Math.max(0, 1 - p.t / p.life);
+      blob(p.x, p.y, p.r, p.c);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ── Scene ──────────────────────────────────────────────────────────
+  function drawScene(dt) {
+    // dawn sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.5);
+    sky.addColorStop(0, '#2c3e63');
+    sky.addColorStop(0.55, '#7a6a8f');
+    sky.addColorStop(1, '#e8a06a');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H * 0.5);
+    // sun
+    const sx = W * 0.72, sy = H * 0.33;
+    const sg = ctx.createRadialGradient(sx, sy, 4, sx, sy, 95);
+    sg.addColorStop(0, 'rgba(255,235,190,0.95)');
+    sg.addColorStop(0.25, 'rgba(255,195,125,0.55)');
+    sg.addColorStop(1, 'rgba(255,175,95,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 95, 0, TAU);
+    ctx.fill();
+    // clouds
+    ctx.fillStyle = 'rgba(255,232,220,0.5)';
+    for (const c of clouds) {
+      c.x += c.v * dt;
+      if (c.x > W + 90) c.x = -90;
+      drawCloud(c);
+    }
+    fillRidge(ridgeFar, '#46506b');
+    fillRidge(ridgeNear, '#3b4a48');
+    // ground
+    const gr = ctx.createLinearGradient(0, H * 0.42, 0, H);
+    gr.addColorStop(0, '#5d6f44');
+    gr.addColorStop(0.4, '#4d6038');
+    gr.addColorStop(1, '#33452a');
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, H * 0.42, W, H * 0.58);
+    // horizon mist
+    const mist = ctx.createLinearGradient(0, H * 0.40, 0, H * 0.52);
+    mist.addColorStop(0, 'rgba(235,195,165,0.4)');
+    mist.addColorStop(1, 'rgba(235,195,165,0)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(0, H * 0.40, W, H * 0.12);
+
+    treesArr.forEach(drawTree);
+    grass.forEach(drawGrassTuft);
+    animals.forEach(drawAnimal);
+    drawParts();
+  }
+
+  // ── Aim (drag + idle sway + recoil) ────────────────────────────────
+  function swayX() { return Math.sin(swayT * 1.1) * 5 + Math.sin(swayT * 2.3) * 2; }
+  function swayY() { return Math.cos(swayT * 0.9) * 4 + Math.sin(swayT * 1.7) * 2; }
+  function getAim() {
+    return {
+      x: W / 2 + scopeOffsetX + swayX(),
+      y: H / 2 + scopeOffsetY + swayY() - recoil,
+    };
+  }
+  function updateScopeTransform() {
+    const ox = scopeOffsetX + swayX();
+    const oy = scopeOffsetY + swayY() - recoil;
+    scopeSys.style.transform = `translate(calc(-50% + ${ox}px), calc(-50% + ${oy}px))`;
+  }
+
+  // ── Fire ───────────────────────────────────────────────────────────
+  function fire() {
+    if (!running || reloading) return;
+    if (ammo <= 0) {
+      sfxEmpty();
+      reloadBtn.classList.add('alert');
+      return;
+    }
+    ammo--; shots++;
+    sfxShot();
+    flashEl.style.opacity = '0.75';
+    setTimeout(() => { flashEl.style.opacity = '0'; }, 70);
+    shakeT = 0.22;
+
+    const aim = getAim();
+    recoil = 18 + Math.random() * 8;
+
+    let hit = null;
+    for (const a of animals) {
+      if (a.dying) continue;
+      const rx = a.size * (a.bird ? 1.2 : 1.3);
+      const ry = a.size * (a.bird ? 1.0 : 1.0);
+      if (Math.abs(a.x - aim.x) < rx && Math.abs(a.y - aim.y) < ry) { hit = a; break; }
+    }
+
+    if (hit) {
+      hit.dying = 0.0001;
+      hits++;
+      const now = performance.now();
+      combo = (now - lastHitTime < 2000) ? combo + 1 : 1;
+      lastHitTime = now;
+      bestCombo = Math.max(bestCombo, combo);
+      const mult = Math.min(combo, 5);
+      let pts;
+      if (hit.bird) {
+        pts = 40;
+        timeLeft = Math.min(99, timeLeft + 3);
+        sfxBird();
+        popup('+٣ ⏱️', 'gold', aim.x, aim.y - 44);
+        burst(hit.x, hit.y, ['#ffd24a', '#ffaa00', '#fff3c0'], 16, 210);
+      } else {
+        pts = TYPES[hit.type].pts;
+        sfxHit(mult);
+        burst(hit.x, hit.y, ['#ffffff', '#ffd0a0', '#c8b890'], 12, 150);
+      }
+      pts *= mult;
+      score += pts;
+      popup('+' + pts, hit.bird ? 'gold' : 'norm', aim.x, aim.y);
+      if (combo >= 2) showCombo();
+    } else {
+      combo = 0;
+      hideCombo();
+      burst(aim.x, aim.y, ['#8a7a5a', '#6a5a40', '#9a8a6a'], 8, 90); // dirt puff
+    }
+    updateHUD();
+  }
+
+  function popup(text, cls, x, y) {
+    const mark = document.createElement('div');
+    mark.className = 'pop ' + cls;
+    mark.textContent = text;
+    mark.style.left = x + 'px';
+    mark.style.top  = y + 'px';
+    mark.style.opacity = '1';
+    stage.appendChild(mark);
+    requestAnimationFrame(() => {
+      mark.style.transform = 'translate(-50%, -130%) scale(1.25)';
+      mark.style.opacity = '0';
+    });
+    setTimeout(() => mark.remove(), 700);
+  }
+
+  function showCombo() {
+    comboEl.textContent = 'سلسلة ×' + Math.min(combo, 5) + (combo > 5 ? '+' : '');
+    comboEl.classList.remove('show');
+    void comboEl.offsetWidth;
+    comboEl.classList.add('show');
+  }
+  function hideCombo() { comboEl.classList.remove('show'); }
+
+  function reload() {
+    if (!running || reloading || ammo === 10) return;
+    reloading = true;
+    reloadBtn.classList.remove('alert');
+    reloadBtn.classList.add('busy');
+    reloadBtn.textContent = '... جارٍ التعبئة';
+    sfxReload();
+    setTimeout(() => {
+      ammo = 10;
+      reloading = false;
+      reloadBtn.classList.remove('busy');
+      reloadBtn.textContent = 'إعادة التعبئة';
+      updateHUD();
+    }, 900);
+  }
+
+  function updateHUD() {
+    ammoEl.textContent  = ammo;
+    scoreEl.textContent = score;
+    timeEl.textContent  = timeLeft;
+    timePill.classList.toggle('urgent', running && timeLeft <= 5);
+    for (let i = 0; i < 10; i++) bulletEls[i].classList.toggle('spent', i >= ammo);
+  }
 
   // ── Buttons ────────────────────────────────────────────────────────
   function bindButton(el, fn) {
@@ -311,190 +959,6 @@
   bindButton(restartBtn, startGame);
   bindButton(shootBtn,   fire);
   bindButton(reloadBtn,  reload);
-
-  // ── Scene generation ───────────────────────────────────────────────
-  function initTrees() {
-    trees = [];
-    for (let i = 0; i < 6; i++) {
-      trees.push({
-        x: Math.random() * W,
-        y: H * 0.35 + Math.random() * 40,
-        scale: 0.5 + Math.random() * 0.3,
-        depth: 0.6,
-      });
-    }
-    for (let i = 0; i < 5; i++) {
-      trees.push({
-        x: (i + 0.5) * (W / 5) + (Math.random() - 0.5) * 40,
-        y: H * 0.42 + Math.random() * 30,
-        scale: 1 + Math.random() * 0.4,
-        depth: 1,
-      });
-    }
-    trees.sort((a, b) => a.depth - b.depth);
-  }
-
-  function drawTree(t) {
-    const trunkW = 18 * t.scale;
-    const trunkH = 120 * t.scale;
-    const crownR = 60 * t.scale;
-    ctx.fillStyle = t.depth < 0.8 ? '#5a4a30' : '#4a3a20';
-    ctx.fillRect(t.x - trunkW / 2, t.y, trunkW, trunkH);
-    ctx.beginPath();
-    ctx.fillStyle = t.depth < 0.8 ? '#3a5a35' : '#2a4a25';
-    ctx.arc(t.x, t.y, crownR, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  function spawnAnimal() {
-    const fromLeft = Math.random() < 0.5;
-    const lane = Math.random() < 0.5 ? 0 : 1;
-    const y = lane === 0 ? H * 0.52 : H * 0.58;
-    animals.push({
-      x: fromLeft ? -80 : W + 80,
-      y: y,
-      vx: (fromLeft ? 1 : -1) * (60 + Math.random() * 60), // px / sec
-      size: 32 + Math.random() * 10,
-      alive: true,
-      flip: !fromLeft,
-    });
-  }
-
-  function drawAnimal(a) {
-    ctx.save();
-    ctx.translate(a.x, a.y);
-    if (a.flip) ctx.scale(-1, 1);
-    const s = a.size;
-
-    // Body (woolly bumps)
-    ctx.fillStyle = '#f5f1e6';
-    const bumps = [
-      [-s * 0.6, 0, s * 0.35],
-      [-s * 0.2, -s * 0.15, s * 0.40],
-      [s * 0.2,  -s * 0.15, s * 0.40],
-      [s * 0.55, 0, s * 0.32],
-      [0, s * 0.05, s * 0.40],
-    ];
-    for (const [bx, by, br] of bumps) {
-      ctx.beginPath();
-      ctx.arc(bx, by, br, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Head
-    ctx.fillStyle = '#3a3028';
-    ctx.beginPath();
-    ctx.ellipse(s * 0.85, -s * 0.05, s * 0.28, s * 0.32, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Ear
-    ctx.beginPath();
-    ctx.ellipse(s * 0.75, -s * 0.30, s * 0.08, s * 0.14, -0.4, 0, Math.PI * 2);
-    ctx.fill();
-    // Legs
-    ctx.fillStyle = '#2a2018';
-    const legW = s * 0.10;
-    ctx.fillRect(-s * 0.45, s * 0.35, legW, s * 0.40);
-    ctx.fillRect(-s * 0.15, s * 0.35, legW, s * 0.40);
-    ctx.fillRect( s * 0.15, s * 0.35, legW, s * 0.40);
-    ctx.fillRect( s * 0.45, s * 0.35, legW, s * 0.40);
-    // Eye
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(s * 0.95, -s * 0.10, s * 0.04, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function drawScene() {
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(60,80,55,0.6)';
-    ctx.fillRect(0, H * 0.6, W, H * 0.4);
-    trees.forEach(drawTree);
-    animals.forEach(a => { if (a.alive) drawAnimal(a); });
-  }
-
-  // ── Aim ────────────────────────────────────────────────────────────
-  function getAimCanvasPoint() {
-    const cx = W / 2 + scopeOffsetX;
-    const cy = H / 2 + scopeOffsetY;
-    return { x: cx, y: cy };
-  }
-  function updateScopeTransform() {
-    scopeSys.style.transform = `translate(calc(-50% + ${scopeOffsetX}px), calc(-50% + ${scopeOffsetY}px))`;
-  }
-
-  // ── Fire ───────────────────────────────────────────────────────────
-  function fire() {
-    if (!running) return;
-    if (ammo <= 0) return;
-    ammo--;
-    updateHUD();
-
-    flashEl.style.opacity = '0.85';
-    setTimeout(() => { flashEl.style.opacity = '0'; }, 80);
-
-    const aim = getAimCanvasPoint();
-    let hit = null;
-    for (const a of animals) {
-      if (!a.alive) continue;
-      const dx = a.x - aim.x;
-      const dy = a.y - aim.y;
-      if (Math.abs(dx) < a.size * 1.2 && Math.abs(dy) < a.size * 0.9) {
-        hit = a;
-        break;
-      }
-    }
-    if (hit) {
-      hit.alive = false;
-      const now = performance.now();
-      if (now - lastHitTime < 1500) combo++; else combo = 1;
-      lastHitTime = now;
-      const points = 10 * Math.max(1, combo);
-      score += points;
-      showCombo();
-      showHitMark(points);
-    } else {
-      combo = 0;
-      hideCombo();
-    }
-    updateHUD();
-  }
-
-  function showHitMark(points) {
-    const stageRect = stage.getBoundingClientRect();
-    const mark = document.createElement('div');
-    mark.className = 'hitmark';
-    mark.textContent = '+' + points;
-    // Render in stage coordinates (CSS px). Use scope offset directly.
-    mark.style.left = (stageRect.width  / 2 + scopeOffsetX) + 'px';
-    mark.style.top  = (stageRect.height / 2 + scopeOffsetY) + 'px';
-    mark.style.opacity = '1';
-    stage.appendChild(mark);
-    requestAnimationFrame(() => {
-      mark.style.transform = 'translate(-50%, -80%) scale(1.2)';
-      mark.style.opacity = '0';
-    });
-    setTimeout(() => mark.remove(), 600);
-  }
-
-  function showCombo() {
-    if (combo < 2) return;
-    comboEl.textContent = 'سلسلة ×' + combo;
-    comboEl.classList.add('show');
-  }
-  function hideCombo() { comboEl.classList.remove('show'); }
-
-  function reload() {
-    if (!running) return;
-    if (ammo === 10) return;
-    setTimeout(() => { ammo = 10; updateHUD(); }, 400);
-  }
-
-  function updateHUD() {
-    ammoEl.textContent  = ammo;
-    scoreEl.textContent = score;
-    timeEl.textContent  = timeLeft;
-  }
 
   // ── Drag-to-aim ────────────────────────────────────────────────────
   function getPoint(e) {
@@ -520,11 +984,9 @@
     const maxY = stageRect.height * 0.30;
     scopeOffsetX = Math.max(-maxX, Math.min(maxX, scopeOffsetX));
     scopeOffsetY = Math.max(-maxY, Math.min(maxY, scopeOffsetY));
-    updateScopeTransform();
   }
   function onUp() { dragging = false; }
 
-  // Bind input to the stage (not window) so it stays inside the WebView
   stage.addEventListener('mousedown', onDown);
   stage.addEventListener('touchstart', onDown, { passive: false });
   stage.addEventListener('mousemove', onMove);
@@ -537,47 +999,95 @@
     if (!running) { rafId = null; return; }
     const dt = Math.min(0.05, (now - lastTime) / 1000);
     lastTime = now;
+    swayT += dt;
+    elapsed += dt;
 
-    // Spawn
+    // recoil eases back
+    recoil *= Math.exp(-11 * dt);
+    if (recoil < 0.1) recoil = 0;
+
+    // screen shake
+    if (shakeT > 0) {
+      shakeT -= dt;
+      const amp = Math.max(0, shakeT) * 28;
+      shaker.style.transform = `translate(${(Math.random() - 0.5) * amp}px, ${(Math.random() - 0.5) * amp}px)`;
+      if (shakeT <= 0) shaker.style.transform = '';
+    }
+
+    // spawning — ramps up over time
     spawnTimer += dt;
-    if (spawnTimer > 1.1) {
-      spawnAnimal();
-      spawnTimer = 0;
-    }
+    const interval = Math.max(0.55, 1.25 - elapsed * 0.014);
+    if (spawnTimer > interval) { spawnAnimal(); spawnTimer = 0; }
+    birdTimer += dt;
+    if (birdTimer > 8) { spawnBird(); birdTimer = 0; }
 
-    // Update animals (pixels per second now, not per frame)
+    // update animals
     for (const a of animals) {
+      a.phase += dt * (a.bird ? 5 : 6);
+      if (a.dying) {
+        a.dying += dt;
+        a.y += (a.bird ? 260 : 90) * dt;
+        a.rot = (a.flip ? -1 : 1) * Math.min(1.6, a.dying * 6);
+        if (a.dying > 0.7) a.dead = true;
+        continue;
+      }
       a.x += a.vx * dt;
+      if (a.bird) a.y = a.baseY + Math.sin(a.phase) * 14;
     }
-    animals = animals.filter(a => a.alive && a.x > -120 && a.x < W + 120);
+    animals = animals.filter(a => !a.dead && a.x > -140 && a.x < W + 140);
 
-    // Decay combo if no recent hit
-    if (combo > 0 && performance.now() - lastHitTime > 1800) {
+    // particles
+    for (const p of parts) {
+      p.t += dt;
+      p.vy += 400 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+    parts = parts.filter(p => p.t < p.life);
+
+    // combo decay
+    if (combo > 0 && performance.now() - lastHitTime > 2000) {
       combo = 0;
       hideCombo();
     }
 
-    drawScene();
+    updateScopeTransform();
+    drawScene(dt);
     rafId = requestAnimationFrame(loop);
   }
 
   // ── Start / End ────────────────────────────────────────────────────
+  function getBest() {
+    try { return +localStorage.getItem('huntBest') || 0; } catch (e) { return 0; }
+  }
+  function setBest(v) {
+    try { localStorage.setItem('huntBest', v); } catch (e) {}
+  }
+
   function startGame() {
+    audio(); // unlock audio on user gesture
+    sfxStart();
     measure();
     ammo = 10; score = 0; combo = 0; timeLeft = 45;
-    animals = []; spawnTimer = 0;
-    scopeOffsetX = 0; scopeOffsetY = 0;
-    updateScopeTransform();
+    shots = 0; hits = 0; bestCombo = 0;
+    animals = []; parts = [];
+    spawnTimer = 0; birdTimer = 0; elapsed = 0;
+    scopeOffsetX = 0; scopeOffsetY = 0; recoil = 0; shakeT = 0;
+    reloading = false;
+    reloadBtn.classList.remove('alert', 'busy');
+    reloadBtn.textContent = 'إعادة التعبئة';
     running = true;
     updateHUD();
     hideCombo();
+    updateScopeTransform();
     startView.classList.add('hidden');
     endView.classList.add('hidden');
 
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
       timeLeft--;
-      timeEl.textContent = timeLeft;
+      if (timeLeft <= 5 && timeLeft > 0) sfxTick();
+      updateHUD();
       if (timeLeft <= 0) endGame();
     }, 1000);
 
@@ -590,14 +1100,27 @@
     running = false;
     clearInterval(timerInterval);
     timerInterval = null;
+    timePill.classList.remove('urgent');
+    sfxEnd();
     finalEl.textContent = score;
+    statHits.textContent = hits;
+    statAcc.textContent = shots ? Math.round(hits / shots * 100) + '%' : '0%';
+    statCombo.textContent = '×' + bestCombo;
+    const stars = score >= 450 ? 3 : score >= 250 ? 2 : score >= 100 ? 1 : 0;
+    starsEl.textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+    let best = getBest();
+    if (score > best) { best = score; setBest(best); }
+    endBest.textContent = 'أفضل نتيجة: ' + best;
     endView.classList.remove('hidden');
   }
 
   // ── Init ───────────────────────────────────────────────────────────
+  const b0 = getBest();
+  if (b0 > 0) startBest.textContent = 'أفضل نتيجة: ' + b0;
   measure();
-  drawScene(); // draw something so start screen has scenery behind it
-  [50, 200, 500, 1500].forEach(t => setTimeout(() => { measure(); drawScene(); }, t));
+  drawScene(0); // scenery behind the start screen
+  updateHUD();
+  [50, 200, 500, 1500].forEach(t => setTimeout(() => { measure(); drawScene(0); }, t));
 })();
 </script>
 </body>
