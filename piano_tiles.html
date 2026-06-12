@@ -11,22 +11,14 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
 
 :root {
   --gold: #f5c842;
-  --gold-dim: rgba(245,200,66,0.18);
-  --gold-glow: rgba(245,200,66,0.35);
   --blue: #4fc3f7;
-  --blue-dim: rgba(79,195,247,0.15);
   --mint: #00e5b0;
   --coral: #ff6b6b;
-  --bg: #070b14;
-  --bg2: #0d1b2a;
-  --bg3: #111827;
   --glass: rgba(255,255,255,0.06);
   --glass-border: rgba(255,255,255,0.1);
   --text: #e8edf5;
   --text-dim: rgba(232,237,245,0.55);
 }
-
-/* no full-screen noise — pure black game bg */
 
 /* ── SCREENS ── */
 .screen {
@@ -47,10 +39,7 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
               linear-gradient(180deg, #070b14 0%, #0d1522 100%);
 }
 
-.menu-logo-wrap {
-  position: relative;
-  margin-bottom: 10px;
-}
+.menu-logo-wrap { position: relative; margin-bottom: 10px; }
 .menu-logo-wrap::before {
   content: "";
   position: absolute; inset: -40px;
@@ -93,7 +82,6 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
   font-variant-numeric: lining-nums;
 }
 
-/* Game cards carousel */
 .games-grid {
   display: flex;
   flex-direction: column;
@@ -116,7 +104,6 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
   transition: transform 0.12s cubic-bezier(0.34,1.56,0.64,1),
               border-color 0.2s ease,
               box-shadow 0.2s ease;
-  backdrop-filter: blur(12px);
   overflow: hidden;
 }
 .game-card::before {
@@ -138,10 +125,7 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
   border-radius: 999px; padding: 2px 8px;
   font-variant-numeric: lining-nums;
 }
-.game-card.locked {
-  opacity: 0.45;
-  cursor: default;
-}
+.game-card.locked { opacity: 0.45; cursor: default; }
 .game-card.locked::after {
   content: "🔒";
   position: absolute; top: 12px; left: 14px;
@@ -165,7 +149,6 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
 .card-desc { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
 .card-arrow { font-size: 18px; color: var(--text-dim); }
 
-/* menu bottom */
 .menu-footer {
   margin-top: 28px;
   font-size: 11px;
@@ -221,7 +204,15 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
 }
 .start-game-sub {
   font-size: 14px; color: var(--text-dim);
-  text-align: center; margin-top: 6px; margin-bottom: 28px;
+  text-align: center; margin-top: 6px; margin-bottom: 20px;
+}
+
+.song-pill {
+  background: rgba(79,195,247,0.12);
+  border: 1px solid rgba(79,195,247,0.3);
+  border-radius: 999px; padding: 7px 20px;
+  font-size: 13px; color: var(--blue); font-weight: 700;
+  margin-bottom: 18px;
 }
 
 .how-to-box {
@@ -229,13 +220,13 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
   border: 1px solid var(--glass-border);
   border-radius: 16px;
   padding: 16px 20px;
-  max-width: 300px;
+  max-width: 310px;
   width: calc(100% - 40px);
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 .how-to-box p {
   font-size: 13px; color: var(--text-dim);
-  line-height: 1.7;
+  line-height: 1.8;
 }
 .how-to-box p strong { color: var(--gold); }
 
@@ -287,91 +278,88 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
 .btn-secondary:active { transform: scale(0.95); background: rgba(255,255,255,0.1); }
 
 /* ══════════════════════════════════════
-   GAMEPLAY SCREEN
+   GAMEPLAY SCREEN  — Piano Tiles 2 style
 ══════════════════════════════════════ */
 #gameScreen { padding: 0; justify-content: flex-start; }
 
-/* HUD */
-#hud {
-  position: absolute; top: 0; left: 0; right: 0;
-  height: 56px;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 14px;
-  background: linear-gradient(180deg, rgba(7,11,20,0.95) 0%, rgba(7,11,20,0) 100%);
-  z-index: 100;
-}
-.hud-pill {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 999px; padding: 6px 14px;
-  font-size: 13px; color: var(--text);
-  font-variant-numeric: lining-nums;
-  display: flex; align-items: center; gap: 6px;
-  backdrop-filter: blur(8px);
-}
-.hud-pill .label { color: var(--text-dim); font-size: 11px; }
-.hud-pill .val { font-weight: 700; font-variant-numeric: lining-nums; }
-.hud-pill.score .val { color: var(--gold); text-shadow: 0 0 10px rgba(245,200,66,0.5); }
-.hud-pill.lives .val { color: var(--coral); }
-.hud-pill.combo .val { color: var(--mint); text-shadow: 0 0 10px rgba(0,229,176,0.5); }
+#pianoWrap { position: absolute; inset: 0; }
+#pianoCanvas { display: block; width: 100%; height: 100%; }
 
-/* pause btn */
+@keyframes shakeX {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+#pianoWrap.shake { animation: shakeX 0.45s ease; }
+
+/* top readability fade — cheap, no backdrop-filter */
+#topFade {
+  position: absolute; top: 0; left: 0; right: 0; height: 130px;
+  background: linear-gradient(180deg, rgba(8,8,40,0.35) 0%, transparent 100%);
+  pointer-events: none; z-index: 40;
+}
+
+/* big PT2-style score, top center */
+#scoreWrap {
+  position: absolute; top: 12px; left: 0; right: 0;
+  text-align: center; z-index: 60; pointer-events: none;
+}
+#hudScore {
+  display: inline-block;
+  font-size: 50px; font-weight: 900; color: #fff;
+  text-shadow: 0 2px 18px rgba(15,15,70,0.5);
+  font-variant-numeric: lining-nums;
+  line-height: 1;
+}
+
+/* crowns — one per completed lap */
+#crownsRow {
+  position: absolute; top: 72px; left: 0; right: 0;
+  text-align: center; z-index: 60; pointer-events: none;
+  font-size: 17px; letter-spacing: 10px;
+}
+.crown { color: rgba(255,255,255,0.35); transition: color 0.3s, text-shadow 0.3s; }
+.crown.lit { color: #ffd54a; text-shadow: 0 0 14px rgba(255,213,74,0.9); }
+
 #pauseBtn {
-  width: 38px; height: 38px;
-  background: var(--glass); border: 1px solid var(--glass-border);
-  border-radius: 10px; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 16px; color: var(--text);
-  flex-shrink: 0;
+  position: absolute; top: 16px; right: 14px;
+  width: 40px; height: 40px;
+  background: rgba(10,12,40,0.35); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 16px; color: #fff;
+  z-index: 70;
   transition: transform 0.12s cubic-bezier(0.34,1.56,0.64,1);
 }
 #pauseBtn:active { transform: scale(0.88); }
 
-/* Level badge */
-#levelBadge {
-  position: absolute; top: 62px; left: 50%; transform: translateX(-50%);
-  background: rgba(245,200,66,0.15); border: 1px solid rgba(245,200,66,0.3);
-  border-radius: 999px; padding: 3px 14px;
-  font-size: 11px; font-weight: 700; color: var(--gold);
-  font-variant-numeric: lining-nums;
-  z-index: 99;
-  transition: opacity 0.3s; opacity: 0;
-  pointer-events: none;
-}
-#levelBadge.show { opacity: 1; }
-
-/* Piano canvas area */
-#pianoWrap {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-}
-#pianoCanvas { display: block; }
-
-/* Progress bar at bottom */
+/* song progress — transform-based (no layout) */
 #progressBar {
   position: absolute; bottom: 0; left: 0; right: 0;
-  height: 3px; background: rgba(255,255,255,0.06);
+  height: 4px; background: rgba(0,0,0,0.25);
   z-index: 50;
 }
 #progressFill {
-  height: 100%; background: linear-gradient(90deg, var(--gold), var(--mint));
-  width: 0%; transition: width 0.3s ease;
+  height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--mint));
+  transform: scaleX(0); transform-origin: right;
   box-shadow: 0 0 8px rgba(245,200,66,0.5);
 }
 
-/* Miss flash */
+/* fail flash */
 #missFlash {
   position: absolute; inset: 0;
-  background: rgba(255,80,80,0.18);
+  background: rgba(255,60,60,0.22);
   pointer-events: none; z-index: 200;
   opacity: 0; transition: opacity 0.15s;
 }
 #missFlash.show { opacity: 1; }
 
-/* Pause overlay */
+/* pause overlay */
 #pauseOverlay {
   position: absolute; inset: 0;
-  background: rgba(7,11,20,0.88);
-  backdrop-filter: blur(16px);
+  background: rgba(7,11,20,0.9);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   z-index: 500;
@@ -381,20 +369,27 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
 }
 #pauseOverlay.active { opacity: 1; pointer-events: all; transform: translateY(0); }
 .pause-title { font-size: 28px; font-weight: 900; color: var(--text); margin-bottom: 8px; }
+.pause-pill {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px; padding: 7px 18px;
+  font-size: 13px; color: var(--text-dim);
+  margin-bottom: 8px; font-variant-numeric: lining-nums;
+}
+.pause-pill span { color: var(--gold); font-weight: 700; }
 
-/* Level up toast */
-#levelToast {
+/* "Faster!" toast */
+#fasterToast {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8);
-  background: rgba(245,200,66,0.12); border: 1px solid rgba(245,200,66,0.4);
-  border-radius: 20px; padding: 18px 36px;
+  background: rgba(245,200,66,0.14); border: 1px solid rgba(245,200,66,0.45);
+  border-radius: 20px; padding: 16px 38px;
   text-align: center; z-index: 300;
   pointer-events: none; opacity: 0;
   transition: opacity 0.3s, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
-  backdrop-filter: blur(12px);
 }
-#levelToast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-.toast-label { font-size: 12px; color: var(--text-dim); font-weight: 600; letter-spacing: 2px; text-transform: uppercase; }
-.toast-val { font-size: 30px; font-weight: 900; color: var(--gold); font-variant-numeric: lining-nums; }
+#fasterToast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.toast-label { font-size: 24px; color: var(--gold); font-weight: 900; }
+.toast-sub { font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 4px; font-variant-numeric: lining-nums; }
 
 /* ══════════════════════════════════════
    END SCREEN
@@ -408,7 +403,6 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
   border-radius: 24px; padding: 28px 32px;
   text-align: center; width: calc(100% - 40px);
   max-width: 320px; margin-bottom: 24px;
-  backdrop-filter: blur(12px);
   position: relative; overflow: hidden;
 }
 .end-result-box::before {
@@ -423,24 +417,19 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
 .end-score { font-size: 64px; font-weight: 900; color: var(--gold); line-height: 1; font-variant-numeric: lining-nums; text-shadow: 0 0 40px rgba(245,200,66,0.5); }
 .end-best { font-size: 13px; color: var(--text-dim); margin-top: 6px; font-variant-numeric: lining-nums; }
 .end-best span { color: var(--mint); font-weight: 700; font-variant-numeric: lining-nums; }
+#newRecord {
+  display: none;
+  font-size: 13px; color: var(--gold); font-weight: 800; margin-top: 8px;
+}
+#newRecord.show { display: block; }
 
-/* Stars */
-.stars-row {
-  display: flex; justify-content: center; gap: 10px;
-  margin: 18px 0 8px;
-}
-.star {
-  width: 36px; height: 36px;
-  position: relative;
-  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
-}
+.stars-row { display: flex; justify-content: center; gap: 10px; margin: 18px 0 8px; }
+.star { width: 36px; height: 36px; position: relative; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); }
 .star svg { width: 36px; height: 36px; }
 .star.lit svg path { fill: var(--gold); filter: drop-shadow(0 0 8px rgba(245,200,66,0.7)); }
 .star.unlit svg path { fill: rgba(255,255,255,0.12); }
 
-.end-stats {
-  display: flex; gap: 10px; margin-top: 12px;
-}
+.end-stats { display: flex; gap: 10px; margin-top: 12px; }
 .end-stat {
   flex: 1; background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.07);
@@ -450,32 +439,6 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
 .end-stat .s-lab { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
 
 .end-btns { display: flex; flex-direction: column; gap: 10px; width: calc(100% - 40px); max-width: 280px; }
-
-/* ── PARTICLES ── */
-.particle {
-  position: fixed; pointer-events: none; z-index: 9000;
-  width: 8px; height: 8px; border-radius: 50%;
-  animation: particle-out 0.7s ease-out forwards;
-}
-@keyframes particle-out {
-  0% { opacity: 1; transform: translate(0,0) scale(1); }
-  100% { opacity: 0; transform: var(--tx) scale(0); }
-}
-
-/* ── COMBO FLASH ── */
-.combo-flash {
-  position: fixed; pointer-events: none; z-index: 8000;
-  font-size: 22px; font-weight: 900;
-  color: var(--mint);
-  text-shadow: 0 0 20px rgba(0,229,176,0.7);
-  animation: combo-pop 0.7s ease-out forwards;
-  font-variant-numeric: lining-nums;
-}
-@keyframes combo-pop {
-  0% { opacity: 1; transform: translateY(0) scale(1); }
-  60% { opacity: 1; transform: translateY(-30px) scale(1.1); }
-  100% { opacity: 0; transform: translateY(-55px) scale(0.8); }
-}
 </style>
 </head>
 <body>
@@ -493,7 +456,7 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
       <div class="card-icon gold">🎹</div>
       <div class="card-info">
         <div class="card-name">بيانو التايلز</div>
-        <div class="card-desc">اضغط البلاطات السوداء بالترتيب</div>
+        <div class="card-desc">اعزف اللحن بلمس البلاطات السوداء</div>
       </div>
       <div class="card-arrow">‹</div>
     </div>
@@ -523,13 +486,16 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
   <div class="start-back-btn" id="startBackBtn">›</div>
   <div class="start-icon">🎹</div>
   <div class="start-game-title">بيانو التايلز</div>
-  <div class="start-game-sub">Piano Tiles</div>
+  <div class="start-game-sub">Piano Tiles 2</div>
+
+  <div class="song-pill">🎵 لحن إليزا · Für Elise</div>
 
   <div class="how-to-box">
     <p>
-      اضغط على <strong>البلاطات السوداء</strong> فقط قبل أن تختفي من الشاشة.<br>
-      تجنّب البلاطات البيضاء وإلا <strong>ستخسر حياة</strong>.<br>
-      كلما زادت نقاطك كلما زادت <strong>السرعة</strong>!
+      المس <strong>البلاطات السوداء</strong> لعزف اللحن نغمة بنغمة.<br>
+      <strong>اضغط مطولاً</strong> على البلاطات الطويلة حتى نهايتها.<br>
+      لا تلمس المساحات الفارغة ولا تدع أي بلاطة تفوتك وإلا <strong>انتهت اللعبة</strong>!<br>
+      مع كل جولة يصبح اللحن <strong>أسرع</strong> ⚡ وتربح تاجاً 👑
     </p>
   </div>
 
@@ -539,29 +505,27 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
 
 <!-- ══ GAME SCREEN ══ -->
 <div id="gameScreen" class="screen">
-  <div id="hud">
-    <div class="hud-pill score"><span class="label">نقاط</span><span class="val" id="hudScore">0</span></div>
-    <div id="pauseBtn">⏸</div>
-    <div class="hud-pill lives"><span class="label">حياة</span><span class="val" id="hudLives">♥♥♥</span></div>
-  </div>
-  <div id="levelBadge">المستوى <span id="levelNum">1</span></div>
-
   <div id="pianoWrap">
     <canvas id="pianoCanvas"></canvas>
   </div>
 
+  <div id="topFade"></div>
+  <div id="scoreWrap"><span id="hudScore">0</span></div>
+  <div id="crownsRow"><span class="crown">♛</span><span class="crown">♛</span><span class="crown">♛</span></div>
+  <div id="pauseBtn">⏸</div>
+
   <div id="missFlash"></div>
 
-  <div id="levelToast">
-    <div class="toast-label">مستوى جديد!</div>
-    <div class="toast-val" id="toastLevel">2</div>
+  <div id="fasterToast">
+    <div class="toast-label">⚡ أسرع!</div>
+    <div class="toast-sub">الجولة <span id="toastLap">2</span></div>
   </div>
 
   <div id="progressBar"><div id="progressFill"></div></div>
 
   <div id="pauseOverlay">
     <div class="pause-title">متوقف ⏸</div>
-    <div class="hud-pill score" style="margin-bottom:8px"><span class="label">نقاطك الحالية</span><span class="val" id="pauseScore">0</span></div>
+    <div class="pause-pill">نقاطك الحالية: <span id="pauseScore">0</span></div>
     <button class="btn-primary" id="resumeBtn" style="font-size:15px;padding:13px 42px">استمر ▶</button>
     <button class="btn-secondary" id="pauseQuitBtn">قائمة رئيسية</button>
   </div>
@@ -573,11 +537,12 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
     <div class="end-label">النتيجة النهائية</div>
     <div class="end-score" id="endScore">0</div>
     <div class="end-best">أفضل نتيجة: <span id="endBest">0</span></div>
+    <div id="newRecord">🎉 رقم قياسي جديد!</div>
     <div class="stars-row" id="starsRow"></div>
     <div class="end-stats">
-      <div class="end-stat"><div class="s-val" id="endCombo">0</div><div class="s-lab">أفضل تسلسل</div></div>
-      <div class="end-stat"><div class="s-val" id="endTiles">0</div><div class="s-lab">بلاطات صحيحة</div></div>
-      <div class="end-stat"><div class="s-val" id="endLevel">1</div><div class="s-lab">المستوى</div></div>
+      <div class="end-stat"><div class="s-val" id="endLaps">0</div><div class="s-lab">جولات كاملة</div></div>
+      <div class="end-stat"><div class="s-val" id="endTiles">0</div><div class="s-lab">بلاطات</div></div>
+      <div class="end-stat"><div class="s-val" id="endSpeed">×1.0</div><div class="s-lab">السرعة</div></div>
     </div>
   </div>
   <div class="end-btns">
@@ -591,17 +556,79 @@ body { touch-action: none; position: fixed; inset: 0; background: #000; font-fam
 'use strict';
 
 /* ══════════════════════
-   AUDIO ENGINE
+   AUDIO ENGINE — piano synth
 ══════════════════════ */
-let actx = null;
+let actx = null, master = null;
 
 function ensureAudio() {
   if (!actx) {
-    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      master = actx.createGain();
+      master.gain.value = 0.85;
+      const comp = actx.createDynamicsCompressor();
+      master.connect(comp);
+      comp.connect(actx.destination);
+    } catch (e) { actx = null; master = null; }
   }
   if (actx && actx.state === 'suspended') {
-    try { actx.resume(); } catch(e) {}
+    try { actx.resume(); } catch (e) {}
   }
+}
+
+/* A piano-like pluck: layered sine/triangle partials with fast attack and
+   exponential decay. sustain=true returns a voice with .end() for hold tiles. */
+function pianoVoice(freq, vel, sustain) {
+  if (!actx || !master) return null;
+  try {
+    const t = actx.currentTime;
+    const env = actx.createGain();
+    env.connect(master);
+    const partials = [
+      ['triangle', 1,   0.55],
+      ['sine',     1,   0.5],
+      ['sine',     2,   0.22],
+      ['sine',     3,   0.08]
+    ];
+    const oscs = [];
+    for (const [type, mult, g] of partials) {
+      const o = actx.createOscillator();
+      o.type = type;
+      o.frequency.value = freq * mult;
+      const og = actx.createGain();
+      og.gain.value = g;
+      o.connect(og); og.connect(env);
+      o.start(t);
+      oscs.push(o);
+    }
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(vel, t + 0.012);
+
+    if (sustain) {
+      env.gain.exponentialRampToValueAtTime(vel * 0.45, t + 0.35);
+      env.gain.exponentialRampToValueAtTime(vel * 0.15, t + 2.4);
+      let ended = false;
+      const safety = setTimeout(end, 6000);
+      function end() {
+        if (ended) return;
+        ended = true;
+        clearTimeout(safety);
+        try {
+          const n = actx.currentTime;
+          env.gain.cancelScheduledValues(n);
+          env.gain.setValueAtTime(Math.max(env.gain.value, 0.0001), n);
+          env.gain.exponentialRampToValueAtTime(0.0001, n + 0.18);
+          for (const o of oscs) o.stop(n + 0.3);
+        } catch (e) {}
+      }
+      return { end };
+    }
+
+    env.gain.exponentialRampToValueAtTime(vel * 0.22, t + 0.18);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    for (const o of oscs) { try { o.stop(t + 0.95); } catch (e) {} }
+    return null;
+  } catch (e) { return null; }
 }
 
 function playTone(freq, type, dur, vol, delayMs) {
@@ -610,49 +637,75 @@ function playTone(freq, type, dur, vol, delayMs) {
     const t = actx.currentTime + (delayMs || 0) / 1000;
     const osc = actx.createOscillator();
     const gain = actx.createGain();
-    osc.connect(gain); gain.connect(actx.destination);
+    osc.connect(gain); gain.connect(master || actx.destination);
     osc.type = type; osc.frequency.setValueAtTime(freq, t);
     gain.gain.setValueAtTime(0, t);
     gain.gain.linearRampToValueAtTime(vol, t + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.start(t); osc.stop(t + dur + 0.01);
-  } catch(e) {}
+  } catch (e) {}
 }
 
 const SFX = {
-  tap() {
-    try {
-      ensureAudio(); if (!actx) return;
-      playTone(880, 'sine', 0.12, 0.25);
-      playTone(1320, 'sine', 0.08, 0.1, 20);
-    } catch(e) {}
+  wrong() {
+    ensureAudio(); if (!actx) return;
+    playTone(160, 'sawtooth', 0.22, 0.25);
+    playTone(110, 'sawtooth', 0.25, 0.18, 60);
   },
-  miss() {
-    try {
-      ensureAudio(); if (!actx) return;
-      playTone(180, 'sawtooth', 0.2, 0.18);
-      playTone(140, 'sawtooth', 0.18, 0.12, 60);
-    } catch(e) {}
-  },
-  levelUp() {
-    try {
-      ensureAudio(); if (!actx) return;
-      [440, 554, 659, 880].forEach((f, i) => playTone(f, 'sine', 0.18, 0.2, i * 70));
-    } catch(e) {}
+  faster() {
+    ensureAudio(); if (!actx) return;
+    [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => pianoVoice(f, 0.3, false), i * 70));
   },
   gameOver() {
-    try {
-      ensureAudio(); if (!actx) return;
-      [440, 370, 311, 220].forEach((f, i) => playTone(f, 'sine', 0.3, 0.22, i * 100));
-    } catch(e) {}
-  },
-  combo() {
-    try {
-      ensureAudio(); if (!actx) return;
-      playTone(1046, 'sine', 0.15, 0.2);
-    } catch(e) {}
+    ensureAudio(); if (!actx) return;
+    [392, 330, 262, 196].forEach((f, i) => setTimeout(() => pianoVoice(f, 0.35, false), i * 150));
   }
 };
+
+/* ══════════════════════
+   SONG DATA — Für Elise
+   [note, duration in units]; d >= 3 becomes a hold tile
+══════════════════════ */
+const NOTE_SEMI = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+function freqOf(name) {
+  const m = /^([A-G])(#|b)?(\d)$/.exec(name);
+  const semi = NOTE_SEMI[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);
+  const midi = (parseInt(m[3], 10) + 1) * 12 + semi;
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+const SONG_NOTES = [
+  // A section
+  ['E5',1],['D#5',1],['E5',1],['D#5',1],['E5',1],['B4',1],['D5',1],['C5',1],
+  ['A4',2],['C4',1],['E4',1],['A4',1],
+  ['B4',2],['E4',1],['G#4',1],['B4',1],
+  ['C5',2],['E4',1],['E5',1],['D#5',1],
+  ['E5',1],['D#5',1],['E5',1],['B4',1],['D5',1],['C5',1],
+  ['A4',2],['C4',1],['E4',1],['A4',1],
+  ['B4',2],['E4',1],['C5',1],['B4',1],
+  ['A4',3],
+  // B section
+  ['B4',1],['C5',1],['D5',1],
+  ['E5',3],
+  ['G4',1],['F5',1],['E5',1],
+  ['D5',3],
+  ['F4',1],['E5',1],['D5',1],
+  ['C5',3],
+  ['E4',1],['D5',1],['C5',1],
+  ['B4',3],
+  ['E4',1],['E5',1],['D#5',1],
+  // A section reprise
+  ['E5',1],['D#5',1],['E5',1],['D#5',1],['E5',1],['B4',1],['D5',1],['C5',1],
+  ['A4',2],['C4',1],['E4',1],['A4',1],
+  ['B4',2],['E4',1],['G#4',1],['B4',1],
+  ['C5',2],['E4',1],['E5',1],['D#5',1],
+  ['E5',1],['D#5',1],['E5',1],['B4',1],['D5',1],['C5',1],
+  ['A4',2],['C4',1],['E4',1],['A4',1],
+  ['B4',2],['E4',1],['C5',1],['B4',1],
+  ['A4',4]
+].map(([n, d]) => ({ d, f: freqOf(n) }));
+
+const LAP_UNITS = SONG_NOTES.reduce((a, n) => a + n.d, 0);
 
 /* ══════════════════════
    SCREEN MANAGER
@@ -663,32 +716,22 @@ const screens = {};
 });
 
 function showScreen(id) {
-  Object.values(screens).forEach(s => {
-    s.classList.remove('active');
-    s.style.transform = 'translateY(14px)';
-    s.style.opacity = '0';
-    s.style.pointerEvents = 'none';
-  });
-  const el = screens[id];
-  if (!el) return;
-  requestAnimationFrame(() => {
-    el.style.pointerEvents = 'all';
-    el.style.opacity = '';
-    el.style.transform = '';
-    el.classList.add('active');
-  });
+  Object.values(screens).forEach(s => s.classList.remove('active'));
+  screens[id].classList.add('active');
 }
 
 /* ══════════════════════
    BEST SCORE
 ══════════════════════ */
 let bestScore = 0;
-try { bestScore = parseInt(localStorage.getItem('ingames_piano_best') || '0') || 0; } catch(e) {}
+try { bestScore = parseInt(localStorage.getItem('ingames_piano_best') || '0') || 0; } catch (e) {}
 function saveBest(s) {
   if (s > bestScore) {
     bestScore = s;
-    try { localStorage.setItem('ingames_piano_best', '' + bestScore); } catch(e) {}
+    try { localStorage.setItem('ingames_piano_best', '' + bestScore); } catch (e) {}
+    return true;
   }
+  return false;
 }
 function updateBestDisplay() {
   document.getElementById('bestScoreDisplay').textContent = '' + bestScore;
@@ -696,465 +739,555 @@ function updateBestDisplay() {
 updateBestDisplay();
 
 /* ══════════════════════
-   PARTICLES
-══════════════════════ */
-function spawnParticles(x, y, color) {
-  const colors = color ? [color] : ['#f5c842','#4fc3f7','#00e5b0','#ff6b6b'];
-  for (let i = 0; i < 8; i++) {
-    const p = document.createElement('div');
-    p.className = 'particle';
-    const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.5;
-    const dist = 40 + Math.random() * 50;
-    const tx = `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`;
-    p.style.cssText = `left:${x - 4}px;top:${y - 4}px;background:${colors[i % colors.length]};--tx:${tx};`;
-    document.body.appendChild(p);
-    setTimeout(() => p.remove(), 750);
-  }
-}
-
-function spawnComboText(x, y, combo) {
-  const el = document.createElement('div');
-  el.className = 'combo-flash';
-  el.textContent = '' + combo + 'x 🔥';
-  el.style.left = (x - 30) + 'px';
-  el.style.top = (y - 10) + 'px';
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 750);
-}
-
-/* ══════════════════════
-   PIANO TILES GAME
+   PIANO TILES 2 ENGINE
 ══════════════════════ */
 const canvas = document.getElementById('pianoCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 const wrap = document.getElementById('pianoWrap');
 const hudScore = document.getElementById('hudScore');
-const hudLives = document.getElementById('hudLives');
-const levelBadge = document.getElementById('levelBadge');
-const levelNumEl = document.getElementById('levelNum');
-const levelToast = document.getElementById('levelToast');
-const toastLevelEl = document.getElementById('toastLevel');
+const crownEls = document.querySelectorAll('#crownsRow .crown');
 const progressFill = document.getElementById('progressFill');
 const missFlash = document.getElementById('missFlash');
 const pauseOverlay = document.getElementById('pauseOverlay');
-const pauseScore = document.getElementById('pauseScore');
+const pauseScoreEl = document.getElementById('pauseScore');
+const fasterToast = document.getElementById('fasterToast');
+const toastLapEl = document.getElementById('toastLap');
 
-const NUM_COLS = 4;
+const COLS = 4;
+const VISIBLE_UNITS = 4;       // rows visible on screen, PT2-style tall tiles
+const BASE_SPEED = 3.3;        // units per second, lap 1
+const TILE_PAD_X = 2;          // horizontal inset inside lane
+const TILE_GAP_Y = 3;          // vertical gap between tiles
 
-let W, H, TILE_W, TILE_H, TILE_GAP;
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+let W = 0, H = 0, TILE_W = 0, UNIT_H = 0, bgGrad = null;
 
 function resize() {
   W = wrap.clientWidth || window.innerWidth;
   H = wrap.clientHeight || window.innerHeight;
-  canvas.width = W;
-  canvas.height = H;
-  TILE_W = Math.floor(W / NUM_COLS);
-  TILE_H = Math.floor(H / 4.2);
-  TILE_GAP = 4;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  TILE_W = W / COLS;
+  UNIT_H = H / VISIBLE_UNITS;
+  bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, '#7c5fe0');
+  bgGrad.addColorStop(0.55, '#4f8fe8');
+  bgGrad.addColorStop(1, '#3fd0c0');
 }
-
 resize();
 setTimeout(resize, 100);
 setTimeout(resize, 500);
 window.addEventListener('resize', resize);
-window.addEventListener('orientationchange', () => { setTimeout(resize, 200); });
+window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 
-// Game state
-let score = 0, lives = 3, level = 1, combo = 0, maxCombo = 0;
-let tilesHit = 0;
-let tiles = [];
-let running = false, paused = false, raf = null;
-let lastTime = 0;
-let fallSpeed = 0;
-let nextRowY = 0; // y position for next row to spawn (canvas coords)
+const rr = (typeof ctx.roundRect === 'function')
+  ? (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+  : (x, y, w, h, r) => {
+      r = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
 
-// Difficulty curve
-function getLevelConfig(lvl) {
-  return { speed: Math.min(180 + lvl * 45, 650) };
-}
+/* Game state
+   Tile: { s: start unit, d: length, col, f: freq, type: 'tap'|'hold',
+           st: 0 idle | 1 hit | 2 holding | 3 done | 4 failed,
+           hs: hold units scored, voice, touchId, isStart } */
+let state = 'idle';            // idle | ready | playing | countdown | failing
+let paused = false;
+let raf = null, lastTime = 0;
+let p = 0;                     // song position in units (bottom edge of screen)
+let speed = 0, targetSpeed = BASE_SPEED;
+let score = 0, tilesHit = 0, laps = 0;
+let lastScoreShown = -1;
+let tiles = [], effects = [], boundaries = [];
+let songIdx = 0, nextS = 0, lastCol = -1;
+let failT = 0, failFromP = 0, failTargetP = 0, failTile = null, failMark = null;
+let countdownT = 0;
+const activeHolds = new Map(); // touch id -> tile
+let lastTouchTs = 0;
 
-function applyLevel(lvl, animate) {
-  const cfg = getLevelConfig(lvl);
-  fallSpeed = cfg.speed;
-  levelNumEl.textContent = '' + lvl;
-  levelBadge.classList.add('show');
-  setTimeout(() => levelBadge.classList.remove('show'), 2500);
+function speedMult(lapCount) { return Math.min(1 + 0.27 * lapCount, 2.6); }
 
-  if (animate && lvl > 1) {
-    toastLevelEl.textContent = '' + lvl;
-    levelToast.classList.add('show');
-    setTimeout(() => levelToast.classList.remove('show'), 1400);
-    SFX.levelUp();
-  }
-}
-
-function getScoreThreshold(lvl) {
-  return lvl * 10; // every 10 points per level
-}
-
-// Tile type: 0 = black (tap), 1 = white (avoid — not used in this variant, just 4 black per row)
-// Each row: exactly 1 random black tile, 3 whites — but we only punish tapping whites
-// Actually: 1 black out of 4 randomly per row.
-// Some rows have 2 blacks for later levels.
-function makeRow(y) {
-  const numBlack = level >= 5 ? (Math.random() < 0.35 ? 2 : 1) : 1;
-  const cols = [0, 1, 2, 3];
-  // shuffle
-  for (let i = cols.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [cols[i], cols[j]] = [cols[j], cols[i]];
-  }
-  // Only push the black (target) tiles — no white tiles in array at all
-  const blackCols = cols.slice(0, numBlack);
-  const row = [];
-  for (const c of blackCols) {
-    row.push({
-      col: c,
-      y: y,
-      isBlack: true,
-      tapped: false,
-      missed: false,
-      flash: 0,
+function spawnAhead() {
+  while (nextS < p + VISIBLE_UNITS + 3) {
+    const note = SONG_NOTES[songIdx];
+    let col;
+    do { col = (Math.random() * COLS) | 0; } while (col === lastCol);
+    lastCol = col;
+    tiles.push({
+      s: nextS, d: note.d, col, f: note.f,
+      type: note.d >= 3 ? 'hold' : 'tap',
+      st: 0, hs: 0, voice: null, touchId: null,
+      isStart: nextS === 0
     });
+    nextS += note.d;
+    songIdx++;
+    if (songIdx >= SONG_NOTES.length) {
+      songIdx = 0;
+      boundaries.push(nextS);
+    }
   }
-  return row;
 }
 
-function startGame() {
-  score = 0; lives = 3; level = 1; combo = 0; maxCombo = 0; tilesHit = 0;
-  tiles = [];
-  updateHUD();
-  applyLevel(1, false);
-  running = true; paused = false;
+function initGame() {
+  stopAllHolds();
+  tiles = []; effects = []; boundaries = [];
+  score = 0; tilesHit = 0; laps = 0;
+  songIdx = 0; nextS = 0; lastCol = -1;
+  p = -0.82;
+  speed = 0; targetSpeed = BASE_SPEED;
+  failTile = null; failMark = null;
+  paused = false;
+  pauseOverlay.classList.remove('active');
+  state = 'ready';
+  lastScoreShown = -1;
+  updateScoreHUD();
+  updateCrowns();
+  progressFill.style.transform = 'scaleX(0)';
+  resize();
+  spawnAhead();
   lastTime = performance.now();
-
-  // Pre-fill: rows stacked above screen, spaced TILE_H apart
-  // nextRowY = y of the topmost spawned row so far
-  nextRowY = -TILE_H;
-  for (let i = 0; i < 6; i++) {
-    tiles.push(...makeRow(nextRowY));
-    nextRowY -= TILE_H;
-  }
-
   if (raf) cancelAnimationFrame(raf);
   raf = requestAnimationFrame(loop);
 }
 
-function stopGame() {
-  running = false;
-  if (raf) { cancelAnimationFrame(raf); raf = null; }
+function stopAllHolds() {
+  for (const t of tiles) {
+    if (t.st === 2) {
+      if (t.voice) { t.voice.end(); t.voice = null; }
+      t.st = 3;
+      t.touchId = null;
+    }
+  }
+  activeHolds.clear();
 }
 
-function updateHUD() {
+function finishHold(t) {
+  if (t.voice) { t.voice.end(); t.voice = null; }
+  t.st = 3;
+  if (t.touchId !== null) {
+    activeHolds.delete(t.touchId);
+    t.touchId = null;
+  }
+}
+
+function addScore(n) {
+  score += n;
+}
+
+function updateScoreHUD() {
+  if (score === lastScoreShown) return;
+  lastScoreShown = score;
   hudScore.textContent = '' + score;
-  pauseScore.textContent = '' + score;
-  let h = '';
-  for (let i = 0; i < 3; i++) h += i < lives ? '♥' : '♡';
-  hudLives.textContent = h;
-  // progress to next level
-  const needed = getScoreThreshold(level);
-  const prev = getScoreThreshold(level - 1);
-  const pct = Math.min(((score - prev) / (needed - prev)) * 100, 100);
-  progressFill.style.width = pct + '%';
+  if (hudScore.animate) {
+    hudScore.animate(
+      [{ transform: 'scale(1.22)' }, { transform: 'scale(1)' }],
+      { duration: 140, easing: 'ease-out' }
+    );
+  }
 }
 
+function updateCrowns() {
+  crownEls.forEach((el, i) => el.classList.toggle('lit', i < laps));
+}
+
+function onLapComplete() {
+  targetSpeed = BASE_SPEED * speedMult(laps);
+  updateCrowns();
+  toastLapEl.textContent = '' + (laps + 1);
+  fasterToast.classList.add('show');
+  setTimeout(() => fasterToast.classList.remove('show'), 1300);
+  SFX.faster();
+}
+
+function startFail(tile, kind, x, y) {
+  state = 'failing';
+  failT = 0;
+  failFromP = p;
+  stopAllHolds();
+  if (kind === 'miss') {
+    tile.st = 4;
+    failTile = tile;
+    failMark = null;
+    failTargetP = tile.s + 0.18; // roll the board back so the missed tile is visible
+  } else {
+    failTile = null;
+    failMark = { col: Math.min(COLS - 1, Math.max(0, (x / TILE_W) | 0)), y };
+    failTargetP = p;
+  }
+  SFX.wrong();
+  missFlash.classList.add('show');
+  setTimeout(() => missFlash.classList.remove('show'), 220);
+  wrap.classList.remove('shake');
+  void wrap.offsetWidth;
+  wrap.classList.add('shake');
+  try { if (navigator.vibrate) navigator.vibrate(120); } catch (e) {}
+}
+
+function doGameOver() {
+  state = 'idle';
+  if (raf) { cancelAnimationFrame(raf); raf = null; }
+  SFX.gameOver();
+  const isRecord = saveBest(score);
+  updateBestDisplay();
+  showEndScreen(isRecord);
+}
+
+/* ── main loop ── */
 function loop(ts) {
-  if (!running || paused) return;
+  raf = requestAnimationFrame(loop);
   const dt = Math.min(ts - lastTime, 50);
   lastTime = ts;
 
-  // Move tiles down
-  const dy = fallSpeed * dt / 1000;
-  for (const t of tiles) {
-    t.y += dy;
-    t.flash = Math.max(0, t.flash - dt / 120);
-  }
-  nextRowY += dy;
+  if (state === 'playing') {
+    speed += (targetSpeed - speed) * Math.min(1, dt * 0.002);
+    p += speed * dt / 1000;
+    spawnAhead();
 
-  // When the topmost row has moved down by TILE_H, spawn a new row above
-  while (nextRowY > -TILE_H) {
-    nextRowY -= TILE_H;
-    tiles.push(...makeRow(nextRowY));
-  }
-
-  // Check missed tiles (passed bottom)
-  for (const t of tiles) {
-    if (!t.missed && !t.tapped && t.y > H) {
-      t.missed = true;
-      lives--;
-      combo = 0;
-      updateHUD();
-      SFX.miss();
-      showMissFlash();
-      if (lives <= 0) { endGame(); return; }
+    // hold tiles: score per unit consumed; complete when tail passes the line
+    for (const t of tiles) {
+      if (t.st === 2) {
+        const earned = Math.max(1, Math.min(Math.ceil(p - t.s), t.d));
+        if (earned > t.hs) { addScore(earned - t.hs); t.hs = earned; }
+        if (p >= t.s + t.d) finishHold(t);
+      }
     }
+
+    // lap complete → crown + faster
+    if (boundaries.length && p >= boundaries[0]) {
+      boundaries.shift();
+      laps++;
+      onLapComplete();
+    }
+
+    // a tile fully passed the bottom untapped → game over
+    for (const t of tiles) {
+      if (t.st === 0 && p > t.s + t.d + 0.06) {
+        startFail(t, 'miss');
+        break;
+      }
+    }
+
+    if (state === 'playing') {
+      tiles = tiles.filter(t => t.s + t.d > p - 2);
+      const frac = Math.max(0, Math.min((p - laps * LAP_UNITS) / LAP_UNITS, 1));
+      progressFill.style.transform = 'scaleX(' + frac.toFixed(4) + ')';
+    }
+  } else if (state === 'failing') {
+    failT += dt;
+    const k = Math.min(failT / 260, 1);
+    p = failFromP + (failTargetP - failFromP) * (1 - Math.pow(1 - k, 3));
+    if (failT >= 1150) { doGameOver(); return; }
+  } else if (state === 'countdown') {
+    countdownT -= dt;
+    if (countdownT <= 0) state = 'playing';
   }
 
-  // Remove old tiles
-  tiles = tiles.filter(t => t.y < H + TILE_H * 2);
+  for (const fx of effects) fx.t += dt;
+  effects = effects.filter(fx => fx.t < 380);
 
-  // Level up check
-  const threshold = getScoreThreshold(level);
-  if (score >= threshold) {
-    level++;
-    applyLevel(level, true);
-  }
-
-  draw();
-  raf = requestAnimationFrame(loop);
+  updateScoreHUD();
+  draw(ts);
 }
 
-function draw() {
-  // Pure black background — maximum contrast
-  ctx.fillStyle = '#000';
+/* ── rendering — no shadowBlur anywhere in the hot path ── */
+function draw(ts) {
+  if (!W || !H) return;
+
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Column separators — thin dark lines so columns are visible on pure black
-  ctx.fillStyle = '#1a1a1a';
-  for (let c = 1; c < NUM_COLS; c++) {
-    const x = c * TILE_W - Math.floor(TILE_GAP / 2);
-    ctx.fillRect(x, 0, TILE_GAP, H);
-  }
+  // lane dividers
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  for (let c = 1; c < COLS; c++) ctx.fillRect(c * TILE_W - 0.5, 0, 1, H);
 
-  // Tap zone glow strip at bottom quarter
-  const zoneY = H * 0.75;
-  const zoneGrd = ctx.createLinearGradient(0, zoneY - 2, 0, zoneY + 6);
-  zoneGrd.addColorStop(0, 'rgba(245,200,66,0)');
-  zoneGrd.addColorStop(0.5, 'rgba(245,200,66,0.22)');
-  zoneGrd.addColorStop(1, 'rgba(245,200,66,0)');
-  ctx.fillStyle = zoneGrd;
-  ctx.fillRect(0, zoneY - 2, W, 8);
+  const tileW = TILE_W - TILE_PAD_X * 2;
+  const blink = Math.floor(failT / 140) % 2 === 0;
 
-  // Draw tiles (only black ones — white columns stay pure black/empty)
   for (const t of tiles) {
-    if (t.tapped && t.flash <= 0) continue;
+    const yBot = H - (t.s - p) * UNIT_H;
+    const yTop = yBot - t.d * UNIT_H;
+    if (yBot < -10 || yTop > H + UNIT_H) continue;
 
-    const x = t.col * TILE_W + TILE_GAP;
-    const y = t.y;
-    const w = TILE_W - TILE_GAP * 2;
-    const h = TILE_H - TILE_GAP;
-    const r = 10;
+    const x = t.col * TILE_W + TILE_PAD_X;
+    const h = t.d * UNIT_H - TILE_GAP_Y;
 
-    if (t.tapped) {
-      // Gold flash on tap — bright and satisfying
-      const a = t.flash;
-      ctx.save();
-      // Outer glow
-      ctx.shadowColor = '#f5c842';
-      ctx.shadowBlur = 28 * a;
-      const grd = ctx.createLinearGradient(x, y, x, y + h);
-      grd.addColorStop(0, `rgba(255,230,80,${a})`);
-      grd.addColorStop(0.4, `rgba(245,200,66,${a * 0.85})`);
-      grd.addColorStop(1, `rgba(180,130,0,${a * 0.5})`);
+    if (t.st === 4) {
+      // missed tile — blinking red
+      if (blink) {
+        ctx.fillStyle = '#ff4444';
+        rr(x, yTop, tileW, h, 8);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = '900 ' + Math.round(UNIT_H * 0.3) + 'px system-ui, Tahoma';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('✕', x + tileW / 2, yTop + h / 2);
+      }
+      continue;
+    }
+
+    if (t.st === 0) {
+      // idle black tile
+      const grd = ctx.createLinearGradient(0, yTop, 0, yTop + h);
+      grd.addColorStop(0, '#262b3a');
+      grd.addColorStop(1, '#0e1118');
       ctx.fillStyle = grd;
-      roundRect(ctx, x, y, w, h, r);
+      rr(x, yTop, tileW, h, 8);
       ctx.fill();
-      ctx.restore();
-    } else {
-      // --- BOLD BLACK TILE on black bg ---
-      // 1. Draw the tile as very dark charcoal — barely visible fill
-      ctx.save();
-
-      // Subtle ambient shadow to lift tile off background
-      ctx.shadowColor = 'rgba(79,195,247,0.35)';
-      ctx.shadowBlur = 14;
-
-      // Tile body — dark slate, clearly distinct from pure black bg
-      const bodyGrd = ctx.createLinearGradient(x, y, x, y + h);
-      bodyGrd.addColorStop(0, '#1e2533');
-      bodyGrd.addColorStop(0.5, '#151c28');
-      bodyGrd.addColorStop(1, '#0e1520');
-      ctx.fillStyle = bodyGrd;
-      roundRect(ctx, x, y, w, h, r);
-      ctx.fill();
-      ctx.restore();
-
-      ctx.save();
-      // Bright top edge highlight — makes tile look 3D and sharp
-      const edgeGrd = ctx.createLinearGradient(x, y, x, y + Math.min(h * 0.08, 10));
-      edgeGrd.addColorStop(0, 'rgba(120,180,255,0.55)');
-      edgeGrd.addColorStop(1, 'rgba(120,180,255,0)');
-      ctx.fillStyle = edgeGrd;
-      roundRect(ctx, x + 2, y + 1, w - 4, Math.min(h * 0.1, 12), r - 2);
-      ctx.fill();
-
-      // Left edge highlight
-      const leftGrd = ctx.createLinearGradient(x, y, x + 5, y);
-      leftGrd.addColorStop(0, 'rgba(100,160,255,0.2)');
-      leftGrd.addColorStop(1, 'rgba(100,160,255,0)');
-      ctx.fillStyle = leftGrd;
-      ctx.fillRect(x + 1, y + r, 5, h - r * 2);
-      ctx.restore();
-
-      ctx.save();
-      // Bright outer border — the KEY contrast element
-      ctx.strokeStyle = 'rgba(79,195,247,0.65)';
-      ctx.lineWidth = 1.5;
-      ctx.shadowColor = 'rgba(79,195,247,0.5)';
-      ctx.shadowBlur = 6;
-      roundRect(ctx, x + 0.75, y + 0.75, w - 1.5, h - 1.5, r);
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.restore();
 
-      // Bottom "press zone" accent strip
-      const stripH = Math.min(h * 0.12, 10);
-      const stripGrd = ctx.createLinearGradient(x, y + h - stripH, x, y + h);
-      stripGrd.addColorStop(0, 'rgba(79,195,247,0)');
-      stripGrd.addColorStop(1, 'rgba(79,195,247,0.18)');
-      ctx.fillStyle = stripGrd;
-      roundRect(ctx, x + 2, y + h - stripH, w - 4, stripH, 0);
+      if (t.type === 'hold') drawHoldTrack(t, x, yTop, tileW, h, 0);
+
+      if (t.isStart) {
+        const pulse = 0.75 + 0.25 * Math.sin(ts / 280);
+        ctx.fillStyle = 'rgba(255,255,255,' + pulse.toFixed(2) + ')';
+        ctx.font = '700 ' + Math.round(UNIT_H * 0.18) + 'px system-ui, Tahoma';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('ابدأ ▶', x + tileW / 2, yTop + h / 2);
+      }
+    } else {
+      // hit / holding / done — translucent pressed look
+      ctx.fillStyle = 'rgba(13,16,26,0.22)';
+      rr(x, yTop, tileW, h, 8);
       ctx.fill();
+      if (t.type === 'hold') {
+        const frac = t.st === 2
+          ? Math.max(0, Math.min((p - t.s) / t.d, 1))
+          : (t.st === 3 ? 1 : 0);
+        drawHoldTrack(t, x, yTop, tileW, h, frac);
+      }
     }
   }
 
-  // Bottom tap zone line — solid bright gold line
-  ctx.strokeStyle = 'rgba(245,200,66,0.55)';
-  ctx.lineWidth = 2;
+  // wrong-tap red marker
+  if (failMark && blink) {
+    const mh = UNIT_H - TILE_GAP_Y;
+    const my = Math.max(0, Math.min(failMark.y - mh / 2, H - mh));
+    ctx.fillStyle = '#ff4444';
+    rr(failMark.col * TILE_W + TILE_PAD_X, my, tileW, mh, 8);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '900 ' + Math.round(UNIT_H * 0.3) + 'px system-ui, Tahoma';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✕', failMark.col * TILE_W + TILE_W / 2, my + mh / 2);
+  }
+
+  // tap ripples
+  for (const fx of effects) {
+    const k = fx.t / 380;
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.55 * (1 - k)).toFixed(2) + ')';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(fx.x, fx.y, 12 + k * 48, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // ready hint
+  if (state === 'ready') {
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = '700 16px system-ui, Tahoma';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🎵 لحن إليزا · Für Elise', W / 2, H * 0.3);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '600 13px system-ui, Tahoma';
+    ctx.fillText('المس بلاطة «ابدأ» لتشغيل اللحن', W / 2, H * 0.3 + 26);
+  }
+
+  // resume countdown
+  if (state === 'countdown') {
+    ctx.fillStyle = 'rgba(7,11,20,0.45)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.font = '900 84px system-ui, Tahoma';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('' + Math.max(1, Math.ceil(countdownT / 533)), W / 2, H / 2);
+  }
+}
+
+function drawHoldTrack(t, x, yTop, w, h, frac) {
+  const cx = x + w / 2;
+  const pad = Math.min(18, h * 0.12);
+  const trackTop = yTop + pad;
+  const trackH = h - pad * 2;
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  rr(cx - 2.5, trackTop, 5, trackH, 2.5);
+  ctx.fill();
+  if (frac > 0) {
+    const fh = trackH * frac;
+    ctx.fillStyle = '#ffd54a';
+    rr(cx - 2.5, trackTop + trackH - fh, 5, fh, 2.5);
+    ctx.fill();
+  }
+  // knob at the bottom end — "hold from here"
+  ctx.fillStyle = frac > 0 ? '#ffd54a' : 'rgba(255,255,255,0.55)';
   ctx.beginPath();
-  ctx.moveTo(0, H * 0.75);
-  ctx.lineTo(W, H * 0.75);
-  ctx.stroke();
+  ctx.arc(cx, trackTop + trackH, 7, 0, Math.PI * 2);
+  ctx.fill();
 }
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
+/* ── input ── */
+function tileTopY(t) { return H - (t.s + t.d - p) * UNIT_H; }
+function tileBotY(t) { return H - (t.s - p) * UNIT_H; }
 
-function showMissFlash() {
-  missFlash.classList.add('show');
-  setTimeout(() => missFlash.classList.remove('show'), 180);
-}
-
-// Touch input on canvas
-function handleTap(ex, ey) {
-  if (!running || paused) return;
-  ensureAudio();
-  const rect = canvas.getBoundingClientRect();
-  const cx = ex - rect.left;
-  const cy = ey - rect.top;
-
-  // Determine which column was tapped
-  const tappedCol = Math.floor(cx / TILE_W);
-  if (tappedCol < 0 || tappedCol >= NUM_COLS) return;
-
-  // Find the lowest visible (untapped) black tile in that column
-  let found = null;
-  let bestY = -Infinity;
-
+function hitTile(x, y, wantIdle) {
+  const col = Math.min(COLS - 1, Math.max(0, (x / TILE_W) | 0));
   for (const t of tiles) {
-    if (t.tapped || t.missed) continue;
-    if (t.col !== tappedCol) continue;
-    const ty = t.y;
-    const th = TILE_H - TILE_GAP;
-    // tile must be at least partially on screen
-    if (ty + th < 0 || ty > H) continue;
-    // pick the one with the highest y value (lowest on screen = most recent)
-    if (ty > bestY) { bestY = ty; found = t; }
+    if (t.col !== col) continue;
+    const idle = t.st === 0;
+    if (wantIdle !== idle) continue;
+    if (y >= tileTopY(t) - 8 && y <= tileBotY(t) + 8) return t;
   }
+  return null;
+}
 
-  if (!found) return; // tapped empty column
-
-  // All found tiles are black (target) — white columns have no tiles
-  found.tapped = true;
-  found.flash = 1;
-  score++;
+function hitTileAction(t, id) {
   tilesHit++;
-  combo++;
-  if (combo > maxCombo) maxCombo = combo;
-  updateHUD();
-  SFX.tap();
-
-  const sx = found.col * TILE_W + TILE_W / 2;
-  const sy = found.y + TILE_H / 2;
-  spawnParticles(sx + canvas.getBoundingClientRect().left, sy + canvas.getBoundingClientRect().top, '#f5c842');
-  if (combo >= 5 && combo % 5 === 0) {
-    spawnComboText(sx + canvas.getBoundingClientRect().left, sy + canvas.getBoundingClientRect().top - 20, combo);
-    SFX.combo();
+  if (t.type === 'hold') {
+    t.st = 2;
+    t.touchId = id;
+    activeHolds.set(id, t);
+    t.voice = pianoVoice(t.f, 0.5, true);
+    t.hs = 1;
+    addScore(1);
+  } else {
+    t.st = 1;
+    pianoVoice(t.f, 0.5, false);
+    addScore(1);
   }
+  effects.push({
+    x: t.col * TILE_W + TILE_W / 2,
+    y: Math.min(tileBotY(t) - 14, H - 14),
+    t: 0
+  });
+}
+
+function pointerDown(x, y, id) {
+  if (state === 'ready') {
+    const t = hitTile(x, y, true);
+    if (t && t.isStart) {
+      state = 'playing';
+      speed = BASE_SPEED * 0.9;
+      hitTileAction(t, id);
+    }
+    return;
+  }
+  if (state !== 'playing') return;
+
+  const t = hitTile(x, y, true);
+  if (t) { hitTileAction(t, id); return; }
+  if (hitTile(x, y, false)) return;   // already-pressed tile — harmless
+  startFail(null, 'tap', x, y);       // white area — game over
+}
+
+function pointerUp(id) {
+  const t = activeHolds.get(id);
+  if (t && t.st === 2) finishHold(t);
+  activeHolds.delete(id);
 }
 
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  const touch = e.changedTouches[0];
-  handleTap(touch.clientX, touch.clientY);
+  lastTouchTs = performance.now();
+  ensureAudio();
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const tc = e.changedTouches[i];
+    pointerDown(tc.clientX, tc.clientY, tc.identifier);
+  }
 }, { passive: false });
-canvas.addEventListener('mousedown', e => {
-  handleTap(e.clientX, e.clientY);
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  for (let i = 0; i < e.changedTouches.length; i++) pointerUp(e.changedTouches[i].identifier);
+}, { passive: false });
+
+canvas.addEventListener('touchcancel', e => {
+  for (let i = 0; i < e.changedTouches.length; i++) pointerUp(e.changedTouches[i].identifier);
 });
 
-function endGame() {
-  stopGame();
-  SFX.gameOver();
-  saveBest(score);
-  updateBestDisplay();
-  showEndScreen();
-}
+canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
-function showEndScreen() {
-  document.getElementById('endScore').textContent = '' + score;
-  document.getElementById('endBest').textContent = '' + bestScore;
-  document.getElementById('endCombo').textContent = '' + maxCombo;
-  document.getElementById('endTiles').textContent = '' + tilesHit;
-  document.getElementById('endLevel').textContent = '' + level;
-
-  // Stars
-  const stars = score >= 30 ? 3 : score >= 15 ? 2 : score >= 5 ? 1 : 0;
-  const row = document.getElementById('starsRow');
-  row.innerHTML = '';
-  for (let i = 0; i < 3; i++) {
-    const el = document.createElement('div');
-    el.className = 'star ' + (i < stars ? 'lit' : 'unlit');
-    el.innerHTML = `<svg viewBox="0 0 36 36"><path d="M18 3l4.1 8.3 9.2 1.3-6.65 6.5 1.57 9.15L18 23.8l-8.22 4.45 1.57-9.15L4.7 12.6l9.2-1.3z"/></svg>`;
-    row.appendChild(el);
-    setTimeout(() => el.style.transform = i < stars ? 'scale(1.15)' : 'scale(1)', 300 + i * 120);
-  }
-
-  showScreen('endScreen');
-}
+canvas.addEventListener('mousedown', e => {
+  if (performance.now() - lastTouchTs < 800) return;
+  ensureAudio();
+  pointerDown(e.clientX, e.clientY, 'mouse');
+});
+window.addEventListener('mouseup', () => pointerUp('mouse'));
 
 /* ══════════════════════
    PAUSE
 ══════════════════════ */
-document.getElementById('pauseBtn').addEventListener('touchstart', e => {
-  e.preventDefault(); ensureAudio(); togglePause();
-}, { passive: false });
-document.getElementById('pauseBtn').addEventListener('mousedown', () => togglePause());
-
-document.getElementById('resumeBtn').addEventListener('touchstart', e => {
-  e.preventDefault(); ensureAudio(); togglePause();
-}, { passive: false });
-document.getElementById('resumeBtn').addEventListener('mousedown', () => togglePause());
-
-document.getElementById('pauseQuitBtn').addEventListener('touchstart', e => {
-  e.preventDefault();
-  stopGame();
-  pauseOverlay.classList.remove('active');
-  showScreen('menuScreen');
-}, { passive: false });
-document.getElementById('pauseQuitBtn').addEventListener('mousedown', () => {
-  stopGame();
-  pauseOverlay.classList.remove('active');
-  showScreen('menuScreen');
-});
-
-function togglePause() {
-  if (!running) return;
-  paused = !paused;
-  pauseOverlay.classList.toggle('active', paused);
-  if (!paused) {
+function setPaused(v) {
+  if (v === paused) return;
+  if (!(state === 'playing' || state === 'ready' || state === 'countdown')) return;
+  paused = v;
+  pauseOverlay.classList.toggle('active', v);
+  if (v) {
+    stopAllHolds();
+    pauseScoreEl.textContent = '' + score;
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+  } else {
+    if (state === 'playing' || state === 'countdown') {
+      state = 'countdown';
+      countdownT = 1600;
+    }
     lastTime = performance.now();
     raf = requestAnimationFrame(loop);
   }
+}
+
+function quitToMenu() {
+  paused = false;
+  pauseOverlay.classList.remove('active');
+  stopAllHolds();
+  state = 'idle';
+  if (raf) { cancelAnimationFrame(raf); raf = null; }
+  showScreen('menuScreen');
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) setPaused(true);
+});
+
+/* ══════════════════════
+   END SCREEN
+══════════════════════ */
+function showEndScreen(isRecord) {
+  document.getElementById('endScore').textContent = '' + score;
+  document.getElementById('endBest').textContent = '' + bestScore;
+  document.getElementById('endLaps').textContent = '' + laps;
+  document.getElementById('endTiles').textContent = '' + tilesHit;
+  document.getElementById('endSpeed').textContent = '×' + speedMult(laps).toFixed(1);
+  document.getElementById('newRecord').classList.toggle('show', !!isRecord);
+
+  const crowns = Math.min(laps, 3);
+  const row = document.getElementById('starsRow');
+  row.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const el = document.createElement('div');
+    el.className = 'star ' + (i < crowns ? 'lit' : 'unlit');
+    el.innerHTML = '<svg viewBox="0 0 36 36"><path d="M4 27l-2-15 8 6 8-12 8 12 8-6-2 15zM4 30h28v3H4z"/></svg>';
+    row.appendChild(el);
+    setTimeout(() => { el.style.transform = i < crowns ? 'scale(1.15)' : 'scale(1)'; }, 300 + i * 120);
+  }
+
+  showScreen('endScreen');
 }
 
 /* ══════════════════════
@@ -1163,41 +1296,29 @@ function togglePause() {
 function addTap(id, fn) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.addEventListener('touchstart', e => { e.preventDefault(); ensureAudio(); fn(); }, { passive: false });
-  el.addEventListener('mousedown', fn);
+  el.addEventListener('touchstart', e => {
+    e.preventDefault();
+    lastTouchTs = performance.now();
+    ensureAudio();
+    fn();
+  }, { passive: false });
+  el.addEventListener('mousedown', () => {
+    if (performance.now() - lastTouchTs < 800) return;
+    fn();
+  });
 }
 
-// Menu → Start
-document.getElementById('menuStartPiano').addEventListener('touchstart', e => {
-  e.preventDefault(); ensureAudio();
-  updateBestDisplay();
-  showScreen('startScreen');
-}, { passive: false });
-document.getElementById('menuStartPiano').addEventListener('mousedown', () => {
-  updateBestDisplay(); showScreen('startScreen');
-});
-
-// Start ← Back
+addTap('menuStartPiano', () => { updateBestDisplay(); showScreen('startScreen'); });
 addTap('startBackBtn', () => showScreen('menuScreen'));
-
-// Start → Game
-addTap('startGameBtn', () => {
-  showScreen('gameScreen');
-  setTimeout(() => startGame(), 350);
-});
-
-// End → Replay
-addTap('replayBtn', () => {
-  showScreen('gameScreen');
-  setTimeout(() => startGame(), 350);
-});
-
-// End → Menu
+addTap('startGameBtn', () => { showScreen('gameScreen'); initGame(); });
+addTap('replayBtn', () => { showScreen('gameScreen'); initGame(); });
 addTap('endMenuBtn', () => showScreen('menuScreen'));
+addTap('pauseBtn', () => setPaused(true));
+addTap('resumeBtn', () => setPaused(false));
+addTap('pauseQuitBtn', quitToMenu);
 
-/* ══════════════════════
-   INIT
-══════════════════════ */
+document.addEventListener('contextmenu', e => e.preventDefault());
+
 showScreen('menuScreen');
 
 })();
