@@ -9,9 +9,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&display=swap" rel="stylesheet" />
 <style>
   :root{ --p1:#3b82f6; --p2:#f43f5e; }
-  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body{ width:100%; height:100%; overflow:hidden; background:#0a1020; font-family:'Cairo',system-ui,sans-serif; }
-  #stage{ position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); transform-origin:center center; }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent;
+     -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  html,body{ width:100%; height:100%; overflow:hidden; position:fixed; inset:0;
+     background:#0a1020; font-family:'Cairo',system-ui,sans-serif;
+     overscroll-behavior:none; touch-action:none; -webkit-text-size-adjust:100%; }
+  #stage{ position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); transform-origin:center center;
+     will-change:transform; backface-visibility:hidden; }
   #game{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
 
   #overlay{ position:absolute; inset:0; pointer-events:none; color:#fff; }
@@ -36,32 +40,34 @@
 
   /* ---- Cards ---- */
   .card{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-         pointer-events:auto; background:radial-gradient(ellipse at center,#0b1430cc,#070b18ee); }
-  .panel{ width:min(560px,90vw); background:linear-gradient(160deg,#152244,#0d1730);
-          border:2px solid #ffffff22; border-radius:24px; padding:30px 26px; text-align:center;
+         padding:3vmin; pointer-events:auto; background:radial-gradient(ellipse at center,#0b1430cc,#070b18ee); }
+  .panel{ width:min(540px,100%); max-height:96%; overflow-y:auto; -webkit-overflow-scrolling:touch;
+          background:linear-gradient(160deg,#152244,#0d1730);
+          border:2px solid #ffffff22; border-radius:clamp(16px,3vmin,24px);
+          padding:clamp(14px,3.4vmin,28px) clamp(14px,3.2vmin,26px); text-align:center;
           box-shadow:0 24px 70px #000a, inset 0 1px 0 #ffffff18; }
-  .panel h1{ font-size:34px; font-weight:900; letter-spacing:1px;
+  .panel h1{ font-size:clamp(22px,5.4vmin,34px); font-weight:900; letter-spacing:1px;
              background:linear-gradient(90deg,#7dd3fc,#fca5a5); -webkit-background-clip:text;
              background-clip:text; color:transparent; margin-bottom:6px; }
-  .panel .sub{ font-size:14px; opacity:.85; line-height:1.9; margin:10px 4px 18px; }
-  .modes{ display:flex; gap:12px; justify-content:center; margin:8px 0 16px; flex-wrap:wrap; }
-  .mode{ flex:1; min-width:130px; cursor:pointer; padding:14px 10px; border-radius:16px;
+  .panel .sub{ font-size:clamp(11px,2.6vmin,14px); opacity:.85; line-height:1.7; margin:clamp(8px,2vmin,12px) 2px clamp(12px,2.4vmin,18px); }
+  .modes{ display:flex; gap:clamp(8px,2vmin,12px); justify-content:center; margin:6px 0 clamp(12px,2.4vmin,16px); flex-wrap:wrap; }
+  .mode{ flex:1 1 42%; min-width:108px; cursor:pointer; padding:clamp(10px,2.4vmin,14px) 10px; border-radius:16px;
          background:#0c1838; border:2px solid #ffffff22; transition:.15s;
          display:flex; flex-direction:column; gap:4px; align-items:center; }
-  .mode .ic{ font-size:26px; }
-  .mode .t{ font-weight:900; font-size:15px; }
-  .mode .d{ font-size:11px; opacity:.7; }
+  .mode .ic{ font-size:clamp(20px,4.6vmin,26px); }
+  .mode .t{ font-weight:900; font-size:clamp(13px,2.7vmin,15px); }
+  .mode .d{ font-size:clamp(10px,2.2vmin,11px); opacity:.7; }
   .mode:hover{ border-color:#7dd3fc; transform:translateY(-2px); }
   .mode.sel{ border-color:#7dd3fc; background:#15366a; box-shadow:0 0 0 3px #7dd3fc44; }
   .btn{ pointer-events:auto; cursor:pointer; border:none; font-family:inherit; font-weight:900;
-        font-size:19px; color:#06122b; padding:14px 40px; border-radius:40px;
+        font-size:clamp(15px,3.4vmin,19px); color:#06122b; padding:clamp(11px,2.6vmin,14px) clamp(28px,6vmin,40px); border-radius:40px;
         background:linear-gradient(180deg,#9ae6ff,#38bdf8); box-shadow:0 10px 26px #38bdf855,inset 0 1px 0 #fff8;
         transition:.12s; }
   .btn:hover{ transform:translateY(-2px); filter:brightness(1.07); }
   .btn:active{ transform:translateY(1px); }
-  .big{ font-size:30px; font-weight:900; line-height:1.35; margin-bottom:6px; }
-  .score{ font-size:46px; font-weight:900; letter-spacing:4px; margin:6px 0 18px; }
-  .trophy{ font-size:54px; filter:drop-shadow(0 6px 16px #f59e0b88); margin-bottom:6px; }
+  .big{ font-size:clamp(22px,5vmin,30px); font-weight:900; line-height:1.35; margin-bottom:6px; }
+  .score{ font-size:clamp(34px,8vmin,46px); font-weight:900; letter-spacing:4px; margin:6px 0 clamp(12px,2.6vmin,18px); }
+  .trophy{ font-size:clamp(40px,9vmin,54px); filter:drop-shadow(0 6px 16px #f59e0b88); margin-bottom:6px; }
   .hidden{ display:none !important; }
 
   .toast{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
@@ -202,9 +208,9 @@ let resolveTimer = 0, aiTimer = 0, aiDone = false, shake = 0, muzzle1=0, muzzle2
 let endKind = '';                  // round | match
 let acc = 0;
 const aim = { angleDeg: 45, power: 0.6 };
-const JOY = { active:false, R:54, knobR:24 };   // on-screen aiming joystick
-// tucked into the lower corner, inward of the cannon so it never covers it
-function joyBase(){ const c = cannons[cur]; return { x: c.face > 0 ? 212 : W - 212, y: H - 74 }; }
+const JOY = { active:false, R:62, knobR:28 };   // on-screen aiming joystick
+// placed near the top on the current player's side, just below their name/HP — clear of cannons & obstacles
+function joyBase(){ const c = cannons[cur]; return { x: c.face > 0 ? 130 : W - 130, y: 240 }; }
 let bg = makeBackdrop();
 
 function makeBackdrop(){
@@ -592,15 +598,17 @@ function render(){
   syncHud();
 }
 
+// gradients are static in world space — build them once and reuse (cheaper per frame in webviews)
+let _skyG=null,_sunG=null,_groundG=null;
 function drawSky(){
-  const g = ctx.createLinearGradient(0,0,0,GROUND);
-  g.addColorStop(0,'#0e1b3f'); g.addColorStop(.55,'#33508a'); g.addColorStop(1,'#f0a062');
-  ctx.fillStyle=g; ctx.fillRect(0,0,W,GROUND);
+  if(!_skyG){ _skyG=ctx.createLinearGradient(0,0,0,GROUND);
+    _skyG.addColorStop(0,'#0e1b3f'); _skyG.addColorStop(.55,'#33508a'); _skyG.addColorStop(1,'#f0a062'); }
+  ctx.fillStyle=_skyG; ctx.fillRect(0,0,W,GROUND);
   // sun
   ctx.save(); ctx.globalAlpha=.9;
-  const sg=ctx.createRadialGradient(W*.5,GROUND-40,10,W*.5,GROUND-40,260);
-  sg.addColorStop(0,'#fff2c2'); sg.addColorStop(.3,'#ffcf7a55'); sg.addColorStop(1,'#ffcf7a00');
-  ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(W*.5,GROUND-40,260,0,7); ctx.fill();
+  if(!_sunG){ _sunG=ctx.createRadialGradient(W*.5,GROUND-40,10,W*.5,GROUND-40,260);
+    _sunG.addColorStop(0,'#fff2c2'); _sunG.addColorStop(.3,'#ffcf7a55'); _sunG.addColorStop(1,'#ffcf7a00'); }
+  ctx.fillStyle=_sunG; ctx.beginPath(); ctx.arc(W*.5,GROUND-40,260,0,7); ctx.fill();
   ctx.fillStyle='#fff0bd'; ctx.beginPath(); ctx.arc(W*.5,GROUND-40,46,0,7); ctx.fill();
   ctx.restore();
   // stars
@@ -621,8 +629,9 @@ function blob(x,y,s){ ctx.beginPath();
   ctx.arc(x+8*s,y-12*s,20*s,0,7); ctx.fill(); }
 
 function drawGround(){
-  const g=ctx.createLinearGradient(0,GROUND,0,H); g.addColorStop(0,'#4a7a3a'); g.addColorStop(.12,'#3a5e2e'); g.addColorStop(1,'#2a3d22');
-  ctx.fillStyle=g; ctx.fillRect(0,GROUND,W,H-GROUND);
+  if(!_groundG){ _groundG=ctx.createLinearGradient(0,GROUND,0,H);
+    _groundG.addColorStop(0,'#4a7a3a'); _groundG.addColorStop(.12,'#3a5e2e'); _groundG.addColorStop(1,'#2a3d22'); }
+  ctx.fillStyle=_groundG; ctx.fillRect(0,GROUND,W,H-GROUND);
   ctx.fillStyle='#5d9648'; ctx.fillRect(0,GROUND,W,8);
   ctx.fillStyle='#0002'; for(let x=0;x<W;x+=22) ctx.fillRect(x,GROUND+8,11,4);
 }
@@ -680,9 +689,9 @@ function drawCannon(c){
   if(mf>0){ ctx.globalAlpha=mf; ctx.fillStyle='#ffd36a';
     ctx.beginPath(); ctx.arc(56,0,12+mf*10,0,7); ctx.fill(); ctx.globalAlpha=1; }
   ctx.restore();
-  // turret dome
-  ctx.fillStyle=c.color; ctx.shadowColor=c.color; ctx.shadowBlur=14;
-  ctx.beginPath(); ctx.arc(c.x,GROUND-16,22,Math.PI,0); ctx.fill(); ctx.shadowBlur=0;
+  // turret dome (cheap glow ring instead of canvas shadow)
+  ctx.globalAlpha=.25; ctx.fillStyle=c.color; ctx.beginPath(); ctx.arc(c.x,GROUND-16,27,Math.PI,0); ctx.fill();
+  ctx.globalAlpha=1; ctx.fillStyle=c.color; ctx.beginPath(); ctx.arc(c.x,GROUND-16,22,Math.PI,0); ctx.fill();
   ctx.fillStyle='#ffffff44'; ctx.beginPath(); ctx.arc(c.x-6,GROUND-22,6,0,7); ctx.fill();
   // turn ring
   if(state==='aim' && cur===c.id){ ctx.globalAlpha=.4+Math.sin(performance.now()*.006)*.4;
@@ -722,16 +731,17 @@ function drawJoystick(c){
   for(let a=0;a<360;a+=45){ const rad=a*Math.PI/180;
     ctx.beginPath(); ctx.moveTo(b.x+Math.cos(rad)*(JOY.R*.6), b.y+Math.sin(rad)*(JOY.R*.6));
     ctx.lineTo(b.x+Math.cos(rad)*(JOY.R*.85), b.y+Math.sin(rad)*(JOY.R*.85)); ctx.stroke(); }
-  // stick + knob
+  // stick + knob (no canvas shadow — keeps it smooth in mobile webviews)
   ctx.strokeStyle=c.color; ctx.lineWidth=5; ctx.globalAlpha=JOY.active?1:.7;
   ctx.beginPath(); ctx.moveTo(b.x,b.y); ctx.lineTo(kx,ky); ctx.stroke();
-  ctx.shadowColor=c.color; ctx.shadowBlur=JOY.active?16:8;
+  if(JOY.active){ ctx.globalAlpha=.25; ctx.fillStyle=c.color;
+    ctx.beginPath(); ctx.arc(kx,ky,JOY.knobR+7,0,7); ctx.fill(); ctx.globalAlpha=1; }
   ctx.fillStyle=c.color; ctx.beginPath(); ctx.arc(kx,ky,JOY.knobR,0,7); ctx.fill();
-  ctx.shadowBlur=0; ctx.fillStyle='#ffffff55';
+  ctx.fillStyle='#ffffff55';
   ctx.beginPath(); ctx.arc(kx-JOY.knobR*.3,ky-JOY.knobR*.3,JOY.knobR*.4,0,7); ctx.fill();
-  // readout above the joystick
+  // readout below the joystick
   ctx.globalAlpha=1; ctx.font='bold 20px Cairo'; ctx.textAlign='center'; ctx.fillStyle='#fff';
-  ctx.fillText(Math.round(aim.angleDeg)+'°  ·  '+Math.round(aim.power*100)+'%', b.x, b.y-JOY.R-14);
+  ctx.fillText(Math.round(aim.angleDeg)+'°  ·  '+Math.round(aim.power*100)+'%', b.x, b.y+JOY.R+28);
   ctx.textAlign='start';
 }
 
@@ -740,8 +750,9 @@ function drawShell(){
   for(let i=0;i<shell.trail.length;i++){ const t=shell.trail[i];
     ctx.globalAlpha=i/shell.trail.length*.6; ctx.fillStyle='#ffce6b';
     ctx.beginPath(); ctx.arc(t.x,t.y,4,0,7); ctx.fill(); }
-  ctx.globalAlpha=1; ctx.shadowColor='#ffd166'; ctx.shadowBlur=18;
-  ctx.fillStyle='#fff7d6'; ctx.beginPath(); ctx.arc(shell.x,shell.y,8,0,7); ctx.fill(); ctx.shadowBlur=0;
+  // soft halo via a translucent circle (no canvas shadow — smoother on mobile)
+  ctx.globalAlpha=.35; ctx.fillStyle='#ffd166'; ctx.beginPath(); ctx.arc(shell.x,shell.y,15,0,7); ctx.fill();
+  ctx.globalAlpha=1; ctx.fillStyle='#fff7d6'; ctx.beginPath(); ctx.arc(shell.x,shell.y,8,0,7); ctx.fill();
 }
 function drawParticles(){
   for(const p of particles){ ctx.globalAlpha=Math.max(0,p.life/p.max)*(p.smoke?.5:1); ctx.fillStyle=p.c;
@@ -756,8 +767,14 @@ function roundRect(x,y,w,h,r){ ctx.beginPath();
 //============================================================ HUD / DOM
 const el = id => document.getElementById(id);
 function pips(n){ let s=''; for(let i=0;i<WIN_ROUNDS;i++) s += i<n ? '●' : '○'; return s; }
+let _hudSig = '';
 function syncHud(){
   if(!cannons) return;
+  // only touch the DOM when something actually changed — avoids per-frame style recalcs in webviews
+  const sig = [state, cur, Math.round(cannons[0].hp), Math.round(cannons[1].hp),
+               cannons[0].score, cannons[1].score, level, wind, cannons[1].name].join('|');
+  if(sig === _hudSig) return;
+  _hudSig = sig;
   el('hud').classList.toggle('hide', state==='title'||state==='end');
   el('hp1').style.width = (cannons[0].hp/cannons[0].maxHp*100)+'%';
   el('hp2').style.width = (cannons[1].hp/cannons[1].maxHp*100)+'%';
