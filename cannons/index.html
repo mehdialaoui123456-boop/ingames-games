@@ -1,21 +1,811 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>معركة المدافع</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="./assets/index-DElHXo_W.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DVXqbjVJ.css">
-  </head>
-  <body>
-    <div id="app">
-      <div id="stage">
-        <canvas id="game"></canvas>
-        <div id="ui"></div>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>معركة المدافع</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&display=swap" rel="stylesheet" />
+<style>
+  :root{ --p1:#3b82f6; --p2:#f43f5e; }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ width:100%; height:100%; overflow:hidden; background:#0a1020; font-family:'Cairo',system-ui,sans-serif; }
+  #stage{ position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); transform-origin:center center; }
+  #game{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+
+  #overlay{ position:absolute; inset:0; pointer-events:none; color:#fff; }
+
+  /* ---- HUD ---- */
+  #hud{ position:absolute; top:0; left:0; right:0; display:flex; align-items:flex-start;
+        justify-content:space-between; padding:10px 14px; gap:10px; transition:opacity .3s; }
+  #hud.hide{ opacity:0; }
+  .side{ display:flex; flex-direction:column; gap:6px; min-width:150px; }
+  .side.r{ align-items:flex-start; }
+  .side.l{ align-items:flex-end; }
+  .pname{ font-weight:900; font-size:15px; display:flex; align-items:center; gap:6px; }
+  .dot{ width:12px; height:12px; border-radius:50%; box-shadow:0 0 8px currentColor; }
+  .hpwrap{ width:150px; height:14px; border-radius:8px; background:#0008; border:2px solid #fff3; overflow:hidden; }
+  .hpbar{ height:100%; border-radius:6px; transition:width .25s ease; }
+  .pips{ font-size:13px; letter-spacing:2px; }
+  .center{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center; }
+  .turnpill{ font-weight:900; font-size:16px; padding:6px 18px; border-radius:30px;
+             background:#0009; border:2px solid; backdrop-filter:blur(4px); }
+  .meta{ font-size:13px; opacity:.92; display:flex; gap:14px; font-weight:600; }
+  .meta b{ font-weight:900; }
+
+  /* ---- Cards ---- */
+  .card{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+         pointer-events:auto; background:radial-gradient(ellipse at center,#0b1430cc,#070b18ee); }
+  .panel{ width:min(560px,90vw); background:linear-gradient(160deg,#152244,#0d1730);
+          border:2px solid #ffffff22; border-radius:24px; padding:30px 26px; text-align:center;
+          box-shadow:0 24px 70px #000a, inset 0 1px 0 #ffffff18; }
+  .panel h1{ font-size:34px; font-weight:900; letter-spacing:1px;
+             background:linear-gradient(90deg,#7dd3fc,#fca5a5); -webkit-background-clip:text;
+             background-clip:text; color:transparent; margin-bottom:6px; }
+  .panel .sub{ font-size:14px; opacity:.85; line-height:1.9; margin:10px 4px 18px; }
+  .modes{ display:flex; gap:12px; justify-content:center; margin:8px 0 16px; flex-wrap:wrap; }
+  .mode{ flex:1; min-width:130px; cursor:pointer; padding:14px 10px; border-radius:16px;
+         background:#0c1838; border:2px solid #ffffff22; transition:.15s;
+         display:flex; flex-direction:column; gap:4px; align-items:center; }
+  .mode .ic{ font-size:26px; }
+  .mode .t{ font-weight:900; font-size:15px; }
+  .mode .d{ font-size:11px; opacity:.7; }
+  .mode:hover{ border-color:#7dd3fc; transform:translateY(-2px); }
+  .mode.sel{ border-color:#7dd3fc; background:#15366a; box-shadow:0 0 0 3px #7dd3fc44; }
+  .btn{ pointer-events:auto; cursor:pointer; border:none; font-family:inherit; font-weight:900;
+        font-size:19px; color:#06122b; padding:14px 40px; border-radius:40px;
+        background:linear-gradient(180deg,#9ae6ff,#38bdf8); box-shadow:0 10px 26px #38bdf855,inset 0 1px 0 #fff8;
+        transition:.12s; }
+  .btn:hover{ transform:translateY(-2px); filter:brightness(1.07); }
+  .btn:active{ transform:translateY(1px); }
+  .big{ font-size:30px; font-weight:900; line-height:1.35; margin-bottom:6px; }
+  .score{ font-size:46px; font-weight:900; letter-spacing:4px; margin:6px 0 18px; }
+  .trophy{ font-size:54px; filter:drop-shadow(0 6px 16px #f59e0b88); margin-bottom:6px; }
+  .hidden{ display:none !important; }
+
+  .toast{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+          font-weight:900; font-size:clamp(26px,7vw,64px); text-shadow:0 4px 20px #000c, 0 0 30px currentColor;
+          opacity:0; pointer-events:none; white-space:nowrap; }
+  @keyframes pop{ 0%{ transform:translate(-50%,-50%) scale(.4); opacity:0 }
+    18%{ transform:translate(-50%,-50%) scale(1.12); opacity:1 }
+    78%{ transform:translate(-50%,-50%) scale(1); opacity:1 }
+    100%{ transform:translate(-50%,-58%) scale(1); opacity:0 } }
+  .toast.show{ animation:pop 1.25s ease forwards; }
+</style>
+</head>
+<body>
+  <div id="stage">
+  <canvas id="game"></canvas>
+  <div id="overlay">
+    <div id="hud" class="hide">
+      <div class="side l">
+        <div class="pname" id="n2"><span>اللاعب ٢</span><span class="dot" style="color:var(--p2)"></span></div>
+        <div class="hpwrap"><div class="hpbar" id="hp2" style="background:var(--p2)"></div></div>
+        <div class="pips" id="pip2" style="color:var(--p2)"></div>
+      </div>
+      <div class="center">
+        <div class="turnpill" id="turn">—</div>
+        <div class="meta">
+          <span>الرياح <b id="wind">→ 0</b></span>
+          <span>الجولة <b id="round">1</b></span>
+        </div>
+      </div>
+      <div class="side r">
+        <div class="pname" id="n1"><span class="dot" style="color:var(--p1)"></span><span>اللاعب ١</span></div>
+        <div class="hpwrap"><div class="hpbar" id="hp1" style="background:var(--p1)"></div></div>
+        <div class="pips" id="pip1" style="color:var(--p1)"></div>
       </div>
     </div>
-  </body>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="card" id="cTitle">
+      <div class="panel">
+        <h1>معركة المدافع</h1>
+        <div class="sub">
+          حرّك عصا التحكّم (الجويستيك) نحو الاتجاه الذي تريد القذف إليه: الاتجاه يحدّد الزاوية وبُعد الدفع يحدّد القوة، ثم أفلِت لتطلق النار. انتبه للرياح!
+          دمّر تحصينات الخصم وأصِب مدفعه. احذر البراميل المتفجّرة!
+          <br>أوّل من يفوز بـ <b>٣</b> جولات يكسب المباراة.
+        </div>
+        <div class="modes">
+          <div class="mode sel" data-mode="2p">
+            <div class="ic">👥</div><div class="t">لاعبان</div><div class="d">على نفس الجهاز</div>
+          </div>
+          <div class="mode" data-mode="ai">
+            <div class="ic">🤖</div><div class="t">ضد الكمبيوتر</div><div class="d">لاعب واحد</div>
+          </div>
+        </div>
+        <button class="btn" id="startBtn">إبدأ المعركة</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="cEnd">
+      <div class="panel">
+        <div class="trophy" id="endTrophy">🏆</div>
+        <div class="big" id="endTitle"></div>
+        <div class="score" id="endScore"></div>
+        <button class="btn" id="endBtn">التالي</button>
+      </div>
+    </div>
+  </div>
+  </div><!-- /#stage -->
+
+<script>
+"use strict";
+//============================================================ setup
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+const stageEl = document.getElementById('stage');
+const W = 1280, H = 720;            // world (logical) resolution
+const GROUND = H - 96;             // top of ground
+let dpr = 1, scale = 1, offX = 0, offY = 0;
+let portrait = false, stageW = W, stageH = H;   // CSS px size of the stage
+
+function resize(){
+  const vw = window.innerWidth, vh = window.innerHeight;
+  // on a phone held in portrait we rotate the landscape battlefield 90° to fill the screen
+  portrait = vh > vw;
+  const availW = portrait ? vh : vw;   // space along the game's WIDTH axis
+  const availH = portrait ? vw : vh;   // space along the game's HEIGHT axis
+  const ar = W / H;
+  let sw = availW, sh = availH;
+  if (sw / sh > ar) sw = sh * ar; else sh = sw / ar;   // fit 16:9, no inner letterbox
+  stageW = sw; stageH = sh;
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  stageEl.style.width = sw + 'px';
+  stageEl.style.height = sh + 'px';
+  stageEl.style.transform = portrait
+    ? 'translate(-50%,-50%) rotate(90deg)'
+    : 'translate(-50%,-50%)';
+  cv.style.width = sw + 'px';
+  cv.style.height = sh + 'px';
+  cv.width = Math.round(sw * dpr);
+  cv.height = Math.round(sh * dpr);
+  scale = sw / W;                       // world -> CSS px (stage is exactly 16:9)
+  offX = 0; offY = 0;
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+
+// map a screen (clientX/Y) point into world coords, accounting for the portrait rotation
+function toWorld(cx, cy){
+  let dx = cx - window.innerWidth / 2;   // relative to stage centre (== viewport centre)
+  let dy = cy - window.innerHeight / 2;
+  if (portrait){ const ox = dx, oy = dy; dx = oy; dy = -ox; }  // inverse of CSS rotate(90deg)
+  return { x: (dx / stageW + 0.5) * W, y: (dy / stageH + 0.5) * H };
+}
+
+//============================================================ physics constants
+const G = 1320;                    // gravity px/s^2
+const STEP = 1/120;                // fixed physics step
+const SPD_MIN = 380, SPD_MAX = 1260;
+const WIN_ROUNDS = 3;
+
+//============================================================ materials (logical obstacles)
+const MAT = {
+  // stone: fixed structural foundation, very tough — you must arc over it
+  stone:  { fixed:true,  hp:260, fill:'#7c8696', top:'#a0a9b8', dark:'#4d5562', brick:true },
+  // wood crates: light, breakable, fall when unsupported
+  wood:   { fixed:false, hp:55,  fill:'#b27a3a', top:'#d09a54', dark:'#7b5325' },
+  // sandbags: heavy cover, soak damage, fall
+  sand:   { fixed:false, hp:120, fill:'#c6ad77', top:'#dcc795', dark:'#9a8455', bag:true },
+  // barrels: explosive — chain reactions
+  barrel: { fixed:false, hp:24,  fill:'#c33a2c', top:'#e85d4c', dark:'#7c2018', explosive:true },
+};
+
+//============================================================ game state
+let mode = '2p';
+let state = 'title';               // title | aim | fly | resolve | end
+let cannons, blocks, particles, shell, wind, cur, level, dbgScore=[0,0];
+let resolveTimer = 0, aiTimer = 0, aiDone = false, shake = 0, muzzle1=0, muzzle2=0;
+let endKind = '';                  // round | match
+let acc = 0;
+const aim = { angleDeg: 45, power: 0.6 };
+const JOY = { active:false, R:54, knobR:24 };   // on-screen aiming joystick
+// tucked into the lower corner, inward of the cannon so it never covers it
+function joyBase(){ const c = cannons[cur]; return { x: c.face > 0 ? 212 : W - 212, y: H - 74 }; }
+let bg = makeBackdrop();
+
+function makeBackdrop(){
+  const stars = [], clouds = [], peaks = [];
+  for(let i=0;i<60;i++) stars.push({x:Math.random()*W, y:Math.random()*GROUND*0.7, s:Math.random()*1.6+0.4, t:Math.random()*7});
+  for(let i=0;i<5;i++) clouds.push({x:Math.random()*W, y:60+Math.random()*180, s:0.6+Math.random()*0.8, sp:6+Math.random()*10});
+  for(let i=0;i<2;i++){
+    const arr=[]; let x=-50;
+    while(x<W+50){ arr.push({x, h:60+Math.random()*(i?160:90)}); x += 70+Math.random()*60; }
+    peaks.push(arr);
+  }
+  return { stars, clouds, peaks };
+}
+
+//============================================================ level / obstacle layouts
+// helper: block placed by its BOTTOM edge so stacks rest logically on the ground / each other
+function B(cx, bottom, w, h, mat){
+  return { x: cx - w/2, y: bottom - h, w, h, mat, hp: MAT[mat].hp, max: MAT[mat].hp, vy: 0 };
+}
+// a vertical stack of crates resting on the ground
+function stack(cx, bottom, w, h, n, mat){
+  const a=[]; for(let i=0;i<n;i++) a.push(B(cx, bottom - i*h, w, h, mat)); return a;
+}
+
+const LEVELS = [
+  // 1 — open field: a tall stone divider you must lob over, light cover + 1 barrel each side
+  () => [
+    B(W/2, GROUND, 70, 230, 'stone'),
+    ...stack(330, GROUND, 46, 46, 2, 'wood'),
+    ...stack(W-330, GROUND, 46, 46, 2, 'wood'),
+    B(440, GROUND, 40, 60, 'barrel'),
+    B(W-440, GROUND, 40, 60, 'barrel'),
+  ],
+  // 2 — twin forts: stone tower + wooden battlement, an explosive barrel sheltered inside each
+  () => [
+    B(360, GROUND, 56, 210, 'stone'),
+    B(360, GROUND-210, 120, 34, 'stone'),
+    B(330, GROUND-244, 34, 40, 'wood'), B(390, GROUND-244, 34, 40, 'wood'),
+    B(360, GROUND, 40, 64, 'barrel'),
+    B(W-360, GROUND, 56, 210, 'stone'),
+    B(W-360, GROUND-210, 120, 34, 'stone'),
+    B(W-330, GROUND-244, 34, 40, 'wood'), B(W-390, GROUND-244, 34, 40, 'wood'),
+    B(W-360, GROUND, 40, 64, 'barrel'),
+    B(W/2, GROUND, 60, 80, 'sand'),
+  ],
+  // 3 — sandbag bunkers protecting barrels, central crate pyramid
+  () => [
+    ...stack(300, GROUND, 70, 30, 3, 'sand'),
+    ...stack(W-300, GROUND, 70, 30, 3, 'sand'),
+    B(300, GROUND, 40, 60, 'barrel'),
+    B(W-300, GROUND, 40, 60, 'barrel'),
+    ...stack(W/2-52, GROUND, 50, 50, 1, 'wood'),
+    ...stack(W/2,    GROUND, 50, 50, 2, 'wood'),
+    ...stack(W/2+52, GROUND, 50, 50, 1, 'wood'),
+    B(W/2, GROUND-100, 50, 50, 'barrel'),
+  ],
+  // 4 — destructible crate wall with barrels embedded (chain-reaction)
+  () => {
+    const a=[]; const cols=5, rows=4, w=48, h=48, bx=W/2-(cols*w)/2;
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      const x=bx+c*w+w/2, isBar=(r===1&&c===2)||(r===2&&(c===1||c===3));
+      a.push(B(x, GROUND - r*h, w, h, isBar?'barrel':'wood'));
+    }
+    a.push(B(W/2, GROUND - rows*h, 60, 40, 'sand'));
+    return a;
+  },
+  // 5 — fortress: stone walls + sand parapets + barrels in the courtyard
+  () => [
+    B(W/2-180, GROUND, 50, 200, 'stone'),
+    B(W/2+180, GROUND, 50, 200, 'stone'),
+    B(W/2, GROUND-200, 410, 36, 'stone'),
+    ...stack(W/2-180, GROUND-236, 50, 28, 2, 'sand'),
+    ...stack(W/2+180, GROUND-236, 50, 28, 2, 'sand'),
+    B(W/2, GROUND, 44, 70, 'barrel'),
+    B(W/2-70, GROUND, 44, 70, 'barrel'),
+    B(W/2+70, GROUND, 44, 70, 'barrel'),
+    ...stack(380, GROUND, 46, 46, 2, 'wood'),
+    ...stack(W-380, GROUND, 46, 46, 2, 'wood'),
+  ],
+];
+
+//============================================================ new match / round
+function newMatch(){
+  dbgScore = [0,0];
+  level = 0;
+  cannons = [
+    { id:0, x:120,   color:'#3b82f6', name:'اللاعب ١', hp:100, maxHp:100, face:1,  score:0 },
+    { id:1, x:W-120, color:'#f43f5e', name:mode==='ai'?'الكمبيوتر':'اللاعب ٢', hp:100, maxHp:100, face:-1, score:0 },
+  ];
+  newRound();
+}
+
+function newRound(){
+  cannons[0].hp = cannons[1].hp = 100;
+  blocks = LEVELS[level % LEVELS.length]().filter(Boolean);
+  particles = []; shell = null;
+  cur = Math.random() < 0.5 ? 0 : 1;
+  beginTurn();
+  state = 'aim';
+}
+
+function beginTurn(){
+  wind = Math.round((Math.random()*2 - 1) * 240);
+  aim.angleDeg = cannons[cur].face > 0 ? 50 : 130;
+  aim.power = 0.6;
+  JOY.active = false;
+  aiTimer = (mode === 'ai' && cur === 1) ? 0.9 : 0;
+  aiDone = false;
+}
+
+//============================================================ aiming helpers
+function pivotOf(c){ return { x: c.x, y: GROUND - 24 }; }
+function aimDir(){ const a = aim.angleDeg * Math.PI/180; return { x: Math.cos(a), y: -Math.sin(a) }; }
+function muzzleOf(c){ const p = pivotOf(c), d = aimDir(); return { x: p.x + d.x*48, y: p.y + d.y*48 }; }
+function launchSpeed(){ return SPD_MIN + aim.power*(SPD_MAX - SPD_MIN); }
+
+// simulate a shot -> returns path points + closest distance to a target point
+function simulate(sx, sy, vx, vy, target){
+  const pts = []; let x=sx, y=sy, best=1e9, land=null;
+  for(let i=0;i<900;i++){
+    vy += G*STEP; vx += wind*STEP; x += vx*STEP; y += vy*STEP;
+    if(i%3===0) pts.push({x,y});
+    if(target){ const d=Math.hypot(x-target.x, y-target.y); if(d<best) best=d; }
+    if(y >= GROUND){ land={x,y:GROUND}; break; }
+    if(x < -120 || x > W+120 || y > H+200){ land={x,y}; break; }
+    let hit=false;
+    for(const b of blocks){ if(x>b.x && x<b.x+b.w && y>b.y && y<b.y+b.h){ land={x,y}; hit=true; break; } }
+    if(hit) break;
+  }
+  return { pts, best, land };
+}
+
+function previewPath(){
+  const c = cannons[cur], m = muzzleOf(c), s = launchSpeed(), d = aimDir();
+  return simulate(m.x, m.y, d.x*s, d.y*s, null);
+}
+
+//============================================================ firing
+function fire(){
+  if(state !== 'aim') return;
+  const c = cannons[cur], m = muzzleOf(c), s = launchSpeed(), d = aimDir();
+  shell = { x:m.x, y:m.y, vx:d.x*s, vy:d.y*s, owner:cur, trail:[] };
+  if(cur===0) muzzle1 = 1; else muzzle2 = 1;
+  shake = Math.max(shake, 5);
+  beep('fire');
+  state = 'fly'; acc = 0; JOY.active = false;
+}
+
+function stepShell(h){
+  shell.vy += G*h; shell.vx += wind*h;
+  shell.x += shell.vx*h; shell.y += shell.vy*h;
+  shell.trail.push({x:shell.x, y:shell.y});
+  if(shell.trail.length>22) shell.trail.shift();
+
+  // hit a block
+  for(const b of blocks){
+    if(shell.x>b.x && shell.x<b.x+b.w && shell.y>b.y && shell.y<b.y+b.h){
+      return detonate(shell.x, shell.y);
+    }
+  }
+  // direct hit on enemy cannon body
+  for(const c of cannons){
+    if(c.id!==shell.owner && Math.hypot(shell.x-c.x, shell.y-(GROUND-18))<32)
+      return detonate(shell.x, shell.y, true);
+  }
+  if(shell.y >= GROUND) return detonate(shell.x, GROUND);
+  if(shell.x < -160 || shell.x > W+160 || shell.y > H+300){ shell=null; endTurn(); }
+}
+
+//============================================================ explosions (chain-capable)
+function detonate(x, y, direct){
+  burst(x, y);
+  shake = Math.max(shake, direct ? 14 : 9);
+  beep(direct ? 'big' : 'boom');
+  explode(x, y, 96, direct ? 58 : 40, 78);
+  shell = null;
+  state = 'resolve'; resolveTimer = 0.7;
+}
+
+function explode(x, y, radius, cannonDmg, blockDmg){
+  // damage cannons (falloff)
+  for(const c of cannons){
+    const d = Math.hypot(x - c.x, y - (GROUND-18));
+    if(d < radius){ c.hp = Math.max(0, c.hp - cannonDmg*(1 - d/radius)); }
+  }
+  // damage blocks (falloff), trigger barrel chains
+  for(const b of blocks){
+    if(b.hp<=0) continue;
+    const bx = b.x+b.w/2, by = b.y+b.h/2;
+    const d = Math.hypot(x-bx, y-by);
+    const reach = radius + Math.max(b.w,b.h)/2;
+    if(d < reach){
+      b.hp -= blockDmg*(1 - Math.min(1,d/reach));
+      debris(bx, by, MAT[b.mat].fill, 6);
+      if(b.hp<=0 && MAT[b.mat].explosive && !b.chained){
+        b.chained = true;
+        // schedule the chain so it visibly cascades
+        setTimeout(()=>{ if(state==='resolve'||state==='fly'){ burst(bx,by); shake=Math.max(shake,11);
+          beep('boom'); explode(bx, by, 118, 50, 96); resolveTimer=Math.max(resolveTimer,0.5); }}, 110);
+      }
+    }
+  }
+}
+
+//============================================================ turn / round resolution
+function endTurn(){
+  const dead = cannons.find(c => c.hp <= 0);
+  if(dead){
+    const win = cannons[1 - dead.id];
+    win.score++;
+    if(win.score >= WIN_ROUNDS){ endKind = 'match'; showEnd(win, '🏆', win.name + '<br>فاز بالمباراة!'); }
+    else { endKind = 'round'; showEnd(win, '🎯', win.name + ' فاز بالجولة'); }
+    state = 'end';
+    return;
+  }
+  cur = 1 - cur;
+  beginTurn();
+  state = 'aim';
+}
+
+//============================================================ AI
+function aiThink(){
+  const me = cannons[cur], foe = cannons[1-cur], m = muzzleOf(me);
+  const target = { x: foe.x, y: GROUND - 18 };
+  let best = null;
+  const aMin = me.face>0 ? 12 : 92, aMax = me.face>0 ? 88 : 168;
+  for(let ang=aMin; ang<=aMax; ang+=3){
+    const rad = ang*Math.PI/180, dx=Math.cos(rad), dy=-Math.sin(rad);
+    for(let p=0.3; p<=1.0; p+=0.06){
+      const s = SPD_MIN + p*(SPD_MAX-SPD_MIN);
+      const r = simulate(m.x, m.y, dx*s, dy*s, target);
+      if(!best || r.best < best.d){ best = { ang, p, d:r.best }; }
+    }
+  }
+  // imperfect aim — a little human error
+  aim.angleDeg = Math.max(aMin, Math.min(aMax, best.ang + (Math.random()*2-1)*5));
+  aim.power = Math.max(0.2, Math.min(1, best.p + (Math.random()*2-1)*0.06));
+}
+
+//============================================================ block settling (gravity)
+function settleBlocks(dt){
+  for(let pass=0; pass<2; pass++){
+    for(const b of blocks){
+      if(b.hp<=0 || MAT[b.mat].fixed) continue;
+      let supY = GROUND;
+      for(const o of blocks){
+        if(o===b || o.hp<=0) continue;
+        if(o.x < b.x+b.w-3 && o.x+o.w > b.x+3 && o.y >= b.y + b.h - 3)
+          supY = Math.min(supY, o.y);
+      }
+      const restY = supY - b.h;
+      if(b.y < restY - 0.5){
+        b.vy += G*dt; b.y += b.vy*dt;
+        if(b.y >= restY){ b.y = restY; b.vy = 0; }
+      } else { b.y = restY; b.vy = 0; }
+    }
+  }
+  blocks = blocks.filter(b => b.hp > 0);
+}
+
+//============================================================ particles
+function burst(x, y){
+  for(let i=0;i<34;i++){ const a=Math.random()*7, sp=80+Math.random()*340;
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.6,max:.6,
+      c:['#fff1b8','#ffb24d','#ff6a2b','#ffd166'][i&3], sz:2+Math.random()*5, g:0}); }
+  for(let i=0;i<10;i++){ particles.push({x,y,vx:(Math.random()*2-1)*40,vy:-30-Math.random()*60,
+      life:1.1,max:1.1,c:'#3a3a44',sz:6+Math.random()*7,g:-30,smoke:1}); }
+}
+function debris(x,y,c,n){
+  for(let i=0;i<n;i++){ const a=Math.random()*7, sp=50+Math.random()*180;
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-60,life:.8,max:.8,c,sz:2+Math.random()*3,g:520}); }
+}
+function updateParticles(dt){
+  for(const p of particles){ p.vy += (p.g||0)*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+    if(p.smoke){ p.sz += dt*10; } }
+  particles = particles.filter(p => p.life>0);
+}
+
+//============================================================ input — aiming joystick
+// push the knob toward where you want to fire: direction = angle, distance = power
+function applyJoy(px, py){
+  const b = joyBase();
+  const dx = px - b.x, dy = py - b.y;
+  const len = Math.hypot(dx, dy);
+  if(len < 6){ aim.power = 0; return; }            // dead-zone in the centre
+  let ang = Math.atan2(-dy, dx) * 180/Math.PI;     // up = positive
+  aim.angleDeg = Math.max(5, Math.min(175, ang));  // never fire into the ground
+  aim.power = Math.max(0, Math.min(1, len / JOY.R));
+}
+function canAim(){ return state==='aim' && !(mode==='ai' && cur===1); }
+
+function onDown(e){
+  if(!canAim()) return;
+  const t = e.touches ? e.touches[0] : e;
+  const w = toWorld(t.clientX, t.clientY);
+  JOY.active = true; applyJoy(w.x, w.y); e.preventDefault();
+}
+function onMove(e){
+  if(!JOY.active || !canAim()) return;
+  const t = e.touches ? e.touches[0] : e;
+  const w = toWorld(t.clientX, t.clientY);
+  applyJoy(w.x, w.y); e.preventDefault();
+}
+function onUp(e){
+  if(!JOY.active || !canAim()){ JOY.active = false; return; }
+  JOY.active = false; e.preventDefault();
+  if(aim.power > 0.06) fire();
+}
+cv.addEventListener('mousedown', onDown);
+cv.addEventListener('mousemove', onMove);
+window.addEventListener('mouseup', onUp);
+cv.addEventListener('touchstart', onDown, {passive:false});
+cv.addEventListener('touchmove', onMove, {passive:false});
+cv.addEventListener('touchend', onUp, {passive:false});
+
+// keyboard fine control (desktop)
+window.addEventListener('keydown', e=>{
+  if(!canAim()) return;
+  if(e.key==='ArrowUp')    aim.angleDeg = Math.min(175, aim.angleDeg+ (e.shiftKey?5:1));
+  else if(e.key==='ArrowDown') aim.angleDeg = Math.max(5, aim.angleDeg- (e.shiftKey?5:1));
+  else if(e.key==='ArrowRight') aim.power = Math.min(1, aim.power+0.02);
+  else if(e.key==='ArrowLeft')  aim.power = Math.max(0.05, aim.power-0.02);
+  else if(e.key===' '){ e.preventDefault(); fire(); }
+});
+
+//============================================================ tiny sound
+let actx = null;
+function audioInit(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(_){} } }
+function beep(kind){
+  if(!actx) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+  o.connect(g); g.connect(actx.destination);
+  if(kind==='fire'){ o.type='square'; o.frequency.setValueAtTime(180,t); o.frequency.exponentialRampToValueAtTime(70,t+.12); g.gain.setValueAtTime(.18,t); }
+  else if(kind==='big'){ o.type='sawtooth'; o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(40,t+.4); g.gain.setValueAtTime(.32,t); }
+  else { o.type='sawtooth'; o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(45,t+.28); g.gain.setValueAtTime(.24,t); }
+  g.gain.exponentialRampToValueAtTime(.001, t + (kind==='big'?.5:.32));
+  o.start(t); o.stop(t + (kind==='big'?.5:.34));
+}
+
+//============================================================ update loop
+let last = performance.now();
+function loop(now){
+  let dt = Math.min((now-last)/1000, 0.033); last = now;
+  update(dt); render(dt); requestAnimationFrame(loop);
+}
+function update(dt){
+  bg.clouds.forEach(c=>{ c.x += c.sp*dt; if(c.x>W+120) c.x=-120; });
+  if(shake>0){ shake -= dt*18; if(shake<0) shake=0; }
+  if(muzzle1>0) muzzle1=Math.max(0,muzzle1-dt*6);
+  if(muzzle2>0) muzzle2=Math.max(0,muzzle2-dt*6);
+
+  if(state==='aim' && mode==='ai' && cur===1){
+    if(aiTimer>0){ aiTimer-=dt;
+      if(!aiDone && aiTimer<=0.5){ aiThink(); aiDone=true; }
+      if(aiTimer<=0){ fire(); } }
+  }
+  if(state==='fly' && shell){
+    acc += dt;
+    while(acc>=STEP){ acc-=STEP; if(shell) stepShell(STEP); else break; }
+  }
+  if(state==='resolve'){
+    resolveTimer -= dt;
+    if(resolveTimer<=0) endTurn();
+  }
+  if(cannons){ settleBlocks(dt); updateParticles(dt); }
+}
+
+//============================================================ rendering
+function render(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.save();
+  ctx.translate(offX,offY); ctx.scale(scale,scale);
+  if(shake>0) ctx.translate((Math.random()*2-1)*shake, (Math.random()*2-1)*shake);
+
+  drawSky(); drawGround();
+  if(cannons){
+    for(const b of blocks) drawBlock(b);
+    for(const c of cannons) drawCannon(c);
+    if(state==='aim') drawAim();
+    drawShell(); drawParticles();
+  }
+
+  ctx.restore();
+  syncHud();
+}
+
+function drawSky(){
+  const g = ctx.createLinearGradient(0,0,0,GROUND);
+  g.addColorStop(0,'#0e1b3f'); g.addColorStop(.55,'#33508a'); g.addColorStop(1,'#f0a062');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,GROUND);
+  // sun
+  ctx.save(); ctx.globalAlpha=.9;
+  const sg=ctx.createRadialGradient(W*.5,GROUND-40,10,W*.5,GROUND-40,260);
+  sg.addColorStop(0,'#fff2c2'); sg.addColorStop(.3,'#ffcf7a55'); sg.addColorStop(1,'#ffcf7a00');
+  ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(W*.5,GROUND-40,260,0,7); ctx.fill();
+  ctx.fillStyle='#fff0bd'; ctx.beginPath(); ctx.arc(W*.5,GROUND-40,46,0,7); ctx.fill();
+  ctx.restore();
+  // stars
+  for(const s of bg.stars){ ctx.globalAlpha=.5+Math.sin(performance.now()*.001*2+s.t)*.4;
+    ctx.fillStyle='#dbe8ff'; ctx.fillRect(s.x,s.y,s.s,s.s); }
+  ctx.globalAlpha=1;
+  // mountains
+  const cols=['#23304f','#2c3c5e'];
+  bg.peaks.forEach((arr,i)=>{ ctx.fillStyle=cols[i]; ctx.beginPath(); ctx.moveTo(0,GROUND);
+    for(const p of arr){ ctx.lineTo(p.x-30,GROUND); ctx.lineTo(p.x,GROUND-p.h); ctx.lineTo(p.x+30,GROUND); }
+    ctx.lineTo(W,GROUND); ctx.closePath(); ctx.fill(); });
+  // clouds
+  for(const c of bg.clouds){ ctx.globalAlpha=.55; ctx.fillStyle='#dfe9ff';
+    blob(c.x,c.y,c.s); ctx.globalAlpha=1; }
+}
+function blob(x,y,s){ ctx.beginPath();
+  ctx.arc(x,y,26*s,0,7); ctx.arc(x+30*s,y+6*s,20*s,0,7); ctx.arc(x-28*s,y+8*s,18*s,0,7);
+  ctx.arc(x+8*s,y-12*s,20*s,0,7); ctx.fill(); }
+
+function drawGround(){
+  const g=ctx.createLinearGradient(0,GROUND,0,H); g.addColorStop(0,'#4a7a3a'); g.addColorStop(.12,'#3a5e2e'); g.addColorStop(1,'#2a3d22');
+  ctx.fillStyle=g; ctx.fillRect(0,GROUND,W,H-GROUND);
+  ctx.fillStyle='#5d9648'; ctx.fillRect(0,GROUND,W,8);
+  ctx.fillStyle='#0002'; for(let x=0;x<W;x+=22) ctx.fillRect(x,GROUND+8,11,4);
+}
+
+function drawBlock(b){
+  const m=MAT[b.mat], frac=Math.max(0,b.hp/b.max);
+  if(b.mat==='barrel'){
+    ctx.save();
+    const grd=ctx.createLinearGradient(b.x,0,b.x+b.w,0);
+    grd.addColorStop(0,m.dark); grd.addColorStop(.5,m.top); grd.addColorStop(1,m.dark);
+    ctx.fillStyle=grd; roundRect(b.x,b.y,b.w,b.h,8); ctx.fill();
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(b.x,b.y+b.h*0.28,b.w,4); ctx.fillRect(b.x,b.y+b.h*0.62,b.w,4);
+    ctx.fillStyle='#000'; ctx.font='bold 22px Cairo'; ctx.textAlign='center'; ctx.fillText('☣',b.x+b.w/2,b.y+b.h*0.58);
+    ctx.restore(); return;
+  }
+  // body
+  ctx.fillStyle = frac>.6 ? m.fill : frac>.3 ? m.dark : '#3a3a3a';
+  ctx.fillRect(b.x,b.y,b.w,b.h);
+  ctx.fillStyle=m.top; ctx.fillRect(b.x,b.y,b.w,5);
+  ctx.fillStyle='#ffffff14'; ctx.fillRect(b.x,b.y,5,b.h);
+  if(m.brick){ ctx.strokeStyle='#0003'; ctx.lineWidth=1.5;
+    for(let yy=b.y+18;yy<b.y+b.h;yy+=18){ ctx.beginPath(); ctx.moveTo(b.x,yy); ctx.lineTo(b.x+b.w,yy); ctx.stroke(); }
+    for(let xx=b.x+22;xx<b.x+b.w;xx+=22){ ctx.beginPath(); ctx.moveTo(xx,b.y); ctx.lineTo(xx,b.y+b.h); ctx.stroke(); } }
+  else if(m.bag){ ctx.strokeStyle='#0003'; ctx.lineWidth=2;
+    for(let yy=b.y+12;yy<b.y+b.h;yy+=14){ ctx.beginPath(); ctx.moveTo(b.x,yy); ctx.lineTo(b.x+b.w,yy); ctx.stroke(); } }
+  else { // wood planks + X
+    ctx.strokeStyle='#0004'; ctx.lineWidth=2;
+    ctx.strokeRect(b.x+3,b.y+3,b.w-6,b.h-6);
+    ctx.beginPath(); ctx.moveTo(b.x+4,b.y+4); ctx.lineTo(b.x+b.w-4,b.y+b.h-4);
+    ctx.moveTo(b.x+b.w-4,b.y+4); ctx.lineTo(b.x+4,b.y+b.h-4); ctx.stroke();
+  }
+  ctx.strokeStyle='#0006'; ctx.lineWidth=2; ctx.strokeRect(b.x,b.y,b.w,b.h);
+  if(frac<.66){ ctx.strokeStyle='#0007'; ctx.lineWidth=1.5; ctx.beginPath();
+    ctx.moveTo(b.x+b.w*.3,b.y); ctx.lineTo(b.x+b.w*.5,b.y+b.h*.6); ctx.lineTo(b.x+b.w*.25,b.y+b.h); ctx.stroke(); }
+}
+
+function drawCannon(c){
+  const piv = pivotOf(c);
+  const isMine = (state==='aim'||state==='fly') && cur===c.id;
+  let ang;
+  if(isMine) ang = -aim.angleDeg*Math.PI/180;
+  else ang = c.face>0 ? -0.7 : -Math.PI+0.7;
+  // wheels
+  ctx.fillStyle='#2a2f3a';
+  ctx.beginPath(); ctx.arc(c.x-12,GROUND-12,14,0,7); ctx.arc(c.x+12,GROUND-12,14,0,7); ctx.fill();
+  ctx.fillStyle='#475063';
+  ctx.beginPath(); ctx.arc(c.x-12,GROUND-12,7,0,7); ctx.arc(c.x+12,GROUND-12,7,0,7); ctx.fill();
+  // barrel
+  ctx.save(); ctx.translate(piv.x,piv.y); ctx.rotate(ang);
+  const bg2=ctx.createLinearGradient(0,-8,0,8);
+  bg2.addColorStop(0,'#eef3f8'); bg2.addColorStop(.5,'#c4cdda'); bg2.addColorStop(1,'#8c97a8');
+  ctx.fillStyle=bg2; roundRect(0,-9,50,18,5); ctx.fill();
+  ctx.fillStyle='#5a6473'; ctx.fillRect(44,-11,8,22);
+  const mf = c.id===0?muzzle1:muzzle2;
+  if(mf>0){ ctx.globalAlpha=mf; ctx.fillStyle='#ffd36a';
+    ctx.beginPath(); ctx.arc(56,0,12+mf*10,0,7); ctx.fill(); ctx.globalAlpha=1; }
+  ctx.restore();
+  // turret dome
+  ctx.fillStyle=c.color; ctx.shadowColor=c.color; ctx.shadowBlur=14;
+  ctx.beginPath(); ctx.arc(c.x,GROUND-16,22,Math.PI,0); ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='#ffffff44'; ctx.beginPath(); ctx.arc(c.x-6,GROUND-22,6,0,7); ctx.fill();
+  // turn ring
+  if(state==='aim' && cur===c.id){ ctx.globalAlpha=.4+Math.sin(performance.now()*.006)*.4;
+    ctx.strokeStyle=c.color; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(c.x,GROUND-16,34,0,7); ctx.stroke(); ctx.globalAlpha=1; }
+}
+
+function drawAim(){
+  if(mode==='ai' && cur===1) return;
+  const c=cannons[cur];
+  // short dotted guide — only the first stretch of the arc (~240px), not the whole trajectory
+  if(aim.power>0.04){
+    const r=previewPath();
+    ctx.fillStyle='#ffffff';
+    let dist=0, px=null, py=null;
+    for(let i=0;i<r.pts.length;i++){ const p=r.pts[i];
+      if(px!==null) dist+=Math.hypot(p.x-px,p.y-py);
+      px=p.x; py=p.y;
+      if(dist>240) break;
+      if(i%2) continue;
+      ctx.globalAlpha=Math.max(.15,.85-dist/240*0.7);
+      ctx.beginPath(); ctx.arc(p.x,p.y,2.6,0,7); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+  drawJoystick(c);
+}
+
+function drawJoystick(c){
+  const b=joyBase(), d=aimDir();
+  const kx=b.x + d.x*JOY.R*aim.power, ky=b.y + d.y*JOY.R*aim.power;
+  // base
+  ctx.globalAlpha=JOY.active?.9:.6;
+  ctx.fillStyle='#0b1426cc'; ctx.beginPath(); ctx.arc(b.x,b.y,JOY.R,0,7); ctx.fill();
+  ctx.lineWidth=4; ctx.strokeStyle=c.color; ctx.beginPath(); ctx.arc(b.x,b.y,JOY.R,0,7); ctx.stroke();
+  // direction ticks
+  ctx.strokeStyle='#ffffff33'; ctx.lineWidth=2;
+  for(let a=0;a<360;a+=45){ const rad=a*Math.PI/180;
+    ctx.beginPath(); ctx.moveTo(b.x+Math.cos(rad)*(JOY.R*.6), b.y+Math.sin(rad)*(JOY.R*.6));
+    ctx.lineTo(b.x+Math.cos(rad)*(JOY.R*.85), b.y+Math.sin(rad)*(JOY.R*.85)); ctx.stroke(); }
+  // stick + knob
+  ctx.strokeStyle=c.color; ctx.lineWidth=5; ctx.globalAlpha=JOY.active?1:.7;
+  ctx.beginPath(); ctx.moveTo(b.x,b.y); ctx.lineTo(kx,ky); ctx.stroke();
+  ctx.shadowColor=c.color; ctx.shadowBlur=JOY.active?16:8;
+  ctx.fillStyle=c.color; ctx.beginPath(); ctx.arc(kx,ky,JOY.knobR,0,7); ctx.fill();
+  ctx.shadowBlur=0; ctx.fillStyle='#ffffff55';
+  ctx.beginPath(); ctx.arc(kx-JOY.knobR*.3,ky-JOY.knobR*.3,JOY.knobR*.4,0,7); ctx.fill();
+  // readout above the joystick
+  ctx.globalAlpha=1; ctx.font='bold 20px Cairo'; ctx.textAlign='center'; ctx.fillStyle='#fff';
+  ctx.fillText(Math.round(aim.angleDeg)+'°  ·  '+Math.round(aim.power*100)+'%', b.x, b.y-JOY.R-14);
+  ctx.textAlign='start';
+}
+
+function drawShell(){
+  if(!shell) return;
+  for(let i=0;i<shell.trail.length;i++){ const t=shell.trail[i];
+    ctx.globalAlpha=i/shell.trail.length*.6; ctx.fillStyle='#ffce6b';
+    ctx.beginPath(); ctx.arc(t.x,t.y,4,0,7); ctx.fill(); }
+  ctx.globalAlpha=1; ctx.shadowColor='#ffd166'; ctx.shadowBlur=18;
+  ctx.fillStyle='#fff7d6'; ctx.beginPath(); ctx.arc(shell.x,shell.y,8,0,7); ctx.fill(); ctx.shadowBlur=0;
+}
+function drawParticles(){
+  for(const p of particles){ ctx.globalAlpha=Math.max(0,p.life/p.max)*(p.smoke?.5:1); ctx.fillStyle=p.c;
+    if(p.smoke){ ctx.beginPath(); ctx.arc(p.x,p.y,p.sz,0,7); ctx.fill(); }
+    else ctx.fillRect(p.x,p.y,p.sz,p.sz); }
+  ctx.globalAlpha=1;
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+//============================================================ HUD / DOM
+const el = id => document.getElementById(id);
+function pips(n){ let s=''; for(let i=0;i<WIN_ROUNDS;i++) s += i<n ? '●' : '○'; return s; }
+function syncHud(){
+  if(!cannons) return;
+  el('hud').classList.toggle('hide', state==='title'||state==='end');
+  el('hp1').style.width = (cannons[0].hp/cannons[0].maxHp*100)+'%';
+  el('hp2').style.width = (cannons[1].hp/cannons[1].maxHp*100)+'%';
+  el('pip1').textContent = pips(cannons[0].score);
+  el('pip2').textContent = pips(cannons[1].score);
+  el('n2').firstChild.textContent = cannons[1].name;
+  const c = cannons[cur];
+  const tp = el('turn'); tp.textContent = 'دور ' + c.name;
+  tp.style.color = c.color; tp.style.borderColor = c.color;
+  el('round').textContent = (level%LEVELS.length + 1) + ' / ' + LEVELS.length;
+  el('wind').textContent = (wind>0?'→ ':'← ') + Math.abs(wind);
+}
+
+function showEnd(winner, icon, html){
+  el('endTrophy').textContent = icon;
+  el('endTitle').innerHTML = html;
+  el('endTitle').style.color = winner.color;
+  el('endScore').textContent = cannons[0].score + ' - ' + cannons[1].score;
+  el('endBtn').textContent = endKind==='match' ? 'مباراة جديدة' : 'الجولة التالية';
+  el('cEnd').classList.remove('hidden');
+  toast((endKind==='match'?'🏆 ':'') + winner.name, winner.color);
+}
+function toast(text, color){
+  const t=el('toast'); t.textContent=text; t.style.color=color||'#fff';
+  t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+}
+
+// title mode buttons
+document.querySelectorAll('.mode').forEach(m=>{
+  m.addEventListener('click', ()=>{
+    document.querySelectorAll('.mode').forEach(x=>x.classList.remove('sel'));
+    m.classList.add('sel'); mode = m.dataset.mode;
+  });
+});
+el('startBtn').addEventListener('click', ()=>{
+  audioInit();
+  el('cTitle').classList.add('hidden');
+  newMatch();
+});
+el('endBtn').addEventListener('click', ()=>{
+  el('cEnd').classList.add('hidden');
+  if(endKind==='match'){ el('cTitle').classList.remove('hidden'); state='title'; }
+  else { level++; newRound(); }
+});
+
+//============================================================ go
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
 </html>
