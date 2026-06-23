@@ -920,41 +920,58 @@ async function initFirebase(){
   }catch(e){ console.error('Firebase init failed',e); hideWait(); }
 }
 
+// Firebase drops empty arrays/objects/nulls, which would mangle the frames
+// structure (empty rolls:[]). So we JSON-encode the structured fields.
 function pushState(){
   if(!_roomRef||_suppress) return;
   _roomRef.child('state').set({
     names:G.names, np:G.np, cur:G.cur, frame:G.frame, ball:G.ball,
-    frames:G.frames.map(pf=>pf.map(f=>({rolls:f.rolls.slice()}))),
-    standing:G.standing.slice(), phase:G.phase, winner:G.winner,
-    seq:G.seq, lastThrow:G.lastThrow,
+    framesJ:JSON.stringify(G.frames),
+    standingJ:JSON.stringify(G.standing),
+    phase:G.phase, winner:G.winner, seq:G.seq,
+    lastThrowJ:G.lastThrow?JSON.stringify(G.lastThrow):null,
     from:MY_IDX, ts:Date.now()
   });
 }
+function parseFrames(j,np){
+  let arr=[]; try{ arr=JSON.parse(j||'[]')||[]; }catch(e){ arr=[]; }
+  const out=[];
+  for(let p=0;p<np;p++){
+    const pf=arr[p]||[]; const row=[];
+    for(let f=0;f<10;f++){ const fr=pf[f]||{}; row.push({rolls:Array.isArray(fr.rolls)?fr.rolls.slice():[]}); }
+    out.push(row);
+  }
+  return out;
+}
+function parseJSON(j,fallback){ try{ const v=JSON.parse(j); return v==null?fallback:v; }catch(e){ return fallback; } }
 function applyAuthoritative(st){
-  G.names=st.names||G.names; G.np=st.np||G.np; NP=G.np;
-  G.cur=st.cur; G.frame=st.frame; G.ball=st.ball;
-  G.frames=(st.frames||[]).map(pf=>pf.map(f=>({rolls:(f.rolls||[]).slice()})));
-  G.standing=(st.standing||freshRack()).slice();
-  G.phase=st.phase; G.winner=st.winner!=null?st.winner:-1;
+  G.np=st.np||G.np; NP=G.np;
+  G.names=Array.isArray(st.names)?st.names.slice():G.names;
+  G.cur=st.cur||0; G.frame=st.frame||0; G.ball=st.ball||0;
+  G.frames=parseFrames(st.framesJ,G.np);
+  const stnd=parseJSON(st.standingJ,null);
+  G.standing=(Array.isArray(stnd)&&stnd.length===10)?stnd.slice():freshRack();
+  G.phase=st.phase||'aim'; G.winner=st.winner!=null?st.winner:-1;
   G.seq=st.seq||0;
   refreshUI();
 }
 function applyRemoteState(st){
   _suppress=true;
   $('startOv').classList.add('hidden'); hideWait();
-  if(st.seq>_seenSeq && st.lastThrow){
-    _seenSeq=st.seq;
-    const lt=st.lastThrow;
+  const seq=st.seq||0;
+  const lt=parseJSON(st.lastThrowJ,null);
+  if(seq>_seenSeq && lt){
+    _seenSeq=seq;
     // set up the rack the actor faced, replay the throw, snap to authoritative result
-    setupRack(lt.rack);
+    setupRack(lt.rack||freshRack());
     G.phase='rolling'; updateTurnTag();
-    pendingRemote={ state:st, result:lt.result, knocked:lt.knocked,
-                    markStrike:lt.strike, markSpare:lt.spare };
+    pendingRemote={ state:st, result:lt.result||freshRack(), knocked:lt.knocked||0,
+                    markStrike:!!lt.strike, markSpare:!!lt.spare };
     launchBall(lt.x, lt.vx, lt.vy);
     audio('roll');
   } else {
     // pure sync (game start / restart)
-    _seenSeq=st.seq||_seenSeq;
+    if(seq>_seenSeq) _seenSeq=seq;
     applyAuthoritative(st);
     setupRack(G.standing);
     if(G.phase==='over') showGameOver(); else updateTurnTag();
