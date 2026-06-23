@@ -261,7 +261,6 @@ const G={
 function blankFrames(np){ return Array.from({length:np},()=>Array.from({length:10},()=>({rolls:[]}))); }
 function freshRack(){ return Array(10).fill(true); }
 function defaultName(i){
-  if(IS_MP) return i===MY_IDX ? 'أنت' : ('اللاعب '+(i+1));
   return URL_NAMES[i] || ('اللاعب '+(i+1));
 }
 function seedGame(np){
