@@ -2,185 +2,171 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <title>سفن حربية</title>
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <style>
   :root{
-    --bg:#0A0F1E;
-    --bg2:#0E1530;
-    --accent:#1877F2;
-    --accent2:#5FB8FF;
-    --ship:#2E5C8A;
-    --shipEdge:#4A86C5;
-    --hit:#FF3B5C;
-    --hitGlow:#FF7A92;
-    --miss:#33405E;
-    --sunk:#8A1024;
-    --grid:#1B2545;
-    --gridLine:#26345C;
-    --ink:#EAF0FF;
-    --muted:#8A96B5;
-    --ok:#28C26A;
+    --accent:#3DA9FC;      --accent2:#7FD4FF;
+    --hit:#FF4D5E;         --hitGlow:#FF8A98;
+    --ok:#2FD27A;          --gold:#F2C14E;
+    --ink:#EAF4FF;         --muted:#8FA6C4;
+    --sea0:#0a2740;        --sea1:#06182b;
   }
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    user-select:none;-webkit-user-select:none;}
   html,body{height:100%;overflow:hidden;}
   body{
-    font-family:"Cairo","Segoe UI",Tahoma,system-ui,sans-serif;
+    font-family:"Cairo","Segoe UI",Tahoma,system-ui,sans-serif;color:var(--ink);
+    position:fixed;inset:0;touch-action:manipulation;display:flex;flex-direction:column;
     background:
-      radial-gradient(1200px 600px at 50% -10%, rgba(24,119,242,.14), transparent 60%),
-      var(--bg);
-    color:var(--ink);
-    position:fixed;inset:0;
-    user-select:none;-webkit-user-select:none;touch-action:manipulation;
-    display:flex;flex-direction:column;
+      radial-gradient(120% 80% at 50% -8%, rgba(61,169,252,.18), transparent 60%),
+      linear-gradient(180deg,#0b1f36 0%,#081627 55%,#050e1b 100%);
   }
 
-  header{
-    padding:14px 16px 6px;text-align:center;flex:0 0 auto;
-  }
-  header .title{font-size:22px;font-weight:800;letter-spacing:.5px;}
-  header .title .em{color:var(--accent2);}
-  #turnBar{
-    margin-top:8px;display:inline-flex;align-items:center;gap:8px;
-    padding:7px 16px;border-radius:30px;font-weight:800;font-size:14px;
-    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
-    transition:all .2s;
-  }
-  #turnBar.me{background:rgba(40,194,106,.14);border-color:rgba(40,194,106,.4);color:var(--ok);}
-  #turnBar.them{background:rgba(255,59,92,.12);border-color:rgba(255,59,92,.35);color:var(--hitGlow);}
+  /* ── HUD: two player cards + VS ── */
+  #hud{display:flex;align-items:center;justify-content:center;gap:14px;
+    padding:12px 14px 4px;flex:0 0 auto;}
+  .pcard{display:flex;align-items:center;gap:9px;padding:7px 13px;border-radius:16px;min-width:118px;
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+    transition:border-color .25s,box-shadow .25s,background .25s;}
+  .pcard.active{border-color:rgba(61,169,252,.6);background:rgba(61,169,252,.1);
+    box-shadow:0 0 20px rgba(61,169,252,.22);}
+  .pcard.enemy.active{border-color:rgba(255,77,94,.55);background:rgba(255,77,94,.1);
+    box-shadow:0 0 20px rgba(255,77,94,.2);}
+  .pcard .av{width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    font-size:19px;flex-shrink:0;background:linear-gradient(145deg,#1c3656,#0d1f33);
+    border:1px solid rgba(255,255,255,.1);box-shadow:inset 0 1px 2px rgba(255,255,255,.12);}
+  .pcard.enemy .av{background:linear-gradient(145deg,#4a1d27,#2a0e16);}
+  .pcard .nm{font-size:.82rem;font-weight:800;letter-spacing:.3px;}
+  .pcard .sub{font-size:.62rem;color:var(--muted);font-weight:700;}
+  .vs{font-size:.78rem;font-weight:900;color:var(--muted);letter-spacing:1px;opacity:.7;}
+
+  #turnBar{align-self:center;margin:6px auto 2px;display:inline-flex;align-items:center;gap:8px;
+    padding:6px 16px;border-radius:30px;font-weight:800;font-size:13.5px;flex:0 0 auto;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);transition:all .2s;}
+  #turnBar.me{background:rgba(47,210,122,.14);border-color:rgba(47,210,122,.4);color:var(--ok);}
+  #turnBar.them{background:rgba(255,77,94,.12);border-color:rgba(255,77,94,.35);color:var(--hitGlow);}
   #turnBar .pulse{width:9px;height:9px;border-radius:50%;background:currentColor;
     box-shadow:0 0 10px currentColor;animation:pulse 1.1s infinite;}
-  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
 
-  main{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;gap:14px;padding:8px 14px 14px;overflow:hidden;}
+  main{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:8px;padding:6px 12px 10px;overflow:hidden;min-height:0;}
 
-  .boardWrap{width:100%;max-width:420px;}
-  .boardLabel{display:flex;align-items:center;justify-content:space-between;
-    margin:0 2px 6px;font-size:13px;font-weight:700;color:var(--muted);}
-  .boardLabel .tag{display:inline-flex;align-items:center;gap:6px;}
-  .boardLabel .dotc{width:10px;height:10px;border-radius:50%;}
-
-  .grid{
-    display:grid;gap:3px;width:100%;aspect-ratio:1;
-    background:var(--gridLine);padding:3px;border-radius:12px;
-    border:1px solid var(--gridLine);
-    box-shadow:0 10px 30px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.02);
-  }
-  .cell{
-    background:var(--grid);border-radius:4px;position:relative;
-    display:flex;align-items:center;justify-content:center;
-    transition:background .15s,transform .08s;
-  }
-  .cell.tappable{cursor:pointer;}
-  .cell.tappable:active{transform:scale(.92);}
-  .cell.ship{background:linear-gradient(135deg,var(--ship),#22456A);
-    box-shadow:inset 0 0 0 1.5px var(--shipEdge);}
-  .cell.preview{background:rgba(74,134,197,.35);box-shadow:inset 0 0 0 1.5px var(--accent2);}
-  .cell.invalid{background:rgba(255,59,92,.3);box-shadow:inset 0 0 0 1.5px var(--hit);}
-  .cell.hit::after{content:"";width:54%;height:54%;border-radius:50%;
-    background:var(--hit);box-shadow:0 0 12px var(--hitGlow);}
-  .cell.miss::after{content:"";width:30%;height:30%;border-radius:50%;
-    background:var(--muted);opacity:.7;}
-  .cell.sunk{background:var(--sunk) !important;box-shadow:inset 0 0 0 1.5px var(--hit);}
-  .cell.sunk::after{background:#fff;box-shadow:0 0 10px var(--hitGlow);}
-  .cell.aim{box-shadow:inset 0 0 0 2px var(--accent2);}
+  .boardWrap{width:100%;display:flex;flex-direction:column;align-items:center;gap:5px;}
+  .boardLabel{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:480px;
+    padding:0 4px;font-size:12.5px;font-weight:800;color:var(--muted);}
+  .boardLabel .tag{display:inline-flex;align-items:center;gap:7px;}
+  .boardLabel .dotc{width:9px;height:9px;border-radius:50%;box-shadow:0 0 8px currentColor;}
+  .canvasHolder{position:relative;border-radius:14px;overflow:hidden;
+    box-shadow:0 14px 34px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.05);}
+  canvas{display:block;touch-action:none;}
 
   /* fleet status pips */
-  .fleet{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:2px;}
-  .fleetItem{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:20px;
-    background:rgba(255,255,255,.04);font-size:12px;font-weight:700;color:var(--muted);
-    border:1px solid rgba(255,255,255,.06);}
-  .fleetItem.dead{color:var(--hit);background:rgba(255,59,92,.1);border-color:rgba(255,59,92,.3);
-    text-decoration:line-through;}
+  .fleet{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;}
+  .fleetItem{display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:18px;
+    background:rgba(255,255,255,.04);font-size:10.5px;font-weight:800;color:var(--muted);
+    border:1px solid rgba(255,255,255,.07);transition:all .25s;}
+  .fleetItem.dead{color:var(--hit);background:rgba(255,77,94,.12);border-color:rgba(255,77,94,.32);}
+  .fleetItem.dead .lbl{text-decoration:line-through;opacity:.75;}
   .fleetItem .seg{display:flex;gap:2px;}
-  .fleetItem .seg i{width:7px;height:7px;border-radius:2px;background:var(--shipEdge);display:block;}
-  .fleetItem.dead .seg i{background:var(--hit);}
+  .fleetItem .seg i{width:6px;height:6px;border-radius:2px;background:var(--accent2);display:block;
+    box-shadow:0 0 4px rgba(127,212,255,.5);}
+  .fleetItem.dead .seg i{background:var(--hit);box-shadow:none;}
 
   /* placement controls */
-  #placeBar{display:flex;flex-direction:column;gap:10px;width:100%;max-width:420px;}
+  #placeBar{display:flex;flex-direction:column;gap:9px;width:100%;max-width:480px;}
   .placeRow{display:flex;gap:8px;}
-  .btn{
-    flex:1;padding:13px;border:none;border-radius:13px;font-family:inherit;
-    font-size:15px;font-weight:800;color:#fff;cursor:pointer;transition:transform .1s,opacity .2s;
-    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
-  }
-  .btn:active{transform:scale(.97);}
-  .btn.primary{background:linear-gradient(135deg,var(--accent),#0E5FCF);
-    box-shadow:0 8px 24px rgba(24,119,242,.4);border:none;}
-  .btn.primary:disabled{opacity:.4;box-shadow:none;}
-  .btn.ghost:active{background:rgba(255,255,255,.12);}
-  .placeHint{text-align:center;font-size:13px;color:var(--muted);line-height:1.5;}
+  .btn{flex:1;padding:12px;border:none;border-radius:13px;font-family:inherit;font-size:14.5px;
+    font-weight:800;color:#fff;cursor:pointer;transition:transform .1s,opacity .2s,background .2s;
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);}
+  .btn:active{transform:scale(.96);}
+  .btn.ghost:active{background:rgba(255,255,255,.14);}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),#0E6FCF);border:none;
+    box-shadow:0 8px 22px rgba(61,169,252,.4);}
+  .btn.primary:disabled{opacity:.38;box-shadow:none;}
+  .btn:disabled{opacity:.4;}
+  .placeHint{text-align:center;font-size:12.5px;color:var(--muted);line-height:1.55;}
   .placeHint b{color:var(--accent2);}
 
-  /* panels */
-  .panel{
-    position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:18px;text-align:center;
-    padding:32px;z-index:30;
-    background:radial-gradient(circle at 50% 35%,rgba(24,119,242,.12),var(--bg) 70%);
-  }
-  .panel h1{font-size:32px;font-weight:800;}
-  .panel p{color:var(--muted);font-size:15px;line-height:1.7;max-width:300px;}
-  .bigBtn{margin-top:6px;padding:16px 46px;border:none;border-radius:16px;
-    font-family:inherit;font-size:19px;font-weight:800;color:#fff;cursor:pointer;
-    background:linear-gradient(135deg,var(--accent),#0E5FCF);
-    box-shadow:0 8px 26px rgba(24,119,242,.45);transition:transform .12s;}
+  /* overlays */
+  .panel{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:16px;text-align:center;padding:30px;z-index:40;
+    background:radial-gradient(circle at 50% 35%,rgba(61,169,252,.12),rgba(5,12,22,.96) 72%);
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+  .panel h1{font-size:30px;font-weight:900;letter-spacing:.5px;}
+  .panel p{color:var(--muted);font-size:14.5px;line-height:1.7;max-width:310px;}
+  .panel .ship-emoji{font-size:52px;filter:drop-shadow(0 6px 16px rgba(0,0,0,.5));}
+  .bigBtn{margin-top:4px;padding:15px 44px;border:none;border-radius:16px;font-family:inherit;
+    font-size:18px;font-weight:900;color:#fff;cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),#0E6FCF);box-shadow:0 8px 26px rgba(61,169,252,.45);
+    transition:transform .12s;}
   .bigBtn:active{transform:scale(.96);}
-  .spinner{width:42px;height:42px;border-radius:50%;
-    border:4px solid rgba(255,255,255,.12);border-top-color:var(--accent);
-    animation:spin 1s linear infinite;}
+  .bigBtn.alt{background:rgba(255,255,255,.08);box-shadow:none;border:1px solid rgba(255,255,255,.14);}
+  .spinner{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.12);
+    border-top-color:var(--accent);animation:spin 1s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .hidden{display:none !important;}
-  .resultBadge{display:inline-flex;align-items:center;gap:10px;padding:10px 20px;
-    border-radius:30px;font-size:18px;font-weight:800;}
-  .toast{position:absolute;top:64px;left:50%;transform:translateX(-50%);
-    background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.12);
-    padding:9px 18px;border-radius:24px;font-size:14px;font-weight:700;
-    opacity:0;transition:opacity .25s;pointer-events:none;z-index:25;white-space:nowrap;}
-  .toast.show{opacity:1;}
+  .resultBadge{display:inline-flex;align-items:center;gap:10px;padding:9px 22px;border-radius:30px;
+    font-size:17px;font-weight:900;}
+
+  .toast{position:fixed;top:74px;left:50%;transform:translateX(-50%) translateY(-6px);
+    background:rgba(4,12,22,.82);border:1px solid rgba(255,255,255,.14);padding:9px 20px;border-radius:24px;
+    font-size:14px;font-weight:800;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;
+    z-index:35;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 </style>
 </head>
 <body>
-  <header>
-    <div class="title">سفن <span class="em">حربية</span></div>
-    <div id="turnBar"><span class="pulse"></span><span id="turnText">...</span></div>
-  </header>
+
+  <div id="hud">
+    <div class="pcard active" id="p0card">
+      <div class="av">⚓</div>
+      <div><div class="nm" id="p0name">أنت</div><div class="sub" id="p0sub">قائد الأسطول</div></div>
+    </div>
+    <div class="vs">VS</div>
+    <div class="pcard enemy" id="p1card">
+      <div class="av">🎯</div>
+      <div><div class="nm" id="p1name">الخصم</div><div class="sub">العدو</div></div>
+    </div>
+  </div>
+  <div id="turnBar"><span class="pulse"></span><span id="turnText">...</span></div>
 
   <main id="main">
     <!-- enemy board (battle phase) -->
     <div class="boardWrap hidden" id="enemyWrap">
       <div class="boardLabel">
-        <span class="tag"><span class="dotc" style="background:var(--hit)"></span> أسطول الخصم</span>
-        <span class="muted" id="enemyShotsLeft"></span>
+        <span class="tag"><span class="dotc" style="color:var(--hit);background:var(--hit)"></span> مياه العدو — صوّب وأطلق</span>
+        <span id="enemyHits"></span>
       </div>
-      <div class="grid" id="enemyGrid"></div>
+      <div class="canvasHolder"><canvas id="enemyCanvas"></canvas></div>
       <div class="fleet" id="enemyFleet"></div>
     </div>
 
     <!-- my board -->
     <div class="boardWrap" id="myWrap">
       <div class="boardLabel">
-        <span class="tag"><span class="dotc" style="background:var(--accent2)"></span> أسطولك</span>
-        <span class="muted" id="myStatus"></span>
+        <span class="tag"><span class="dotc" style="color:var(--accent2);background:var(--accent2)"></span> أسطولك</span>
+        <span id="myStatus"></span>
       </div>
-      <div class="grid" id="myGrid"></div>
+      <div class="canvasHolder"><canvas id="myCanvas"></canvas></div>
       <div class="fleet" id="myFleet"></div>
     </div>
 
     <!-- placement controls -->
     <div id="placeBar">
-      <div class="placeHint" id="placeHint">ضع سفنك على الشبكة. اضغط لوضع السفينة الحالية.</div>
+      <div class="placeHint" id="placeHint">رتّب سفنك على الشبكة، ثم استعد للمعركة.</div>
       <div class="placeRow">
         <button class="btn ghost" id="rotateBtn">↻ تدوير</button>
         <button class="btn ghost" id="autoBtn">⚓ توزيع تلقائي</button>
       </div>
       <div class="placeRow">
-        <button class="btn ghost" id="resetBtn">مسح</button>
-        <button class="btn primary" id="readyBtn" disabled>جاهز للمعركة</button>
+        <button class="btn ghost" id="resetBtn">↺ مسح</button>
+        <button class="btn primary" id="readyBtn" disabled>🚀 جاهز للمعركة</button>
       </div>
     </div>
   </main>
@@ -194,34 +180,41 @@
     <p id="waitMsg">بانتظار صديقك للانضمام...</p>
   </div>
 
-  <!-- single-device note (fallback) -->
+  <!-- single-device note -->
   <div id="start" class="panel hidden">
+    <div class="ship-emoji">🚢</div>
     <h1>سفن حربية</h1>
-    <p>هذه لعبة للاعبَين عبر الإنترنت. افتحها من داخل تطبيق InGames لبدء مباراة مع صديق.</p>
-    <button class="bigBtn" id="startSolo">تجربة فردية</button>
+    <p>لعبة معارك بحرية للاعبَين عبر الإنترنت. افتحها من تطبيق InGames للعب مع صديق، أو جرّب اللعب ضد الكمبيوتر.</p>
+    <button class="bigBtn" id="startSolo">⚔️ اللعب ضد الكمبيوتر</button>
   </div>
 
   <!-- game over -->
   <div id="over" class="panel hidden">
+    <div class="ship-emoji" id="overEmoji">🏆</div>
     <div class="resultBadge" id="overBadge"></div>
     <h1 id="overTitle"></h1>
     <p id="overSub"></p>
-    <button class="bigBtn" id="againBtn">العب مجدداً</button>
+    <button class="bigBtn" id="againBtn">🔄 معركة جديدة</button>
   </div>
 
 <script>
 /* ============================================================
-   سفن حربية — Battleship (turn-based multiplayer)
-   Each device owns its OWN board truth. You broadcast your SHOTS;
-   the target device replies with the result. No shared physics.
+   سفن حربية — Battleship (online, turn-based, canvas-rendered)
+   Each device owns its OWN board. You broadcast your SHOTS;
+   the target device replies with the RESULT. No shared physics.
+   Multiplayer protocol (seats/ready/shots/results/rematch) is
+   kept identical to the InGames launcher contract.
    ============================================================ */
+"use strict";
 
 /* ---------- room / player ---------- */
-const params  = new URLSearchParams(window.location.search);
+const params  = new URLSearchParams(location.search);
 const ROOM_ID = params.get('room');
-let MY_IDX    = parseInt(params.get('player') || '0', 10); // hint; verified via slot claim
+let   MY_IDX  = parseInt(params.get('player') || '0', 10);   // hint; verified via seat claim
 const IS_MP   = !!ROOM_ID;
 const GAME_KEY= 'battleship';
+const MY_NAME = params.get('name')    || 'أنت';
+const OPP_NAME= params.get('oppName') || 'الخصم';
 
 /* ---------- firebase config (InGames) ---------- */
 const _fbConfig = {
@@ -235,569 +228,951 @@ const _fbConfig = {
 };
 
 /* ---------- game constants ---------- */
-const N = 8;                                   // 8x8 grid
-const FLEET = [                                // ship sizes + Arabic names
-  { id:'carrier',    name:'حاملة',  size:4 },
-  { id:'battleship', name:'مدمّرة', size:3 },
-  { id:'cruiser',    name:'طرّاد',  size:3 },
-  { id:'submarine',  name:'غوّاصة', size:2 },
-  { id:'destroyer',  name:'زورق',   size:2 }
+const N = 10;                                   // 10x10 grid
+const FLEET = [
+  { id:'carrier',    name:'حاملة طائرات', size:5 },
+  { id:'battleship', name:'بارجة',        size:4 },
+  { id:'cruiser',    name:'طرّاد',         size:3 },
+  { id:'submarine',  name:'غوّاصة',        size:3 },
+  { id:'patrol',     name:'زورق دورية',    size:2 },
 ];
-const TOTAL_CELLS = FLEET.reduce((s,f)=>s+f.size,0);
 
 /* ---------- DOM ---------- */
 const $ = id => document.getElementById(id);
 const elWait=$('wait'), elStart=$('start'), elOver=$('over');
-const myGridEl=$('myGrid'), enemyGridEl=$('enemyGrid');
+
+/* ---------- canvases ---------- */
+const myCv = $('myCanvas'),  myCtx = myCv.getContext('2d');
+const enCv = $('enemyCanvas'), enCtx = enCv.getContext('2d');
+let CELL = 36, BP = CELL*N, DPR = 1;             // CSS px per cell, board px, device ratio
 
 /* ---------- state ---------- */
 let phase = 'place';        // place | battle | over
 let myTurn = false;
-let firstTurn = 0;          // host (player 0) shoots first
+const firstTurn = 0;        // host (player 0) shoots first
 
-// my board: each cell = null | {shipIdx} ; plus shotsTakenByEnemy marks
-let myBoard   = makeGrid();   // ship layout
-let myHits    = makeGrid();   // what enemy has hit on me: 0 none,1 miss,2 hit
+let myBoard   = makeGrid();   // 0 empty | shipIdx+1
+let myHits    = makeGrid();   // enemy shots on me: 0 none,1 miss,2 hit
 let enemyView = makeGrid();   // my shots on enemy: 0 none,1 miss,2 hit,3 sunk
-let myShipCells = [];         // [{idx, cells:[[r,c]...], hits:Set}]
-let enemyFleetState = FLEET.map(f=>({...f, sunk:false}));
+let myShips   = [];           // placed: {idx,type,cells,horiz,hits:Set}
+let enemyFleetState = FLEET.map(f=>({...f,sunk:false}));
+let enemyWrecks = [];         // revealed sunk enemy ships: {type,cells,horiz}
 
-// placement
-let placeIdx = 0;             // which ship we're placing
-let horiz = true;             // orientation
-let placed = [];              // placed ships: {idx, cells}
+/* placement */
+let placeIdx = 0;
+let horiz = true;
+let placed = [];              // {idx,type,cells,horiz}
+let previewCells = null, previewValid = false;
+
+/* aim reticle (enemy board) */
+let aim = null;               // {r,c} hovered target
 
 function makeGrid(){ return Array.from({length:N},()=>Array(N).fill(0)); }
 
-/* ---------- firebase ---------- */
-let _db=null, _roomRef=null, _connectedAt=0, _bothPresent=false;
-let oppReady=false, iAmReady=false, battleStarted=false;
+/* ════════════════════════════════════════════════════════════
+   LAYOUT & RESPONSIVE SIZING
+   ════════════════════════════════════════════════════════════ */
+function layout(){
+  const main = $('main');
+  const mainW = main.clientWidth  - 24;
+  const mainH = main.clientHeight;
+  const twoBoards = (phase==='battle' || phase==='over');
+  // reserve space for labels + fleet pips + gaps around each board
+  const perBoardChrome = 22 + 30 + 14;
+  const placeBarH = (phase==='place') ? 150 : 0;
+  let availH = mainH - placeBarH - perBoardChrome*(twoBoards?2:1) - 12;
+  let boardH = twoBoards ? availH/2 : Math.min(availH, mainW);
+  let size = Math.max(180, Math.min(mainW, boardH, 480));
+  size = Math.floor(size / N) * N;               // exact multiple of N
+  CELL = size / N;
+  BP   = size;
+  DPR  = Math.min(window.devicePixelRatio || 1, 2);
 
-let _watchdog=null, _lastStage='';
-function showFail(msg){
-  if(_watchdog){clearTimeout(_watchdog);_watchdog=null;}
-  elWait.classList.remove('hidden');
-  const sp=elWait.querySelector('.spinner'); if(sp) sp.classList.add('hidden');
-  $('waitTitle').textContent='تعذر الاتصال';
-  $('waitMsg').innerHTML =
-    'توقّف عند: <b>'+_lastStage+'</b><br>'+
-    '<span style="color:var(--hit);font-size:13px">'+msg+'</span>'+
-    '<br><br>تحقق من Firebase: تفعيل Anonymous Auth، وإنشاء Realtime Database، وصحة databaseURL.';
-  if(!elWait.querySelector('#soloEscape')){
-    const b=document.createElement('button');
-    b.id='soloEscape'; b.className='bigBtn'; b.textContent='اللعب ضد الكمبيوتر';
-    b.style.marginTop='18px';
-    b.onclick=()=>{ elWait.classList.add('hidden'); soloSetup(); beginPlacement(); };
-    elWait.appendChild(b);
-  }
+  sizeCanvas(myCv, myCtx);
+  sizeCanvas(enCv, enCtx);
+  rebuildCaches();
+}
+function sizeCanvas(cv, ctx){
+  cv.style.width  = BP + 'px';
+  cv.style.height = BP + 'px';
+  cv.width  = Math.round(BP * DPR);
+  cv.height = Math.round(BP * DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
 }
 
-async function initFirebase(){
-  if(!IS_MP){ elWait.classList.add('hidden'); elStart.classList.remove('hidden'); return; }
-  const stage = m => { _lastStage=m; $('waitTitle').textContent=m; };
-  // watchdog: if a stage stalls >8s, report where we got stuck
-  _watchdog = setTimeout(()=>showFail('انتهت المهلة — لم تكتمل هذه الخطوة خلال 8 ثوانٍ.'), 8000);
-  try{
-    if(typeof firebase==='undefined'){
-      throw new Error('لم يتم تحميل Firebase SDK — قد تكون الشبكة محجوبة.');
+/* ════════════════════════════════════════════════════════════
+   CACHED RENDER LAYERS (water backgrounds + ship sprites)
+   ════════════════════════════════════════════════════════════ */
+let bgMine=null, bgEnemy=null;
+const shipSprites = {};   // key: type+'_'+lenCells -> offscreen canvas
+
+function rebuildCaches(){
+  bgMine  = buildWater('#4ea0d8','#2f7fb8','rgba(127,212,255,.55)');
+  bgEnemy = buildWater('#3f6f9e','#244f78','rgba(255,120,135,.5)');
+  for(const k in shipSprites) delete shipSprites[k];
+}
+
+function buildWater(top, bot, edge){
+  const px = Math.round(BP*DPR);
+  const c = document.createElement('canvas'); c.width=c.height=px;
+  const g = c.getContext('2d'); g.setTransform(DPR,0,0,DPR,0,0);
+  const S = BP;
+  // ocean gradient
+  const grad = g.createLinearGradient(0,0,0,S);
+  grad.addColorStop(0, top); grad.addColorStop(.55, bot); grad.addColorStop(1, '#163a55');
+  g.fillStyle = grad; g.fillRect(0,0,S,S);
+  // soft radial light
+  const rg = g.createRadialGradient(S*0.32,S*0.22,S*0.04, S*0.32,S*0.22,S*0.95);
+  rg.addColorStop(0,'rgba(255,255,255,.16)'); rg.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle = rg; g.fillRect(0,0,S,S);
+  // gentle wave streaks
+  g.lineWidth = Math.max(1, S*0.004); g.strokeStyle='rgba(255,255,255,.06)';
+  for(let i=0;i<7;i++){
+    const y = S*(i+0.5)/7;
+    g.beginPath();
+    for(let x=0;x<=S;x+=S/24){
+      const yy = y + Math.sin(x*0.05 + i)*S*0.012;
+      x===0 ? g.moveTo(x,yy) : g.lineTo(x,yy);
     }
-    stage('تهيئة الاتصال');
-    const app = firebase.initializeApp(_fbConfig);
+    g.stroke();
+  }
+  // grid lines
+  g.lineWidth = 1; g.strokeStyle='rgba(255,255,255,.10)';
+  for(let i=0;i<=N;i++){
+    const p = Math.round(i*CELL)+0.5;
+    g.beginPath(); g.moveTo(p,0); g.lineTo(p,S); g.stroke();
+    g.beginPath(); g.moveTo(0,p); g.lineTo(S,p); g.stroke();
+  }
+  // coordinate labels (A.. across top, 1.. down left)
+  g.fillStyle='rgba(255,255,255,.42)';
+  g.font = `700 ${Math.round(CELL*0.26)}px system-ui,sans-serif`;
+  for(let i=0;i<N;i++){
+    g.textAlign='center'; g.textBaseline='top';
+    g.fillText(String.fromCharCode(65+i), i*CELL+CELL/2, 2);
+    g.textAlign='left';
+    g.fillText(String(i+1), 2, i*CELL+2);
+  }
+  // colored inner frame
+  g.lineWidth = Math.max(2, S*0.01); g.strokeStyle = edge;
+  g.strokeRect(g.lineWidth/2, g.lineWidth/2, S-g.lineWidth, S-g.lineWidth);
+  return c;
+}
 
-    stage('تسجيل الدخول');
-    const _auth = firebase.auth(app);
-    // Android WebViews often block storage, which makes the default LOCAL
-    // persistence hang forever. In-memory persistence avoids that entirely.
-    try{ await _auth.setPersistence(firebase.auth.Auth.Persistence.NONE); }catch(_){}
-    // race the sign-in against a timeout so a silent stall surfaces as an error
-    const _cred = await Promise.race([
-      _auth.signInAnonymously(),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('auth/timeout — تعذّر تسجيل الدخول (قد يكون التخزين محجوباً في WebView أو Anonymous Auth غير مفعّل)')),7000))
-    ]);
-    const MY_UID = (_cred && _cred.user && _cred.user.uid) || ('u'+Date.now()+Math.random());
+/* ── ship sprite (drawn horizontally, bow → right) ── */
+function getShip(type, lenCells){
+  const key = type+'_'+lenCells;
+  if(shipSprites[key]) return shipSprites[key];
+  const wCss = lenCells*CELL, hCss = CELL;
+  const c = document.createElement('canvas');
+  c.width = Math.round(wCss*DPR); c.height = Math.round(hCss*DPR);
+  const g = c.getContext('2d'); g.setTransform(DPR,0,0,DPR,0,0);
+  paintShip(g, type, wCss, hCss);
+  shipSprites[key] = c;
+  return c;
+}
 
-    stage('فتح الغرفة');
-    _db = firebase.database(app);
-    _roomRef = _db.ref('rooms/'+ROOM_ID+'/'+GAME_KEY);
-    _connectedAt = Date.now();
+function rr(g,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  g.beginPath();
+  g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r);
+  g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+}
 
-    // ---- claim a player slot atomically so both clients ALWAYS end up as 0 & 1,
-    //      even if the app passed the same/missing player index to both. ----
-    stage('الانضمام للغرفة');
-    const seatRef = _roomRef.child('seats');
-    const claim = await seatRef.transaction(seats=>{
-      seats = seats || {};
-      // already seated? keep my seat (reconnect)
-      if(seats['0']===MY_UID) { MY_IDX=0; return seats; }
-      if(seats['1']===MY_UID) { MY_IDX=1; return seats; }
-      // prefer my hinted index if free, else take the other free seat
-      const hint = (MY_IDX===1)?1:0;
-      if(seats[String(hint)]==null){ seats[String(hint)]=MY_UID; return seats; }
-      const other = String(1-hint);
-      if(seats[other]==null){ seats[other]=MY_UID; return seats; }
-      return; // both taken -> abort (room full)
-    });
-    if(!claim.committed || !claim.snapshot.exists()){
-      throw new Error('room/full — الغرفة ممتلئة بالفعل (لاعبان متصلان).');
+/* generic warship hull: rounded stern (left), pointed bow (right) */
+function hullPath(g,x0,x1,cy,hh){
+  const t=cy-hh/2, b=cy+hh/2, r=hh*0.32, bow=hh*0.95;
+  g.beginPath();
+  g.moveTo(x0+r,t);
+  g.lineTo(x1-bow,t);
+  g.quadraticCurveTo(x1,t,x1,cy);
+  g.quadraticCurveTo(x1,b,x1-bow,b);
+  g.lineTo(x0+r,b);
+  g.quadraticCurveTo(x0,b,x0,b-r);
+  g.lineTo(x0,t+r);
+  g.quadraticCurveTo(x0,t,x0+r,t);
+  g.closePath();
+}
+function shade(g,x0,x1,t,b,c0,c1){
+  const grad=g.createLinearGradient(0,t,0,b);
+  grad.addColorStop(0,c0); grad.addColorStop(.5,c0); grad.addColorStop(1,c1);
+  g.fillStyle=grad;
+}
+function turret(g,cx,cy,rad,dir,col,barrel){
+  g.fillStyle=barrel;
+  for(const off of [-rad*0.34, rad*0.34]){
+    g.fillRect(cx, cy+off-rad*0.11, dir*rad*1.7, rad*0.22);
+  }
+  g.beginPath(); g.arc(cx,cy,rad,0,7); g.fillStyle=col; g.fill();
+  g.beginPath(); g.arc(cx-dir*rad*0.2,cy-rad*0.2,rad*0.4,0,7);
+  g.fillStyle='rgba(255,255,255,.18)'; g.fill();
+}
+
+function paintShip(g, type, W, H){
+  const cy = H/2;
+  const C = {                              // palette
+    top:'#828d9b', bot:'#3a4350', edge:'#161c24',
+    supTop:'#a3adba', supBot:'#4b5560',
+    turret:'#5c6672', barrel:'#363e48', glass:'#bfe6ff', warm:'#ffd36b'
+  };
+  g.lineJoin='round'; g.lineCap='round';
+
+  if(type==='submarine'){
+    // dark, fully-rounded hull
+    const hh=H*0.6, x0=H*0.28, x1=W-H*0.18, t=cy-hh/2, b=cy+hh/2;
+    rr(g,x0,t,x1-x0,hh,hh/2);
+    shade(g,x0,x1,t,b,'#5a6672','#1c242e'); g.fill();
+    g.lineWidth=H*0.05; g.strokeStyle='#10161d'; g.stroke();
+    // top light stripe
+    g.save(); rr(g,x0,t,x1-x0,hh,hh/2); g.clip();
+    g.fillStyle='rgba(255,255,255,.12)'; g.fillRect(x0,t,x1-x0,hh*0.28);
+    g.restore();
+    // conning tower (sail)
+    const sx=W*0.46;
+    rr(g, sx-H*0.13, cy-H*0.28, H*0.28, H*0.32, H*0.07);
+    g.fillStyle='#3c4550'; g.fill(); g.lineWidth=H*0.03; g.strokeStyle='#11171e'; g.stroke();
+    // periscopes
+    g.strokeStyle='#222a33'; g.lineWidth=H*0.045;
+    g.beginPath(); g.moveTo(sx-H*0.02,cy-H*0.24); g.lineTo(sx-H*0.02,cy-H*0.42); g.stroke();
+    g.beginPath(); g.moveTo(sx+H*0.06,cy-H*0.24); g.lineTo(sx+H*0.06,cy-H*0.36); g.stroke();
+    // diving planes
+    g.fillStyle='#2f3842';
+    g.fillRect(x0+H*0.1, cy-H*0.02, H*0.42, H*0.04);
+    return;
+  }
+
+  // common hull
+  const hh=H*0.62, x0=H*0.16, x1=W-H*0.08, t=cy-hh/2, b=cy+hh/2;
+  hullPath(g,x0,x1,cy,hh);
+  if(type==='carrier'){ shade(g,x0,x1,t,b,'#5b6672','#2c343d'); }
+  else                { shade(g,x0,x1,t,b,C.top,C.bot); }
+  g.fill();
+  g.lineWidth=H*0.055; g.strokeStyle=C.edge; g.stroke();
+  // deck shading clip
+  g.save(); hullPath(g,x0,x1,cy,hh); g.clip();
+
+  if(type==='carrier'){
+    const dt=cy-hh*0.42, dh=hh*0.84;
+    g.fillStyle='#4b5662'; g.fillRect(x0,dt,x1-x0,dh);
+    // runway centre dashes
+    g.strokeStyle='rgba(255,255,255,.85)'; g.lineWidth=Math.max(1.4,H*0.035);
+    g.setLineDash([H*0.16,H*0.12]);
+    g.beginPath(); g.moveTo(x0+H*0.3,cy); g.lineTo(x1-H*0.5,cy); g.stroke();
+    g.setLineDash([]);
+    // angled landing strip
+    g.fillStyle='rgba(255,255,255,.10)';
+    g.beginPath(); g.moveTo(x0+W*0.18,dt); g.lineTo(x0+W*0.5,dt);
+    g.lineTo(x0+W*0.34,dt+dh); g.lineTo(x0+W*0.05,dt+dh); g.closePath(); g.fill();
+    // threshold bars
+    g.strokeStyle=C.warm; g.lineWidth=H*0.05;
+    g.beginPath(); g.moveTo(x1-H*0.35,cy-hh*0.22); g.lineTo(x1-H*0.35,cy+hh*0.22); g.stroke();
+    // island superstructure (offset to one edge)
+    rr(g, W*0.62, dt+dh*0.04, H*0.5, dh*0.42, H*0.05);
+    g.fillStyle='#39424d'; g.fill();
+    g.fillStyle=C.warm; g.fillRect(W*0.66, dt+dh*0.12, H*0.34, H*0.05);
+    g.strokeStyle='#222a33'; g.lineWidth=H*0.035;
+    g.beginPath(); g.moveTo(W*0.7,dt+dh*0.06); g.lineTo(W*0.7,dt-H*0.16); g.stroke();
+    // parked jets
+    g.fillStyle='rgba(230,238,247,.9)';
+    drawJet(g, x0+W*0.16, cy-hh*0.26, H*0.3);
+    drawJet(g, x0+W*0.3,  cy+hh*0.24, H*0.3);
+    g.restore(); return;
+  }
+
+  // hull plating lines (battleship/cruiser/patrol)
+  g.strokeStyle='rgba(255,255,255,.06)'; g.lineWidth=1;
+  for(let i=1;i<4;i++){ const xx=x0+(x1-x0)*i/4; g.beginPath(); g.moveTo(xx,t+2); g.lineTo(xx,b-2); g.stroke(); }
+  g.restore();
+
+  if(type==='battleship'){
+    turret(g, x1-H*0.55, cy, H*0.2, 1, C.turret, C.barrel);   // fore
+    turret(g, x0+H*0.55, cy, H*0.2, -1, C.turret, C.barrel);  // aft
+    // bridge stack
+    rr(g, W*0.42, cy-H*0.2, H*0.42, H*0.4, H*0.05); g.fillStyle=C.supBot; g.fill();
+    rr(g, W*0.45, cy-H*0.32, H*0.22, H*0.24, H*0.04); g.fillStyle=C.supTop; g.fill();
+    g.fillStyle=C.glass; g.fillRect(W*0.44, cy-H*0.12, H*0.36, H*0.05);
+    // funnels
+    g.fillStyle='#2f3742';
+    rr(g, W*0.58, cy-H*0.13, H*0.13, H*0.26, H*0.03); g.fill();
+    rr(g, W*0.68, cy-H*0.11, H*0.11, H*0.22, H*0.03); g.fill();
+    // mast
+    g.strokeStyle='#222a33'; g.lineWidth=H*0.04;
+    g.beginPath(); g.moveTo(W*0.5,cy-H*0.3); g.lineTo(W*0.5,cy-H*0.5); g.stroke();
+    return;
+  }
+  if(type==='cruiser'){
+    turret(g, x1-H*0.5, cy, H*0.19, 1, C.turret, C.barrel);
+    rr(g, W*0.34, cy-H*0.18, H*0.4, H*0.36, H*0.05); g.fillStyle=C.supBot; g.fill();
+    rr(g, W*0.37, cy-H*0.3, H*0.2, H*0.22, H*0.04); g.fillStyle=C.supTop; g.fill();
+    g.fillStyle=C.glass; g.fillRect(W*0.36, cy-H*0.1, H*0.32, H*0.05);
+    // lattice mast
+    g.strokeStyle='#232b34'; g.lineWidth=H*0.045;
+    g.beginPath(); g.moveTo(W*0.46,cy-H*0.28); g.lineTo(W*0.46,cy-H*0.52); g.stroke();
+    g.lineWidth=H*0.03;
+    g.beginPath(); g.moveTo(W*0.4,cy-H*0.46); g.lineTo(W*0.52,cy-H*0.4); g.stroke();
+    // aft missile/helipad
+    g.fillStyle='#3a434e'; rr(g, x0+H*0.45, cy-H*0.2, H*0.5, H*0.4, H*0.06); g.fill();
+    g.strokeStyle='rgba(255,255,255,.5)'; g.lineWidth=H*0.04;
+    g.beginPath(); g.arc(x0+H*0.7, cy, H*0.13, 0, 7); g.stroke();
+    return;
+  }
+  if(type==='patrol'){
+    // small cabin / windscreen
+    g.fillStyle=C.supBot;
+    g.beginPath();
+    g.moveTo(W*0.42,cy-H*0.16); g.lineTo(W*0.66,cy-H*0.1);
+    g.lineTo(W*0.66,cy+H*0.1); g.lineTo(W*0.42,cy+H*0.16); g.closePath(); g.fill();
+    g.fillStyle=C.glass;
+    g.beginPath();
+    g.moveTo(W*0.5,cy-H*0.1); g.lineTo(W*0.62,cy-H*0.06);
+    g.lineTo(W*0.62,cy+H*0.06); g.lineTo(W*0.5,cy+H*0.1); g.closePath(); g.fill();
+    // small mast
+    g.strokeStyle='#222a33'; g.lineWidth=H*0.04;
+    g.beginPath(); g.moveTo(W*0.5,cy-H*0.14); g.lineTo(W*0.5,cy-H*0.34); g.stroke();
+    g.fillStyle='#ff5566'; g.beginPath(); g.arc(W*0.5,cy-H*0.34,H*0.045,0,7); g.fill();
+    return;
+  }
+}
+function drawJet(g,x,y,s){
+  g.save(); g.translate(x,y);
+  g.beginPath();
+  g.moveTo(s*0.5,0); g.lineTo(-s*0.2,s*0.16); g.lineTo(-s*0.05,0);
+  g.lineTo(-s*0.2,-s*0.16); g.closePath();
+  g.moveTo(-s*0.05,0); g.lineTo(-s*0.45,s*0.28); g.lineTo(-s*0.3,0); g.lineTo(-s*0.45,-s*0.28); g.closePath();
+  g.fill(); g.restore();
+}
+
+/* ════════════════════════════════════════════════════════════
+   EFFECTS (explosions / splashes) — animated flourishes
+   ════════════════════════════════════════════════════════════ */
+let effects = [];
+function spawnEffect(board, r, c, kind){
+  effects.push({board, r, c, kind, t0:performance.now(),
+    dur: kind==='hit'?780:620,
+    parts: makeParticles(kind)});
+}
+function makeParticles(kind){
+  const n = kind==='hit'?14:9, out=[];
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, sp = (kind==='hit'?0.6:0.4)+Math.random()*0.7;
+    out.push({a, sp, len:0.2+Math.random()*0.5});
+  }
+  return out;
+}
+
+/* ════════════════════════════════════════════════════════════
+   RENDER LOOP
+   ════════════════════════════════════════════════════════════ */
+let running=false;
+function startLoop(){ if(!running){ running=true; requestAnimationFrame(loop); } }
+function loop(now){
+  if(document.hidden){ running=false; return; }
+  effects = effects.filter(e => now - e.t0 < e.dur);
+  if(phase==='battle' || phase==='over'){ drawBoard(myCtx,'my',now); drawBoard(enCtx,'enemy',now); }
+  else { drawBoard(myCtx,'my',now); }
+  requestAnimationFrame(loop);
+}
+
+function cellCenter(r,c){ return [c*CELL+CELL/2, r*CELL+CELL/2]; }
+
+function drawBoard(ctx, which, now){
+  ctx.clearRect(0,0,BP,BP);
+  ctx.drawImage(which==='my'?bgMine:bgEnemy, 0,0, BP,BP);
+  const bob = Math.sin(now*0.0016);
+
+  if(which==='my'){
+    // my ships
+    for(const s of myShips.length?myShips:placed){
+      const sunk = s.hits && s.hits.size>=FLEET[s.idx].size;
+      drawPlacedShip(ctx, s, bob, sunk);
     }
-    const seats = claim.snapshot.val()||{};
-    MY_IDX = (seats['0']===MY_UID) ? 0 : 1;   // authoritative index from my seat
-    seatRef.child(String(MY_IDX)).onDisconnect().remove();
-
-    // confirm we can WRITE under players (legacy presence key, kept in sync)
-    await _roomRef.child('players/'+MY_IDX).set(true);
-    _roomRef.child('players/'+MY_IDX).onDisconnect().remove();
-
-    // write succeeded — clear the connect watchdog; waiting for P2 may take a while.
-    if(_watchdog){clearTimeout(_watchdog);_watchdog=null;}
-    stage('بانتظار صديقك');
-    $('waitMsg').textContent='بانتظار صديقك للانضمام...';
-
-    // both seated? watch the seats node (not players) as source of truth
-    seatRef.on('value', snap=>{
-      const s=snap.val()||{};
-      const count=(s['0']?1:0)+(s['1']?1:0);
-      if(count>=2 && !_bothPresent){
-        _bothPresent=true;
-        seatRef.off('value');
-        rewireListeners();          // (re)bind opponent listeners with final MY_IDX
-        beginPlacement();
-      } else if(count<2){
-        $('waitMsg').textContent='بانتظار صديقك للانضمام... (متصل: '+count+'/2)';
+    // placement preview
+    if(phase==='place' && previewCells){
+      ctx.fillStyle = previewValid ? 'rgba(127,212,255,.28)' : 'rgba(255,77,94,.32)';
+      ctx.strokeStyle = previewValid ? 'rgba(127,212,255,.9)' : 'rgba(255,77,94,.9)';
+      ctx.lineWidth=2;
+      for(const [r,c] of previewCells){
+        if(r<0||c<0||r>=N||c>=N) continue;
+        rr(ctx, c*CELL+2, r*CELL+2, CELL-4, CELL-4, 4); ctx.fill(); ctx.stroke();
       }
-    });
-
-  }catch(e){
-    console.error('Firebase error',e);
-    showFail((e && (e.code||e.message)) ? ((e.code?e.code+' — ':'')+(e.message||'')) : 'خطأ غير معروف');
+    }
+    // shots taken against me
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+      const [cx,cy]=cellCenter(r,c);
+      if(myHits[r][c]===1) drawMiss(ctx,cx,cy);
+      else if(myHits[r][c]===2) drawHitMark(ctx,cx,cy,now);
+    }
+  } else {
+    // revealed enemy wrecks
+    for(const w of enemyWrecks) drawPlacedShip(ctx, w, 0, true);
+    // my shots on enemy
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+      const v=enemyView[r][c]; if(!v) continue;
+      const [cx,cy]=cellCenter(r,c);
+      if(v===1) drawMiss(ctx,cx,cy);
+      else drawHitMark(ctx,cx,cy,now);   // hit or sunk
+    }
+    // aim reticle
+    if(phase==='battle' && myTurn && aim && enemyView[aim.r][aim.c]===0){
+      drawReticle(ctx, aim.r, aim.c, now);
+    }
+  }
+  // effects on top
+  for(const e of effects){
+    if(e.board!==which) continue;
+    const [cx,cy]=cellCenter(e.r,e.c);
+    const p=(now-e.t0)/e.dur;
+    e.kind==='hit' ? drawExplosion(ctx,cx,cy,p,e.parts) : drawSplash(ctx,cx,cy,p,e.parts);
   }
 }
 
-/* bind opponent listeners once MY_IDX is finalized by the seat claim */
-function rewireListeners(){
-  const OPP = 1-MY_IDX;
-  _roomRef.child('ready/'+OPP).on('value', s=>{
-    oppReady = !!s.val();
-    maybeStartBattle();
-  });
-  _roomRef.child('shots/'+OPP).on('value', s=>{
-    const shot=s.val();
-    if(!shot || shot.ts<_connectedAt) return;
-    resolveIncomingShot(shot);
-  });
-  _roomRef.child('results/'+OPP).on('value', s=>{
-    const res=s.val();
-    if(!res || res.ts<_connectedAt) return;
-    applyShotResult(res);
-  });
-  _roomRef.child('rematch').on('value', s=>{
-    const r=s.val();
-    if(!r || r.ts<_connectedAt) return;
-    if(r.from!==MY_IDX) doRematch(false);
-  });
-}
-
-/* ---------- placement phase ---------- */
-function beginPlacement(){
-  elWait.classList.add('hidden');
-  phase='place';
-  buildGrids();
-  renderPlacement();
-  updateTurnBar();
-}
-
-function buildGrids(){
-  myGridEl.style.gridTemplateColumns=`repeat(${N},1fr)`;
-  enemyGridEl.style.gridTemplateColumns=`repeat(${N},1fr)`;
-  myGridEl.innerHTML=''; enemyGridEl.innerHTML='';
-  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
-    const m=document.createElement('div'); m.className='cell'; m.dataset.r=r; m.dataset.c=c;
-    myGridEl.appendChild(m);
-    const e=document.createElement('div'); e.className='cell'; e.dataset.r=r; e.dataset.c=c;
-    enemyGridEl.appendChild(e);
+function drawPlacedShip(ctx, s, bob, sunk){
+  const rows=s.cells.map(p=>p[0]), cols=s.cells.map(p=>p[1]);
+  const minR=Math.min(...rows), minC=Math.min(...cols);
+  const len=FLEET[s.idx!=null?s.idx:typeIdx(s.type)].size;
+  const sprite=getShip(s.type, len);
+  const dy = sunk?0:bob*CELL*0.04;
+  ctx.save();
+  ctx.globalAlpha = sunk?0.92:1;
+  if(s.horiz){
+    ctx.drawImage(sprite, minC*CELL, minR*CELL+dy, len*CELL, CELL);
+  }else{
+    ctx.translate(minC*CELL+CELL, minR*CELL+dy);
+    ctx.rotate(Math.PI/2);
+    ctx.drawImage(sprite, 0, 0, len*CELL, CELL);
   }
-  // placement interactions on my grid
-  myGridEl.querySelectorAll('.cell').forEach(cell=>{
-    cell.addEventListener('click', ()=>onPlaceClick(+cell.dataset.r,+cell.dataset.c));
-    cell.addEventListener('mouseenter', ()=>onPlaceHover(+cell.dataset.r,+cell.dataset.c));
-    cell.addEventListener('mouseleave', clearPreview);
-    cell.addEventListener('touchstart', ()=>onPlaceHover(+cell.dataset.r,+cell.dataset.c), {passive:true});
-  });
+  ctx.restore();
+  if(sunk){
+    // dark/red wash + smoke over footprint
+    ctx.save();
+    ctx.fillStyle='rgba(40,8,12,.42)';
+    for(const [r,c] of s.cells){ rr(ctx,c*CELL+1,r*CELL+1,CELL-2,CELL-2,4); ctx.fill(); }
+    ctx.restore();
+  }
+}
+function typeIdx(type){ return FLEET.findIndex(f=>f.id===type); }
+
+/* ── markers ── */
+function drawMiss(ctx,cx,cy){
+  const r=CELL*0.2;
+  ctx.save();
+  ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=Math.max(1.5,CELL*0.05);
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.stroke();
+  ctx.fillStyle='rgba(190,225,255,.5)'; ctx.beginPath(); ctx.arc(cx,cy,r*0.34,0,7); ctx.fill();
+  ctx.restore();
+}
+function drawHitMark(ctx,cx,cy,now){
+  const r=CELL*0.3, fl=0.5+0.5*Math.sin(now*0.012+cx);
+  ctx.save();
+  // scorch
+  ctx.fillStyle='rgba(20,8,8,.55)'; ctx.beginPath(); ctx.arc(cx,cy,r*1.05,0,7); ctx.fill();
+  // glowing core
+  const g=ctx.createRadialGradient(cx,cy,1,cx,cy,r);
+  g.addColorStop(0,'#fff3b0'); g.addColorStop(.35,'#ff9d2e');
+  g.addColorStop(.7,'#ff4d3a'); g.addColorStop(1,'rgba(255,60,40,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r*(0.85+fl*0.18),0,7); ctx.fill();
+  ctx.restore();
+}
+function drawReticle(ctx,r,c,now){
+  const [cx,cy]=cellCenter(r,c), R=CELL*0.42, pul=0.5+0.5*Math.sin(now*0.006);
+  ctx.save();
+  ctx.strokeStyle=`rgba(255,90,105,${0.65+pul*0.35})`; ctx.lineWidth=Math.max(1.5,CELL*0.05);
+  ctx.beginPath(); ctx.arc(cx,cy,R*(0.7+pul*0.12),0,7); ctx.stroke();
+  ctx.beginPath();
+  for(const a of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
+    ctx.moveTo(cx+Math.cos(a)*R*0.45, cy+Math.sin(a)*R*0.45);
+    ctx.lineTo(cx+Math.cos(a)*R*0.92, cy+Math.sin(a)*R*0.92);
+  }
+  ctx.stroke();
+  ctx.fillStyle='rgba(255,90,105,.9)'; ctx.beginPath(); ctx.arc(cx,cy,CELL*0.05,0,7); ctx.fill();
+  ctx.restore();
+}
+function drawExplosion(ctx,cx,cy,p,parts){
+  const e=1-Math.pow(1-p,2), R=CELL*(0.2+e*0.55), a=1-p;
+  ctx.save();
+  const g=ctx.createRadialGradient(cx,cy,1,cx,cy,R);
+  g.addColorStop(0,`rgba(255,250,210,${a})`); g.addColorStop(.4,`rgba(255,150,40,${a*0.95})`);
+  g.addColorStop(.8,`rgba(255,60,40,${a*0.6})`); g.addColorStop(1,'rgba(255,40,30,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.fill();
+  ctx.strokeStyle=`rgba(255,210,120,${a*0.8})`; ctx.lineWidth=CELL*0.04;
+  for(const pt of parts){
+    const d=R*1.4*pt.sp;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(pt.a)*R*0.4, cy+Math.sin(pt.a)*R*0.4);
+    ctx.lineTo(cx+Math.cos(pt.a)*(R*0.4+d*pt.len), cy+Math.sin(pt.a)*(R*0.4+d*pt.len));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawSplash(ctx,cx,cy,p,parts){
+  const e=1-Math.pow(1-p,2), R=CELL*(0.12+e*0.45), a=1-p;
+  ctx.save();
+  ctx.strokeStyle=`rgba(220,240,255,${a*0.9})`; ctx.lineWidth=CELL*0.05;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.stroke();
+  ctx.fillStyle=`rgba(220,240,255,${a})`;
+  for(const pt of parts){
+    const d=R*(0.7+pt.sp);
+    const x=cx+Math.cos(pt.a)*d, y=cy+Math.sin(pt.a)*d - e*CELL*0.18;
+    ctx.beginPath(); ctx.arc(x,y,CELL*0.04*(1-p*0.5),0,7); ctx.fill();
+  }
+  ctx.restore();
 }
 
+/* ════════════════════════════════════════════════════════════
+   POINTER INPUT
+   ════════════════════════════════════════════════════════════ */
+function cellFromEvent(cv, e){
+  const rect=cv.getBoundingClientRect();
+  const pt=e.touches?e.touches[0]:e;
+  const x=pt.clientX-rect.left, y=pt.clientY-rect.top;
+  const c=Math.floor(x/(rect.width/N)), r=Math.floor(y/(rect.height/N));
+  if(r<0||c<0||r>=N||c>=N) return null;
+  return {r,c};
+}
+
+/* placement on my canvas */
+myCv.addEventListener('pointerdown', e=>{
+  if(phase!=='place') return;
+  e.preventDefault();
+  const p=cellFromEvent(myCv,e); if(p) onPlaceClick(p.r,p.c);
+});
+myCv.addEventListener('pointermove', e=>{
+  if(phase!=='place'||placeIdx>=FLEET.length) return;
+  const p=cellFromEvent(myCv,e);
+  if(!p){ previewCells=null; return; }
+  previewCells = shipCellsAt(p.r,p.c,currentShip().size,horiz);
+  previewValid = validPlacement(previewCells);
+});
+myCv.addEventListener('pointerleave', ()=>{ previewCells=null; });
+
+/* firing on enemy canvas */
+enCv.addEventListener('pointermove', e=>{
+  if(phase!=='battle'||!myTurn) return;
+  const p=cellFromEvent(enCv,e); aim=p;
+});
+enCv.addEventListener('pointerdown', e=>{
+  if(phase!=='battle') return;
+  e.preventDefault();
+  const p=cellFromEvent(enCv,e); if(p){ aim=p; fireAt(p.r,p.c); }
+});
+
+/* ════════════════════════════════════════════════════════════
+   PLACEMENT LOGIC
+   ════════════════════════════════════════════════════════════ */
 function currentShip(){ return FLEET[placeIdx]; }
-
 function shipCellsAt(r,c,size,h){
-  const cells=[];
-  for(let i=0;i<size;i++){
-    const rr=h?r:r+i, cc=h?c+i:c;
-    cells.push([rr,cc]);
-  }
-  return cells;
+  const out=[]; for(let i=0;i<size;i++) out.push(h?[r,c+i]:[r+i,c]); return out;
 }
 function validPlacement(cells){
   for(const [r,c] of cells){
     if(r<0||c<0||r>=N||c>=N) return false;
     if(myBoard[r][c]!==0) return false;
+    // no touching (incl. diagonals) — cleaner fleets
+    for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+      const nr=r+dr,nc=c+dc;
+      if(nr<0||nc<0||nr>=N||nc>=N) continue;
+      const id=myBoard[nr][nc];
+      if(id!==0 && id!==placeIdx+1) return false;
+    }
   }
   return true;
 }
-
-function onPlaceHover(r,c){
-  if(phase!=='place'||placeIdx>=FLEET.length) return;
-  clearPreview();
-  const cells=shipCellsAt(r,c,currentShip().size,horiz);
-  const ok=validPlacement(cells);
-  for(const [rr,cc] of cells){
-    if(rr<0||cc<0||rr>=N||cc>=N) continue;
-    const el=cellEl(myGridEl,rr,cc);
-    if(el) el.classList.add(ok?'preview':'invalid');
-  }
-}
-function clearPreview(){
-  myGridEl.querySelectorAll('.preview,.invalid').forEach(e=>e.classList.remove('preview','invalid'));
-}
-
 function onPlaceClick(r,c){
-  if(phase!=='place'||placeIdx>=FLEET.length) return;
+  if(placeIdx>=FLEET.length) return;
   const cells=shipCellsAt(r,c,currentShip().size,horiz);
   if(!validPlacement(cells)){ toast('لا يمكن وضع السفينة هنا'); return; }
-  for(const [rr,cc] of cells) myBoard[rr][cc]=placeIdx+1; // store 1-based ship id
-  placed.push({idx:placeIdx, cells});
-  placeIdx++;
-  clearPreview();
-  renderPlacement();
+  for(const [rr,cc] of cells) myBoard[rr][cc]=placeIdx+1;
+  placed.push({idx:placeIdx, type:FLEET[placeIdx].id, cells, horiz});
+  placeIdx++; previewCells=null;
+  renderPlacementUI();
 }
-
 function autoPlace(){
   resetPlacement();
   for(let i=0;i<FLEET.length;i++){
-    let done=false, tries=0;
-    while(!done && tries<500){
+    let done=false,tries=0;
+    while(!done&&tries<800){
       tries++;
-      const h=Math.random()<0.5;
-      const r=Math.floor(Math.random()*N), c=Math.floor(Math.random()*N);
+      const h=Math.random()<.5, r=(Math.random()*N)|0, c=(Math.random()*N)|0;
       const cells=shipCellsAt(r,c,FLEET[i].size,h);
+      const save=placeIdx; placeIdx=i;
       if(validPlacement(cells)){
         for(const [rr,cc] of cells) myBoard[rr][cc]=i+1;
-        placed.push({idx:i,cells}); done=true;
+        placed.push({idx:i,type:FLEET[i].id,cells,horiz:h}); done=true;
       }
+      placeIdx=save;
     }
   }
   placeIdx=FLEET.length;
-  renderPlacement();
+  renderPlacementUI();
 }
-
 function resetPlacement(){
-  myBoard=makeGrid(); placed=[]; placeIdx=0;
-  renderPlacement();
+  myBoard=makeGrid(); placed=[]; placeIdx=0; previewCells=null;
+  renderPlacementUI();
 }
-
-function renderPlacement(){
-  // paint ships
-  myGridEl.querySelectorAll('.cell').forEach(el=>{
-    el.className='cell';
-    const r=+el.dataset.r,c=+el.dataset.c;
-    if(myBoard[r][c]!==0) el.classList.add('ship');
-  });
-  // fleet pips (mine)
+function renderPlacementUI(){
   renderMyFleet();
-  const allPlaced = placeIdx>=FLEET.length;
-  $('readyBtn').disabled = !allPlaced || iAmReady;
+  const all=placeIdx>=FLEET.length;
+  $('readyBtn').disabled = !all || iAmReady;
+  $('rotateBtn').disabled=$('autoBtn').disabled=$('resetBtn').disabled = iAmReady;
   if(iAmReady){
-    $('placeHint').innerHTML='بانتظار خصمك ليصبح جاهزاً...';
-    $('rotateBtn').disabled=$('autoBtn').disabled=$('resetBtn').disabled=true;
-  } else if(allPlaced){
-    $('placeHint').innerHTML='كل السفن في مكانها. اضغط <b>جاهز للمعركة</b>.';
-  } else {
+    $('placeHint').innerHTML='سفنك جاهزة ✓ — بانتظار خصمك...';
+  }else if(all){
+    $('placeHint').innerHTML='كل السفن في مكانها. اضغط <b>جاهز للمعركة</b> 🚀';
+  }else{
     const s=currentShip();
-    $('placeHint').innerHTML=`ضع: <b>${s.name}</b> (${s.size} خلايا) — الاتجاه ${horiz?'أفقي':'رأسي'}`;
+    $('placeHint').innerHTML=`ضع: <b>${s.name}</b> (${s.size} خلايا) — الاتجاه ${horiz?'أفقي ↔':'رأسي ↕'}`;
   }
 }
-
 function renderMyFleet(){
   const box=$('myFleet'); box.innerHTML='';
   FLEET.forEach((f,i)=>{
-    const ship=myShipCells.find(s=>s.idx===i);
-    const dead = ship && ship.hits.size>=f.size;
-    const item=document.createElement('div');
-    item.className='fleetItem'+(dead?' dead':'');
-    const seg='<i></i>'.repeat(f.size);
-    item.innerHTML=`<span>${f.name}</span><span class="seg">${seg}</span>`;
-    box.appendChild(item);
+    const ship=myShips.find(s=>s.idx===i);
+    const dead=ship && ship.hits.size>=f.size;
+    box.appendChild(fleetItem(f, dead));
   });
 }
-
 function renderEnemyFleet(){
   const box=$('enemyFleet'); box.innerHTML='';
-  enemyFleetState.forEach(f=>{
-    const item=document.createElement('div');
-    item.className='fleetItem'+(f.sunk?' dead':'');
-    const seg='<i></i>'.repeat(f.size);
-    item.innerHTML=`<span>${f.name}</span><span class="seg">${seg}</span>`;
-    box.appendChild(item);
-  });
+  enemyFleetState.forEach(f=>box.appendChild(fleetItem(f, f.sunk)));
+}
+function fleetItem(f, dead){
+  const el=document.createElement('div');
+  el.className='fleetItem'+(dead?' dead':'');
+  el.innerHTML=`<span class="lbl">${f.name}</span><span class="seg">${'<i></i>'.repeat(f.size)}</span>`;
+  return el;
 }
 
-/* lock in my fleet -> build ship-cell tracking */
-function lockFleet(){
-  myShipCells = placed.map(p=>({ idx:p.idx, cells:p.cells, hits:new Set() }));
-}
-
+/* ════════════════════════════════════════════════════════════
+   READY → BATTLE
+   ════════════════════════════════════════════════════════════ */
+let iAmReady=false, oppReady=false, battleStarted=false;
+function lockFleet(){ myShips = placed.map(p=>({idx:p.idx,type:p.type,cells:p.cells,horiz:p.horiz,hits:new Set()})); }
 function setReady(){
   if(placeIdx<FLEET.length) return;
-  iAmReady=true;
-  lockFleet();
-  renderPlacement();
-  if(IS_MP){
-    _roomRef.child('ready/'+MY_IDX).set(true);
-  } else {
-    // solo: opponent auto-ready
-    oppReady=true;
-  }
+  iAmReady=true; lockFleet(); renderPlacementUI();
+  if(IS_MP) _roomRef.child('ready/'+MY_IDX).set(true);
+  else oppReady=true;
   maybeStartBattle();
 }
-
 function maybeStartBattle(){
   if(battleStarted) return;
-  if(iAmReady && oppReady){
-    battleStarted=true;
-    startBattle();
-  }
+  if(iAmReady && oppReady){ battleStarted=true; startBattle(); }
 }
-
-/* ---------- battle phase ---------- */
 function startBattle(){
   phase='battle';
   $('placeBar').classList.add('hidden');
   $('enemyWrap').classList.remove('hidden');
-  myTurn = (MY_IDX===firstTurn);
-  // wire enemy grid taps
-  enemyGridEl.querySelectorAll('.cell').forEach(cell=>{
-    cell.classList.add('tappable');
-    cell.addEventListener('click', ()=>fireAt(+cell.dataset.r,+cell.dataset.c));
-  });
+  myTurn=(MY_IDX===firstTurn);
   renderEnemyFleet();
-  renderBattle();
+  layout();
   updateTurnBar();
 }
 
+/* ════════════════════════════════════════════════════════════
+   FIRING
+   ════════════════════════════════════════════════════════════ */
 function fireAt(r,c){
-  if(phase!=='battle'||!myTurn) { if(!myTurn) toast('انتظر دورك'); return; }
+  if(phase!=='battle'||!myTurn){ if(!myTurn) toast('انتظر دورك'); return; }
   if(enemyView[r][c]!==0){ toast('لقد ضربت هنا من قبل'); return; }
-  myTurn=false;            // lock immediately
-  updateTurnBar();
-  if(IS_MP){
-    _roomRef.child('shots/'+MY_IDX).set({ r, c, ts:Date.now(), from:MY_IDX });
-  } else {
-    soloResolveMyShot(r,c);
-  }
+  myTurn=false; aim=null; updateTurnBar();
+  if(IS_MP) _roomRef.child('shots/'+MY_IDX).set({r,c,ts:Date.now(),from:MY_IDX});
+  else soloResolveMyShot(r,c);
 }
 
-/* an opponent shot landed on MY board: resolve + reply with result */
+/* opponent shot landed on MY board → resolve + reply */
 function resolveIncomingShot(shot){
   const {r,c}=shot;
-  let hit=false, sunk=false, shipId=null;
+  let hit=false,sunk=false,shipId=null,shipType=null;
   if(myBoard[r][c]!==0){
-    hit=true;
-    myHits[r][c]=2;
-    const sIdx=myBoard[r][c]-1;
-    const ship=myShipCells.find(s=>s.idx===sIdx);
-    if(ship){
-      ship.hits.add(r+'-'+c);
-      if(ship.hits.size>=FLEET[sIdx].size){ sunk=true; shipId=sIdx; }
-    }
-  } else {
-    myHits[r][c]=1;
-  }
-  renderMyBoardHits();
+    hit=true; myHits[r][c]=2;
+    const sIdx=myBoard[r][c]-1, ship=myShips.find(s=>s.idx===sIdx);
+    if(ship){ ship.hits.add(r+'-'+c);
+      if(ship.hits.size>=FLEET[sIdx].size){ sunk=true; shipId=sIdx; shipType=FLEET[sIdx].id; } }
+  }else myHits[r][c]=1;
+  spawnEffect('my', r, c, hit?'hit':'miss'); startLoop();
   renderMyFleet();
-
-  // did I lose?
-  const allSunk = myShipCells.every(s=>s.hits.size>=FLEET[s.idx].size);
-
-  // reply
+  const allSunk = myShips.every(s=>s.hits.size>=FLEET[s.idx].size);
   if(IS_MP){
-    _roomRef.child('results/'+MY_IDX).set({
-      r, c, hit, sunk, shipId, ts:Date.now(), loser: allSunk?MY_IDX:null
-    });
+    // send the sunk cluster so opponent can reveal an accurate wreck
+    let cells=null;
+    if(sunk){ const sh=myShips.find(s=>s.idx===shipId); cells=sh?sh.cells:null; }
+    _roomRef.child('results/'+MY_IDX).set({r,c,hit,sunk,shipId,shipType,cells,
+      ts:Date.now(), loser:allSunk?MY_IDX:null});
   }
-
-  // now it's MY turn (the shooter passes turn to me on a miss? No:
-  // standard battleship = shooter keeps firing only by variant; here we
-  // alternate strictly: after opponent shoots, it's my turn)
   if(!allSunk){ myTurn=true; updateTurnBar(); }
-  else { endGame(1-MY_IDX); } // opponent (shooter) wins
+  else endGame(1-MY_IDX);
 }
 
-/* opponent replied to my shot */
+/* opponent replied to MY shot */
 function applyShotResult(res){
-  const {r,c,hit,sunk,shipId}=res;
+  const {r,c,hit,sunk,shipId,shipType,cells}=res;
   enemyView[r][c]= hit?2:1;
-  if(sunk && shipId!=null){
-    enemyFleetState[shipId].sunk=true;
-    // We don't know the enemy's exact ship layout, but every cell we've hit
-    // that is contiguous with this final hit belongs to the sunk ship. Flood
-    // from (r,c) across our existing hits and mark them sunk.
+  spawnEffect('enemy', r, c, hit?'hit':'miss'); startLoop();
+  if(sunk){
+    if(shipId!=null && enemyFleetState[shipId]) enemyFleetState[shipId].sunk=true;
     markSunkCluster(r,c);
+    // reveal wreck art
+    if(cells && shipType){
+      const rows=cells.map(p=>p[0]), cols=cells.map(p=>p[1]);
+      const horizW=(Math.max(...cols)-Math.min(...cols))>=(Math.max(...rows)-Math.min(...rows));
+      enemyWrecks.push({type:shipType, idx:typeIdx(shipType), cells, horiz:horizW});
+    }
+    renderEnemyFleet();
   }
-  renderEnemyBoard();
-  renderEnemyFleet();
-  toast(hit ? (sunk?`أغرقت ${enemyFleetState[shipId]?.name||'سفينة'}! 🔥`:'إصابة! 🎯') : 'في الماء 💧');
-
-  if(res.loser!=null){ endGame(MY_IDX); return; } // I sank their last ship
-  // strict alternation: turn already handed off (myTurn=false set in fireAt).
+  toast(hit ? (sunk?`أغرقت ${enemyFleetState[shipId]?.name||'سفينة'}! 🔥`:'إصابة مباشرة! 🎯') : 'في الماء 💧');
+  if(res.loser!=null){ endGame(MY_IDX); }
 }
-
-/* flood-fill contiguous hits and mark as sunk (visual) */
 function markSunkCluster(r,c){
-  const stack=[[r,c]], seen=new Set();
-  while(stack.length){
-    const [cr,cc]=stack.pop();
-    const k=cr+'-'+cc;
+  const st=[[r,c]], seen=new Set();
+  while(st.length){
+    const [cr,cc]=st.pop(), k=cr+'-'+cc;
     if(cr<0||cc<0||cr>=N||cc>=N||seen.has(k)) continue;
     seen.add(k);
-    if(enemyView[cr][cc]===2 || enemyView[cr][cc]===3){
-      enemyView[cr][cc]=3;
-      stack.push([cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]);
+    if(enemyView[cr][cc]===2||enemyView[cr][cc]===3){
+      enemyView[cr][cc]=3; st.push([cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]);
     }
   }
 }
 
-/* ---------- rendering: battle ---------- */
-function renderBattle(){ renderMyBoardHits(); renderEnemyBoard(); }
-
-function renderMyBoardHits(){
-  myGridEl.querySelectorAll('.cell').forEach(el=>{
-    const r=+el.dataset.r,c=+el.dataset.c;
-    el.className='cell';
-    if(myBoard[r][c]!==0) el.classList.add('ship');
-    if(myHits[r][c]===1) el.classList.add('miss');
-    else if(myHits[r][c]===2) el.classList.add('hit');
-  });
-}
-
-function renderEnemyBoard(){
-  enemyGridEl.querySelectorAll('.cell').forEach(el=>{
-    const r=+el.dataset.r,c=+el.dataset.c;
-    el.className='cell tappable';
-    if(enemyView[r][c]===1) el.classList.add('miss');
-    else if(enemyView[r][c]===2) el.classList.add('hit');
-    else if(enemyView[r][c]===3) el.classList.add('sunk');
-  });
-}
-
-/* ---------- turn bar ---------- */
+/* ════════════════════════════════════════════════════════════
+   TURN BAR / HUD
+   ════════════════════════════════════════════════════════════ */
 function updateTurnBar(){
   const bar=$('turnBar'), t=$('turnText');
   bar.classList.remove('me','them');
+  $('p0card').classList.remove('active'); $('p1card').classList.remove('active');
   if(phase==='place'){
-    t.textContent = iAmReady ? 'بانتظار الخصم' : 'مرحلة وضع السفن';
-  } else if(phase==='battle'){
-    if(myTurn){ bar.classList.add('me'); t.textContent='دورك — أطلق النار!'; }
-    else { bar.classList.add('them'); t.textContent='دور الخصم...'; }
-    $('enemyShotsLeft').textContent='';
-  } else { t.textContent='انتهت المعركة'; }
+    t.textContent = iAmReady ? 'بانتظار الخصم...' : 'مرحلة وضع السفن ⚓';
+  }else if(phase==='battle'){
+    if(myTurn){ bar.classList.add('me'); t.textContent='دورك — أطلق النار! 🎯'; $('p0card').classList.add('active'); }
+    else      { bar.classList.add('them'); t.textContent='دور الخصم...'; $('p1card').classList.add('active'); }
+    const left = enemyFleetState.filter(f=>!f.sunk).length;
+    $('enemyHits').textContent = 'متبقٍ: '+left;
+    const myLeft = myShips.filter(s=>s.hits.size<FLEET[s.idx].size).length;
+    $('myStatus').textContent = 'صامد: '+myLeft;
+  }else{ t.textContent='انتهت المعركة'; }
 }
 
-/* ---------- game over ---------- */
+/* ════════════════════════════════════════════════════════════
+   GAME OVER / REMATCH
+   ════════════════════════════════════════════════════════════ */
 function endGame(winnerIdx){
   phase='over';
-  const iWon = (winnerIdx===MY_IDX);
+  const iWon=(winnerIdx===MY_IDX);
+  $('overEmoji').textContent = iWon?'🏆':'💥';
   $('overBadge').innerHTML = iWon
     ? '<span style="color:var(--ok)">⚓ النصر</span>'
     : '<span style="color:var(--hit)">💥 الهزيمة</span>';
-  $('overBadge').style.background = iWon?'rgba(40,194,106,.14)':'rgba(255,59,92,.12)';
+  $('overBadge').style.background = iWon?'rgba(47,210,122,.14)':'rgba(255,77,94,.12)';
   $('overTitle').textContent = iWon?'لقد فزت! 🎉':'لقد خسرت';
   $('overSub').textContent = iWon?'دمّرت أسطول خصمك بالكامل.':'غرق أسطولك بالكامل.';
   elOver.classList.remove('hidden');
   updateTurnBar();
-  if(IS_MP && typeof FlutterBridge!=='undefined'){
-    FlutterBridge.postMessage('gameOver');
-  }
+  if(IS_MP && typeof FlutterBridge!=='undefined') FlutterBridge.postMessage('gameOver');
 }
-
-/* ---------- rematch ---------- */
 function doRematch(initiator){
-  // reset everything
-  phase='place'; myTurn=false; battleStarted=false;
-  iAmReady=false; oppReady=false;
+  phase='place'; myTurn=false; battleStarted=false; iAmReady=false; oppReady=false;
   myBoard=makeGrid(); myHits=makeGrid(); enemyView=makeGrid();
-  myShipCells=[]; placed=[]; placeIdx=0; horiz=true;
-  enemyFleetState=FLEET.map(f=>({...f,sunk:false}));
+  myShips=[]; placed=[]; placeIdx=0; horiz=true; previewCells=null; aim=null;
+  enemyFleetState=FLEET.map(f=>({...f,sunk:false})); enemyWrecks=[]; effects=[];
   elOver.classList.add('hidden');
   $('enemyWrap').classList.add('hidden');
   $('placeBar').classList.remove('hidden');
-  $('rotateBtn').disabled=$('autoBtn').disabled=$('resetBtn').disabled=false;
-  buildGrids(); renderPlacement(); updateTurnBar();
+  renderPlacementUI(); layout(); updateTurnBar(); startLoop();
   if(IS_MP){
     _roomRef.child('ready/'+MY_IDX).set(false);
     if(initiator) _roomRef.child('rematch').set({from:MY_IDX, ts:Date.now()});
-  } else { oppReady=true; }
+  }else oppReady=true;
 }
 
-/* ---------- toast ---------- */
+/* ════════════════════════════════════════════════════════════
+   TOAST
+   ════════════════════════════════════════════════════════════ */
 let _toastT=null;
 function toast(msg){
   const el=$('toast'); el.textContent=msg; el.classList.add('show');
-  clearTimeout(_toastT); _toastT=setTimeout(()=>el.classList.remove('show'),1400);
+  clearTimeout(_toastT); _toastT=setTimeout(()=>el.classList.remove('show'),1500);
 }
 
-/* ---------- SOLO fallback (vs random AI on one device) ---------- */
-let aiBoard=null, aiShips=null, aiView=null, aiQueue=[];
+/* ════════════════════════════════════════════════════════════
+   SOLO AI (offline fallback — hunt/target)
+   ════════════════════════════════════════════════════════════ */
+let aiBoard=null, aiShips=null, aiQueue=[];
 function soloSetup(){
-  aiBoard=makeGrid(); aiShips=[]; aiView=makeGrid();
+  aiBoard=makeGrid(); aiShips=[];
   for(let i=0;i<FLEET.length;i++){
     let done=false,tries=0;
-    while(!done&&tries<500){tries++;
+    while(!done&&tries<800){tries++;
       const h=Math.random()<.5, r=(Math.random()*N)|0, c=(Math.random()*N)|0;
       const cells=shipCellsAt(r,c,FLEET[i].size,h);
-      if(validPlacement2(aiBoard,cells)){for(const[rr,cc]of cells)aiBoard[rr][cc]=i+1;
-        aiShips.push({idx:i,cells,hits:new Set()});done=true;}
+      if(aiValid(cells)){ for(const [rr,cc] of cells) aiBoard[rr][cc]=i+1;
+        aiShips.push({idx:i,cells,hits:new Set()}); done=true; }
     }
   }
 }
-function validPlacement2(b,cells){for(const[r,c]of cells){if(r<0||c<0||r>=N||c>=N)return false;if(b[r][c]!==0)return false;}return true;}
+function aiValid(cells){ for(const [r,c] of cells){ if(r<0||c<0||r>=N||c>=N) return false; if(aiBoard[r][c]!==0) return false; } return true; }
 function soloResolveMyShot(r,c){
   let hit=false,sunk=false,shipId=null;
-  if(aiBoard[r][c]!==0){hit=true;const si=aiBoard[r][c]-1;const sh=aiShips.find(s=>s.idx===si);
-    sh.hits.add(r+'-'+c);enemyView[r][c]=2;
-    if(sh.hits.size>=FLEET[si].size){sunk=true;shipId=si;enemyFleetState[si].sunk=true;}
+  if(aiBoard[r][c]!==0){ hit=true; const si=aiBoard[r][c]-1, sh=aiShips.find(s=>s.idx===si);
+    sh.hits.add(r+'-'+c); enemyView[r][c]=2;
+    if(sh.hits.size>=FLEET[si].size){ sunk=true; shipId=si; enemyFleetState[si].sunk=true;
+      enemyWrecks.push({type:FLEET[si].id, idx:si, cells:sh.cells,
+        horiz:(Math.max(...sh.cells.map(p=>p[1]))-Math.min(...sh.cells.map(p=>p[1])))>=
+              (Math.max(...sh.cells.map(p=>p[0]))-Math.min(...sh.cells.map(p=>p[0])))});
+      markSunkCluster(r,c); renderEnemyFleet(); }
   } else enemyView[r][c]=1;
-  renderEnemyBoard();renderEnemyFleet();
+  spawnEffect('enemy', r, c, hit?'hit':'miss'); startLoop();
   toast(hit?(sunk?`أغرقت ${enemyFleetState[shipId].name}! 🔥`:'إصابة! 🎯'):'في الماء 💧');
-  if(aiShips.every(s=>s.hits.size>=FLEET[s.idx].size)){endGame(MY_IDX);return;}
-  setTimeout(soloAImove,650);
+  if(aiShips.every(s=>s.hits.size>=FLEET[s.idx].size)){ endGame(MY_IDX); return; }
+  setTimeout(soloAImove, 700);
 }
 function soloAImove(){
   let r,c;
-  if(aiQueue.length){[r,c]=aiQueue.shift();}
-  else{do{r=(Math.random()*N)|0;c=(Math.random()*N)|0;}while(myHits[r][c]!==0);}
-  let hit=false,sunk=false;
-  if(myBoard[r][c]!==0){hit=true;myHits[r][c]=2;
-    const si=myBoard[r][c]-1;const sh=myShipCells.find(s=>s.idx===si);sh.hits.add(r+'-'+c);
-    // queue neighbors
+  if(aiQueue.length){ [r,c]=aiQueue.shift(); }
+  else { do{ r=(Math.random()*N)|0; c=(Math.random()*N)|0; }while(myHits[r][c]!==0); }
+  if(myHits[r][c]!==0){ return soloAImove(); }
+  let sunk=false;
+  if(myBoard[r][c]!==0){ myHits[r][c]=2;
+    const si=myBoard[r][c]-1, sh=myShips.find(s=>s.idx===si); sh.hits.add(r+'-'+c);
     [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([nr,nc])=>{
-      if(nr>=0&&nc>=0&&nr<N&&nc<N&&myHits[nr][nc]===0)aiQueue.push([nr,nc]);});
-    if(sh.hits.size>=FLEET[si].size)sunk=true;
-  } else myHits[r][c]=1;
-  renderMyBoardHits();renderMyFleet();
-  if(myShipCells.every(s=>s.hits.size>=FLEET[s.idx].size)){endGame(1-MY_IDX);return;}
-  myTurn=true;updateTurnBar();
+      if(nr>=0&&nc>=0&&nr<N&&nc<N&&myHits[nr][nc]===0) aiQueue.push([nr,nc]); });
+    if(sh.hits.size>=FLEET[si].size) sunk=true;
+    spawnEffect('my', r, c, 'hit');
+  } else { myHits[r][c]=1; spawnEffect('my', r, c, 'miss'); }
+  startLoop(); renderMyFleet();
+  if(myShips.every(s=>s.hits.size>=FLEET[s.idx].size)){ endGame(1-MY_IDX); return; }
+  myTurn=true; updateTurnBar();
 }
 
-/* ---------- buttons ---------- */
-$('rotateBtn').addEventListener('click',()=>{horiz=!horiz;clearPreview();renderPlacement();});
-$('autoBtn').addEventListener('click',autoPlace);
-$('resetBtn').addEventListener('click',resetPlacement);
-$('readyBtn').addEventListener('click',setReady);
-$('againBtn').addEventListener('click',()=>doRematch(true));
-$('startSolo').addEventListener('click',()=>{
-  elStart.classList.add('hidden');
-  soloSetup();
-  beginPlacement();
-});
+/* ════════════════════════════════════════════════════════════
+   FIREBASE MULTIPLAYER  (seats / ready / shots / results / rematch)
+   ════════════════════════════════════════════════════════════ */
+let _db=null, _roomRef=null, _connectedAt=0, _bothPresent=false;
+let _watchdog=null, _lastStage='';
+function showFail(msg){
+  if(_watchdog){ clearTimeout(_watchdog); _watchdog=null; }
+  elWait.classList.remove('hidden');
+  const sp=elWait.querySelector('.spinner'); if(sp) sp.classList.add('hidden');
+  $('waitTitle').textContent='تعذر الاتصال';
+  $('waitMsg').innerHTML='توقّف عند: <b>'+_lastStage+'</b><br>'+
+    '<span style="color:var(--hit);font-size:13px">'+msg+'</span>'+
+    '<br><br>تحقق من Firebase: تفعيل Anonymous Auth وإنشاء Realtime Database.';
+  if(!elWait.querySelector('#soloEscape')){
+    const b=document.createElement('button'); b.id='soloEscape'; b.className='bigBtn alt';
+    b.textContent='⚔️ اللعب ضد الكمبيوتر'; b.style.marginTop='18px';
+    b.onclick=()=>{ elWait.classList.add('hidden'); soloSetup(); beginPlacement(); };
+    elWait.appendChild(b);
+  }
+}
+async function initFirebase(){
+  if(!IS_MP){ elWait.classList.add('hidden'); elStart.classList.remove('hidden'); return; }
+  const stage=m=>{ _lastStage=m; $('waitTitle').textContent=m; };
+  _watchdog=setTimeout(()=>showFail('انتهت المهلة — لم تكتمل هذه الخطوة خلال 8 ثوانٍ.'),8000);
+  try{
+    if(typeof firebase==='undefined') throw new Error('لم يتم تحميل Firebase SDK — قد تكون الشبكة محجوبة.');
+    stage('تهيئة الاتصال');
+    const app=firebase.initializeApp(_fbConfig);
+    stage('تسجيل الدخول');
+    const _auth=firebase.auth(app);
+    try{ await _auth.setPersistence(firebase.auth.Auth.Persistence.NONE); }catch(_){}
+    const _cred=await Promise.race([
+      _auth.signInAnonymously(),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('auth/timeout — تعذّر تسجيل الدخول')),7000))
+    ]);
+    const MY_UID=(_cred&&_cred.user&&_cred.user.uid)||('u'+Date.now()+Math.random());
+    stage('فتح الغرفة');
+    _db=firebase.database(app);
+    _roomRef=_db.ref('rooms/'+ROOM_ID+'/'+GAME_KEY);
+    _connectedAt=Date.now();
 
-/* ---------- boot ---------- */
-buildGrids();
-initFirebase();
+    stage('الانضمام للغرفة');
+    const seatRef=_roomRef.child('seats');
+    const claim=await seatRef.transaction(seats=>{
+      seats=seats||{};
+      if(seats['0']===MY_UID){ MY_IDX=0; return seats; }
+      if(seats['1']===MY_UID){ MY_IDX=1; return seats; }
+      const hint=(MY_IDX===1)?1:0;
+      if(seats[String(hint)]==null){ seats[String(hint)]=MY_UID; return seats; }
+      const other=String(1-hint);
+      if(seats[other]==null){ seats[other]=MY_UID; return seats; }
+      return; // full
+    });
+    if(!claim.committed||!claim.snapshot.exists()) throw new Error('room/full — الغرفة ممتلئة بالفعل.');
+    const seats=claim.snapshot.val()||{};
+    MY_IDX=(seats['0']===MY_UID)?0:1;
+    seatRef.child(String(MY_IDX)).onDisconnect().remove();
+    await _roomRef.child('players/'+MY_IDX).set(true);
+    _roomRef.child('players/'+MY_IDX).onDisconnect().remove();
+
+    if(_watchdog){ clearTimeout(_watchdog); _watchdog=null; }
+    stage('بانتظار صديقك'); $('waitMsg').textContent='بانتظار صديقك للانضمام...';
+
+    seatRef.on('value', snap=>{
+      const s=snap.val()||{}, count=(s['0']?1:0)+(s['1']?1:0);
+      if(count>=2 && !_bothPresent){
+        _bothPresent=true; seatRef.off('value');
+        rewireListeners(); beginPlacement();
+      }else if(count<2){
+        $('waitMsg').textContent='بانتظار صديقك للانضمام... (متصل: '+count+'/2)';
+      }
+    });
+  }catch(e){
+    console.error('Firebase error',e);
+    showFail((e&&(e.code||e.message))?((e.code?e.code+' — ':'')+(e.message||'')):'خطأ غير معروف');
+  }
+}
+function rewireListeners(){
+  const OPP=1-MY_IDX;
+  _roomRef.child('ready/'+OPP).on('value', s=>{ oppReady=!!s.val(); maybeStartBattle(); });
+  _roomRef.child('shots/'+OPP).on('value', s=>{ const v=s.val(); if(!v||v.ts<_connectedAt) return; resolveIncomingShot(v); });
+  _roomRef.child('results/'+OPP).on('value', s=>{ const v=s.val(); if(!v||v.ts<_connectedAt) return; applyShotResult(v); });
+  _roomRef.child('rematch').on('value', s=>{ const v=s.val(); if(!v||v.ts<_connectedAt) return; if(v.from!==MY_IDX) doRematch(false); });
+}
+
+/* ════════════════════════════════════════════════════════════
+   BOOT
+   ════════════════════════════════════════════════════════════ */
+function beginPlacement(){
+  elWait.classList.add('hidden');
+  phase='place';
+  renderPlacementUI(); layout(); updateTurnBar(); startLoop();
+}
+
+/* buttons */
+$('rotateBtn').addEventListener('click', ()=>{ horiz=!horiz; previewCells=null; renderPlacementUI(); });
+$('autoBtn').addEventListener('click', autoPlace);
+$('resetBtn').addEventListener('click', resetPlacement);
+$('readyBtn').addEventListener('click', setReady);
+$('againBtn').addEventListener('click', ()=>doRematch(true));
+$('startSolo').addEventListener('click', ()=>{ elStart.classList.add('hidden'); soloSetup(); beginPlacement(); });
+
+/* names */
+$('p0name').textContent=MY_NAME; $('p1name').textContent=OPP_NAME;
+
+/* resize / visibility */
+let _rt=null;
+window.addEventListener('resize', ()=>{ clearTimeout(_rt); _rt=setTimeout(layout,120); });
+window.addEventListener('orientationchange', ()=>setTimeout(layout,250));
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) startLoop(); });
+
+layout();
+startLoop();
+
+/* demo/preview mode (?demo=1) — jumps straight into a populated battle. Harmless for real play. */
+if(params.get('demo')){
+  elWait.classList.add('hidden'); elStart.classList.add('hidden');
+  soloSetup(); autoPlace();
+  iAmReady=true; lockFleet(); oppReady=true; maybeStartBattle();
+  const W=aiShips[2], wr=W.cells, hz=(Math.max(...wr.map(p=>p[1]))-Math.min(...wr.map(p=>p[1])))>=
+        (Math.max(...wr.map(p=>p[0]))-Math.min(...wr.map(p=>p[0])));
+  enemyWrecks.push({type:FLEET[W.idx].id, idx:W.idx, cells:wr, horiz:hz});
+  for(const [r,c] of wr) enemyView[r][c]=3;
+  enemyView[1][4]=2; enemyView[7][8]=1; enemyView[0][1]=1; enemyView[4][6]=2; enemyView[8][2]=1;
+  const m=myShips[0]; if(m){ myHits[m.cells[0][0]][m.cells[0][1]]=2; myHits[m.cells[1][0]][m.cells[1][1]]=2; }
+  myHits[9][9]=1; myHits[3][0]=1; myHits[5][5]=1;
+  enemyFleetState[W.idx].sunk=true; renderEnemyFleet(); renderMyFleet(); updateTurnBar();
+}else{
+  initFirebase();
+}
+</script>
+</body>
+</html>
