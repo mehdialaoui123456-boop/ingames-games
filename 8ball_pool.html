@@ -1294,11 +1294,25 @@ const _fbConfig = {
 
   function showWait(t,m){ waitOverlay.classList.remove('hidden'); if(t!=null) waitTitle.textContent=t; if(m!=null) waitMsg.textContent=m; }
 
-  function initFirebase(){
+  async function initFirebase(){
     if (!IS_MP) return;
+    // Watchdog: never strand the player on "connecting" — surface a clear
+    // message if any step stalls (blocked network, auth hang, etc.).
+    let watchdog=setTimeout(()=>{ showWait('تعذّر الاتصال', 'تحقّق من الإنترنت ثم أعد فتح اللعبة'); }, 12000);
     try{
+      if (typeof firebase==='undefined') throw new Error('Firebase SDK not loaded');
       const app=firebase.initializeApp(_fbConfig);
-      firebase.auth(app).signInAnonymously().catch(()=>{});
+      const _auth=firebase.auth(app);
+      // LOCAL persistence hangs inside Android WebViews — force NONE, then race
+      // the sign-in against a timeout so we can never stall on "connecting".
+      try{ await _auth.setPersistence(firebase.auth.Auth.Persistence.NONE); }catch(_){}
+      try{
+        await Promise.race([
+          _auth.signInAnonymously(),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('auth/timeout')),7000))
+        ]);
+      }catch(_){ /* proceed even if sign-in is slow; the room read/write below is the real test */ }
+
       _db=firebase.database(app);
       _roomRef=_db.ref('rooms/'+ROOM_ID+'/pool8');
       _connectedAt=Date.now();
@@ -1312,9 +1326,10 @@ const _fbConfig = {
         _roomRef.child('restartReq').on('value', s=>{ const v=s.val(); if(v && _begun){ _roomRef.child('restartReq').remove(); startGameMP(); } });
       }
 
-      // presence
-      _roomRef.child('players/'+MY_IDX).set(true);
+      // presence — wait for the first write to confirm we actually reached the DB
+      await _roomRef.child('players/'+MY_IDX).set(true);
       try{ _roomRef.child('players/'+MY_IDX).onDisconnect().remove(); }catch(e){}
+      clearTimeout(watchdog);
       _roomRef.child('players').on('value', ps=>{
         const pl=ps.val()||{}; const count=Object.keys(pl).length;
         if (count>=2 && !_begun){
@@ -1325,7 +1340,11 @@ const _fbConfig = {
           showWait('بانتظار اللاعب الآخر…', 'انضم '+count+' من 2');
         }
       });
-    }catch(e){ console.error('Firebase init failed', e); waitOverlay.classList.add('hidden'); startOverlay.classList.remove('hidden'); }
+    }catch(e){
+      clearTimeout(watchdog);
+      console.error('Firebase init failed', e);
+      showWait('تعذّر الاتصال', 'تحقّق من الإنترنت ثم أعد فتح اللعبة');
+    }
   }
 
   function markYou(){
