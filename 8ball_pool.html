@@ -237,6 +237,7 @@ const _fbConfig = {
   let amShooter=false;             // this client owns the current shot (resolves + pushes truth)
   let pendingState=null;           // authoritative state to apply once a local replay settles
   let _lastShotTs=0, _lastStateTs=0;
+  let remoteAim=null, _lastAimTs=0; // opponent's live aim (angle/power) while they line up
 
   // per-shot bookkeeping
   let shotInProgress=false, shotSteps=0;
@@ -519,10 +520,10 @@ const _fbConfig = {
   function inPowerBar(p){
     return p.x>=powerBar.cx-34 && p.x<=powerBar.cx+34 && p.y>=powerBar.top-34 && p.y<=powerBar.bot+34;
   }
-  function setPowerFromY(y){ shotPower = Math.max(0, Math.min(1, (powerBar.bot-y)/(powerBar.bot-powerBar.top))); }
+  function setPowerFromY(y){ shotPower = Math.max(0, Math.min(1, (powerBar.bot-y)/(powerBar.bot-powerBar.top))); pushAim(); }
   function setAimFromPoint(p){
     const dx=p.x-cue.x, dy=p.y-cue.y;
-    if (Math.hypot(dx,dy) > ballR*0.5) { aimAngle=Math.atan2(dy,dx); hasAim=true; }
+    if (Math.hypot(dx,dy) > ballR*0.5) { aimAngle=Math.atan2(dy,dx); hasAim=true; pushAim(); }
   }
   function fireShot(){
     if (!hasAim) { shotPower=0; return; }
@@ -544,15 +545,15 @@ const _fbConfig = {
     if (id===aimId && cue) setAimFromPoint(p);
   }
   function release(id,cancelled){
-    if (id===placeId) { placeId=null; if(!cancelled){ ballInHand=false; setStatus('صوّب ثم اسحب شريط القوة', false);} return; }
+    if (id===placeId) { placeId=null; if(!cancelled){ ballInHand=false; setStatus('صوّب ثم اسحب شريط القوة', false);} pushAim(true); return; }
     if (id===powerId) {
       powerId=null;
-      if (cancelled) shotPower=0;
+      if (cancelled) { shotPower=0; pushAim(true); }
       else if (canAct()) fireShot();
-      else shotPower=0;
+      else { shotPower=0; pushAim(true); }
       return;
     }
-    if (id===aimId) aimId=null;
+    if (id===aimId){ aimId=null; pushAim(true); }
   }
 
   canvas.addEventListener('touchstart', e=>{ e.preventDefault(); ensureAudio(); for(const t of e.changedTouches) pressAt(t.identifier, ptOf(t)); }, {passive:false});
@@ -579,6 +580,7 @@ const _fbConfig = {
       if (!moved) break;
     }
     cue.x=nx; cue.y=ny; cue.vx=cue.vy=0;
+    pushAim();                          // stream the placement so the opponent follows
   }
 
   // ── Shooting ─────────────────────────────────────────────────────────
@@ -1110,14 +1112,20 @@ const _fbConfig = {
       ctx.drawImage(s, b.x-side/2, b.y-side/2, side, side);
     }
 
-    const ready = running && !gameOver && !shotInProgress && cue && !cue.pocketed && !ballInHand && !ballsMoving();
-    if (ready && hasAim) drawAimAndStick();
+    const canShowAim = running && !gameOver && !shotInProgress && cue && !cue.pocketed && !ballsMoving();
+    if (canShowAim){
+      if (isMyTurn()){
+        if (!ballInHand && hasAim) drawAimAndStick(aimAngle, shotPower, false);
+      } else if (IS_MP && remoteAim){
+        drawAimAndStick(remoteAim.a, remoteAim.p||0, true);   // live-follow the opponent's cue
+      }
+    }
 
     if (ballInHand && cue && canAct()){
       ctx.strokeStyle='rgba(255,211,61,0.9)'; ctx.lineWidth=2; ctx.setLineDash([4,4]);
       ctx.beginPath(); ctx.arc(cue.x,cue.y,ballR+6,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
     }
-    if (running && !gameOver && !shotInProgress && !ballInHand && !ballsMoving()) drawPowerBar();
+    if (running && !gameOver && !shotInProgress && !ballInHand && !ballsMoving() && isMyTurn()) drawPowerBar();
   }
 
   // Ball sinking into a pocket: fall toward the hole centre, shrink, darken, fade.
@@ -1141,13 +1149,14 @@ const _fbConfig = {
     }
   }
 
-  function drawAimAndStick(){
-    const ux=Math.cos(aimAngle), uy=Math.sin(aimAngle);
+  function drawAimAndStick(angle, power, ghost){
+    if (ghost){ ctx.save(); ctx.globalAlpha=0.6; }   // opponent's aim is dimmed
+    const ux=Math.cos(angle), uy=Math.sin(angle);
     const hit=projectAim(cue.x,cue.y,ux,uy);
-    // dotted aim line
+    // dotted aim line — bluish when it's the opponent's cue
     const sx=cue.x+ux*ballR*1.1, sy=cue.y+uy*ballR*1.1;
     const dist=Math.hypot(hit.x-sx, hit.y-sy), dots=Math.floor(dist/13);
-    ctx.fillStyle='rgba(255,255,255,0.85)';
+    ctx.fillStyle = ghost ? 'rgba(123,196,255,0.95)' : 'rgba(255,255,255,0.85)';
     for (let i=0;i<=dots;i++){ ctx.beginPath(); ctx.arc(sx+ux*13*i, sy+uy*13*i, 2.1,0,Math.PI*2); ctx.fill(); }
     // ghost cue ball
     ctx.strokeStyle='rgba(255,255,255,0.7)'; ctx.lineWidth=1.5;
@@ -1159,7 +1168,8 @@ const _fbConfig = {
       ctx.beginPath(); ctx.moveTo(hit.ball.x,hit.ball.y);
       ctx.lineTo(hit.ball.x+(tx/td)*ballR*5, hit.ball.y+(ty/td)*ballR*5); ctx.stroke();
     }
-    drawCueStick(ux,uy,shotPower);
+    drawCueStick(ux,uy,power);
+    if (ghost) ctx.restore();
   }
   function projectAim(ox,oy,ux,uy){
     let best=Infinity, hx=ox+ux*2000, hy=oy+uy*2000, hb=null;
@@ -1259,12 +1269,34 @@ const _fbConfig = {
     });
   }
 
+  // Live aim follow: while you line up a shot, your angle + power + cue-ball
+  // position stream to the opponent so they watch your cue move in real time.
+  function pushAim(force){
+    if (!_roomRef || !IS_MP || !cue || !canAct()) return;
+    const now=Date.now();
+    if (!force && now-_lastAimTs < 45) return;       // throttle to ~22 updates/sec
+    _lastAimTs=now;
+    _roomRef.child('aim').set({
+      a: aimAngle, p: shotPower,
+      cx:(cue.x-tableX)/tableW, cy:(cue.y-tableY)/tableH,
+      from:MY_IDX, ts:now
+    });
+  }
+  function applyRemoteAim(ev){
+    if (!ev || ev.from===MY_IDX || ev.ts<_connectedAt) return;
+    if (isMyTurn() || shotInProgress || ballsMoving()) return;   // only follow the active opponent
+    remoteAim = { a:ev.a, p:ev.p||0 };
+    if (cue && !cue.pocketed && typeof ev.cx==='number'){        // follow ball-in-hand placement
+      cue.x=tableX+ev.cx*tableW; cue.y=tableY+ev.cy*tableH;
+    }
+  }
+
   function applyRemoteShot(ev){
     if (!ev || ev.from===MY_IDX || ev.ts<=_lastShotTs || ev.ts<_connectedAt) return;
     _lastShotTs=ev.ts;
     if (!cue) return;
     cue.x=tableX+ev.x*tableW; cue.y=tableY+ev.y*tableH; cue.pocketed=false; cue.vx=cue.vy=0;
-    ballInHand=false; aimId=powerId=placeId=null;
+    ballInHand=false; aimId=powerId=placeId=null; remoteAim=null;
     ensureLoop();
     shoot(ev.vx*tableW, ev.vy*tableW, true);   // remote replay (animates here too)
     setStatus('الخصم يلعب…', false);
@@ -1282,7 +1314,7 @@ const _fbConfig = {
     turn=st.turn; groups[0]=st.g0||null; groups[1]=st.g1||null; assigned=!!st.assigned;
     ballInHand=!!st.bih && isMyTurn(); winnerSeat=(st.winner==null?-1:st.winner);
     gameOver=!!st.over; running=!gameOver;
-    shotInProgress=false; amShooter=false;
+    shotInProgress=false; amShooter=false; remoteAim=null;
     aimAngle=-Math.PI/2; hasAim=true; shotPower=0; aimId=powerId=placeId=null;
 
     syncHud(); ensureLoop();
@@ -1317,9 +1349,10 @@ const _fbConfig = {
       _roomRef=_db.ref('rooms/'+ROOM_ID+'/pool8');
       _connectedAt=Date.now();
 
-      // authoritative state + shot streams
+      // authoritative state + shot streams + live aim follow
       _roomRef.child('state').on('value', s=>{ const v=s.val(); if(v) applyRemoteState(v); });
       _roomRef.child('shot').on('value',  s=>{ const v=s.val(); if(v) applyRemoteShot(v); });
+      _roomRef.child('aim').on('value',   s=>{ const v=s.val(); if(v) applyRemoteAim(v); });
 
       // host honours a guest's "new game" request
       if (MY_IDX===0){
