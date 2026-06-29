@@ -221,19 +221,22 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a
 var RNG=Math.random;
 
 /* ── THREE GLOBALS ─────────────────────────────────────────────────── */
-var scene,cam,renderer,clock,sun;
+var scene,cam,renderer,clock,sun,MAX_ANISO=1;
 function initThree(){
   scene=new THREE.Scene();
   scene.background=new THREE.Color(0x87ceeb);
   scene.fog=new THREE.FogExp2(0x9ed1ec,0.0125);
 
-  cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,260);
+  // near pushed out to 0.5 (and far pulled in to 220) — most depth-buffer precision
+  // lives in the near range, so this is the biggest win against WebView z-fighting
+  cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.5,220);
   cam.position.set(0,6,-9);
 
   var dpr=Math.min(window.devicePixelRatio||1,1.5);
-  renderer=new THREE.WebGLRenderer({antialias:dpr<1.5,powerPreference:'high-performance',stencil:false,precision:'mediump',depth:true});
+  renderer=new THREE.WebGLRenderer({antialias:dpr<1.5,powerPreference:'high-performance',stencil:false,precision:'highp',depth:true});
   renderer.setPixelRatio(dpr);
   renderer.setSize(innerWidth,innerHeight);
+  try{MAX_ANISO=renderer.capabilities.getMaxAnisotropy()||1;}catch(e){}   // for grazing-angle road texture
   document.body.insertBefore(renderer.domElement,document.body.firstChild);
 
   scene.add(new THREE.AmbientLight(0xffffff,0.72));
@@ -243,10 +246,16 @@ function initThree(){
 
   clock=new THREE.Clock();
   addEventListener('resize',onResize);
+  addEventListener('orientationchange',function(){onResize();setTimeout(onResize,250);setTimeout(onResize,600);});
+  // WebViews often report a wrong/zero viewport until after the first layout pass — re-fit a few times
+  setTimeout(onResize,80);setTimeout(onResize,300);setTimeout(onResize,900);
 }
 function onResize(){
-  cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
+  var w=window.innerWidth,h=window.innerHeight;
+  if(!w||!h)return;                 // some WebViews report 0 before first layout → skip (avoids NaN aspect / black frame)
+  cam.aspect=w/h;cam.updateProjectionMatrix();
+  renderer.setSize(w,h);
+  if(scene&&cam)renderer.render(scene,cam);   // repaint now so a resized WebView never shows a stale/blank frame
 }
 
 /* ── MESH HELPERS ──────────────────────────────────────────────────── */
@@ -304,7 +313,7 @@ function buildWorld(len){
 
   // grass base
   var grass=new THREE.Mesh(new THREE.PlaneGeometry(120,total+40),new THREE.MeshLambertMaterial({color:0x73c057}));
-  grass.rotation.x=-Math.PI/2;grass.position.set(0,-0.02,total/2-15);worldGroup.add(grass);
+  grass.rotation.x=-Math.PI/2;grass.position.set(0,-0.08,total/2-15);worldGroup.add(grass);  // more Y gap below the road
 
   // running track — lane edges + dashed center baked into one repeating texture
   var rt=roadTex();rt.repeat.set(1,(total+10)/4);
@@ -333,12 +342,12 @@ function buildWorld(len){
   }
 
   // start line
-  var startLine=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,1.2),new THREE.MeshBasicMaterial({map:checkerTex()}));
+  var startLine=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,1.2),new THREE.MeshBasicMaterial({map:checkerTex(),polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
   startLine.rotation.x=-Math.PI/2;startLine.position.set(0,0.04,0);worldGroup.add(startLine);
 
   // finish gate + line
   finishGate=new THREE.Group();finishGate.position.z=len;worldGroup.add(finishGate);
-  var fline=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,1.6),new THREE.MeshBasicMaterial({map:checkerTex()}));
+  var fline=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,1.6),new THREE.MeshBasicMaterial({map:checkerTex(),polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
   fline.rotation.x=-Math.PI/2;fline.position.set(0,0.05,0);finishGate.add(fline);
   for(var p2=-1;p2<=1;p2+=2){var post=cyl(0.2,4.5,0xff3838);post.position.set(p2*(HALF+0.2),2.25,0);finishGate.add(post);}
   var banner=box(TRACK_W+1.2,1.0,0.2,0xff3838);banner.position.set(0,4.2,0);finishGate.add(banner);
@@ -356,7 +365,7 @@ function checkerTex(){
   if(_checkerTex)return _checkerTex;
   var cv=document.createElement('canvas');cv.width=128;cv.height=32;var x=cv.getContext('2d');
   for(var i=0;i<8;i++)for(var j=0;j<2;j++){x.fillStyle=((i+j)%2)?'#ffffff':'#1a1a1a';x.fillRect(i*16,j*16,16,16);}
-  _checkerTex=new THREE.CanvasTexture(cv);return _checkerTex;
+  _checkerTex=new THREE.CanvasTexture(cv);_checkerTex.anisotropy=MAX_ANISO;return _checkerTex;
 }
 var _roadTex=null;
 function roadTex(){
@@ -367,6 +376,7 @@ function roadTex(){
   x.fillStyle='#f3f6f8';x.fillRect(29,16,6,52);                 // dashed centre stripe (one tile)
   var t=new THREE.CanvasTexture(cv);
   t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;
+  t.anisotropy=MAX_ANISO;                 // stop the lane lines shimmering at grazing angles
   _roadTex=t;return t;
 }
 var _bannerTex=null;
@@ -480,7 +490,7 @@ function addPillars(z,pattern){
 
 function addBoost(z){
   var g=new THREE.Group();g.position.z=z;worldGroup.add(g);
-  var pad=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W-1,2.4),new THREE.MeshBasicMaterial({color:0x2ed573,transparent:true,opacity:0.85}));
+  var pad=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W-1,2.4),new THREE.MeshBasicMaterial({color:0x2ed573,transparent:true,opacity:0.85,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
   pad.rotation.x=-Math.PI/2;pad.position.y=0.06;g.add(pad);
   for(var a=0;a<3;a++){var ar=box(0.8,0.05,0.5,0xeafff1);ar.position.set(0,0.08,-0.6+a*0.6);g.add(ar);}
   var o={grp:g,z:z,timing:false,steer:false,boost:true};
@@ -838,14 +848,14 @@ function showResults(place,stars){
   var nb=$i('btnNext');
   if(isLast){
     nb.textContent='🏆 أنهيت كل المستويات!';nb.disabled=false;
-    nb.onclick=function(){startLevel(1);};
+    _btnNextAction=function(){startLevel(1);};
     try{if(window.FlutterBridge&&FlutterBridge.postMessage)FlutterBridge.postMessage('gameOver');}catch(e){}
   } else if(canAdvance){
     nb.textContent='المستوى التالي ◀';nb.disabled=false;
-    nb.onclick=function(){startLevel(G.level+1);};
+    _btnNextAction=function(){startLevel(G.level+1);};
   } else {
     nb.textContent='حاول مجدداً لتتأهل';nb.disabled=false;
-    nb.onclick=function(){startLevel(G.level);};
+    _btnNextAction=function(){startLevel(G.level);};
   }
   setTimeout(function(){$i('endOverlay').classList.add('show');},700);
 }
@@ -984,7 +994,7 @@ function showOnlineResult(result,note){
   }
   if(note)html+='<div class="instructions" style="margin-top:8px">'+note+'</div>';
   $i('endResults').innerHTML=html;
-  var nb=$i('btnNext'); nb.textContent='سباق جديد ↻'; nb.disabled=false; nb.onclick=requestRematch;
+  var nb=$i('btnNext'); nb.textContent='سباق جديد ↻'; nb.disabled=false; _btnNextAction=requestRematch;
   $i('btnRetry').style.display='none';
   beep(result==='win'?'win':result==='lose'?'lose':'go');
   try{if(window.FlutterBridge&&FlutterBridge.postMessage)FlutterBridge.postMessage('gameOver');}catch(e){}
@@ -1034,13 +1044,17 @@ function loop(){
 }
 
 /* ── BUTTONS ───────────────────────────────────────────────────────── */
+var _btnNextAction=null;     // per-result action for the "Next level / Rematch" button
 function tap(el,cb){
   el.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();initAudio();cb();},{passive:false});
   el.addEventListener('mousedown',function(e){e.stopPropagation();initAudio();cb();});
 }
 tap($i('btnStart'),function(){startLevel(save.unlocked||1);});
 tap($i('btnRetry'),function(){startLevel(G.level);});
-// btnNext handler is set per-result in showResults / showOnlineResult
+// btnNext: route through tap() (touchstart) — a plain onclick never fires in a touch
+// WebView because the global touchend preventDefault suppresses synthetic clicks.
+// The per-result handler lives in _btnNextAction (set by showResults / showOnlineResult).
+tap($i('btnNext'),function(){ if(_btnNextAction)_btnNextAction(); });
 tap($i('waitCancel'),function(){ try{if(window.FlutterBridge&&FlutterBridge.postMessage)FlutterBridge.postMessage('gameOver');}catch(e){} try{history.back();}catch(e){} });
 tap($i('waitSolo'),function(){ hideWaitOverlay(); IS_MP=false; ME=0; OPP=1; startLevel(1); });
 
