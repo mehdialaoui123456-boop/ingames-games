@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>🏃 سباق الجري 3D</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#0b1622}
+body{touch-action:none;position:fixed;inset:0;font-family:'Segoe UI',system-ui,sans-serif;color:#fff}
+canvas{display:block;width:100%;height:100%}
+
+/* ── HUD ── */
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px;z-index:100;pointer-events:none}
+.hud-card{background:rgba(8,16,26,0.74);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:6px 14px;text-align:center}
+.hud-label{font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:.5px}
+.hud-value{font-size:20px;font-weight:800;color:#fff;line-height:1.2}
+.hud-value.gold{color:#ffcf3f}
+.place-badge{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:100;background:rgba(8,16,26,0.74);border:1px solid rgba(255,255,255,0.14);border-radius:16px;padding:5px 18px;text-align:center;pointer-events:none}
+.place-badge .hud-value{font-size:22px}
+
+/* ── progress ladder (right side, RTL friendly) ── */
+.ladder{position:fixed;top:96px;bottom:120px;left:14px;width:34px;z-index:90;pointer-events:none}
+.ladder-rail{position:absolute;left:50%;top:0;bottom:0;width:5px;transform:translateX(-50%);background:rgba(255,255,255,.14);border-radius:99px}
+.ladder-finish{position:absolute;left:-3px;right:-3px;top:0;height:5px;border-radius:3px;
+  background:repeating-linear-gradient(90deg,#fff 0 5px,#222 5px 10px)}
+.runner-dot{position:absolute;left:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%,50%);
+  border:2px solid rgba(0,0,0,.35);transition:bottom .12s linear}
+.runner-dot.me{width:18px;height:18px;border:2px solid #fff;box-shadow:0 0 8px rgba(255,255,255,.6);z-index:2}
+
+/* ── overlays ── */
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:500;background:rgba(6,12,20,0.82);opacity:0;pointer-events:none;transition:opacity .4s}
+.overlay.show{opacity:1;pointer-events:auto}
+.overlay-card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.13);border-radius:24px;padding:26px 24px;max-width:340px;width:calc(100% - 40px);text-align:center}
+.overlay-title{font-size:clamp(26px,7vw,38px);font-weight:900;margin-bottom:6px;line-height:1.1}
+.overlay-title.gold{background:linear-gradient(135deg,#ffd33f,#ff8a3d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.overlay-subtitle{font-size:clamp(13px,3.4vw,15px);color:rgba(255,255,255,0.55);margin-bottom:20px;line-height:1.8}
+.stars-row{display:flex;justify-content:center;gap:8px;margin:6px 0 18px}
+.star-svg{width:38px;height:38px;opacity:.2;transform:scale(.6);transition:opacity .3s,transform .4s cubic-bezier(.34,1.56,.64,1)}
+.star-svg.earned{opacity:1;transform:scale(1);filter:drop-shadow(0 0 6px rgba(255,207,63,.6))}
+.results{margin:4px 0 18px;text-align:right}
+.res-row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;font-size:15px;font-weight:700;margin-bottom:4px;background:rgba(255,255,255,.05)}
+.res-row.me{background:rgba(255,207,63,.16);border:1px solid rgba(255,207,63,.4)}
+.res-pos{font-size:18px;font-weight:900;min-width:26px;color:#ffcf3f}
+.res-swatch{width:14px;height:14px;border-radius:50%;flex:0 0 auto}
+.res-name{flex:1}
+.btn{border:none;border-radius:999px;padding:14px 34px;font-size:clamp(15px,4vw,18px);font-weight:800;font-family:inherit;cursor:pointer;transition:transform .12s,box-shadow .12s;min-height:52px;width:100%;margin-top:8px}
+.btn:active{transform:translateY(2px)}
+.btn-gold{background:linear-gradient(135deg,#ffd33f,#f0a818);color:#241a00;box-shadow:0 5px 0 #b87f12}
+.btn-gold:active{box-shadow:0 2px 0 #b87f12}
+.btn-ghost{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.2);box-shadow:none}
+.instructions{font-size:12.5px;color:rgba(255,255,255,0.4);margin-top:14px;line-height:2}
+.spinner{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.18);border-top-color:#ffcf3f;margin:0 auto 14px;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.res-time{color:rgba(255,255,255,.75);font-weight:700;font-size:13px}
+
+/* ── countdown / toast / flash ── */
+.countdown{position:fixed;top:46%;left:50%;transform:translate(-50%,-50%) scale(1.4);z-index:400;font-size:clamp(70px,22vw,140px);font-weight:900;color:#fff;text-shadow:0 6px 30px rgba(0,0,0,.6);opacity:0;pointer-events:none}
+.countdown.show{animation:cd .9s ease-out}
+@keyframes cd{0%{opacity:0;transform:translate(-50%,-50%) scale(2)}25%{opacity:1;transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(.7)}}
+.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);z-index:400;background:rgba(6,12,20,.85);border:1px solid rgba(255,207,63,.35);border-radius:20px;padding:12px 30px;font-size:clamp(16px,5vw,24px);font-weight:800;color:#ffcf3f;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.hit-flash{position:fixed;inset:0;background:rgba(255,60,60,.32);z-index:200;pointer-events:none;opacity:0;transition:opacity .12s}
+.hit-flash.show{opacity:1}
+.hint{position:fixed;bottom:calc(130px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:90;
+  background:rgba(8,16,26,.74);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:9px 22px;font-size:13px;
+  color:rgba(255,255,255,.7);pointer-events:none;transition:opacity .5s;white-space:nowrap}
+.hint.hidden{opacity:0}
+
+/* ── on-screen touch controls (phone) ── */
+#touchControls{position:fixed;left:0;right:0;bottom:0;height:150px;z-index:95;pointer-events:none}
+.tc-btn{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom,0px));pointer-events:auto;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;
+  background:rgba(8,16,26,.5);border:2px solid rgba(255,255,255,.3);border-radius:50%;
+  width:76px;height:76px;font-size:36px;line-height:1;-webkit-user-select:none;user-select:none;
+  -webkit-tap-highlight-color:transparent;transition:transform .08s,background .08s,border-color .08s}
+.tc-btn.on{transform:scale(.92);background:rgba(255,207,63,.34);border-color:#ffcf3f}
+#btnLeft{left:18px}
+#btnRight{left:108px}
+#btnRun{right:18px;width:104px;height:104px;font-size:20px;
+  background:linear-gradient(135deg,rgba(46,213,115,.55),rgba(30,144,255,.45));border-color:rgba(255,255,255,.45)}
+</style>
+</head>
+<body>
+<div class="hud">
+  <div class="hud-card"><div class="hud-label">المركز</div><div class="hud-value gold" id="hudPlace">1</div></div>
+  <div class="hud-card"><div class="hud-label">المستوى</div><div class="hud-value" id="hudLevel">1</div></div>
+</div>
+<div class="place-badge"><div class="hud-label">المسافة</div><div class="hud-value" id="hudDist">0%</div></div>
+
+<div class="ladder" id="ladder">
+  <div class="ladder-rail"></div>
+  <div class="ladder-finish"></div>
+</div>
+
+<div class="countdown" id="countdown">3</div>
+<div class="toast" id="toast"></div>
+<div class="hit-flash" id="hitFlash"></div>
+<div class="hint" id="hint">👆 اضغط باستمرار للجري — أو استعمل الأزرار ◀ ▶ وزر الجري</div>
+
+<div id="touchControls">
+  <div class="tc-btn" id="btnLeft">◀</div>
+  <div class="tc-btn" id="btnRight">▶</div>
+  <div class="tc-btn" id="btnRun">جري</div>
+</div>
+
+<div class="overlay show" id="startOverlay">
+  <div class="overlay-card">
+    <div class="overlay-title gold">🏃 سباق الجري</div>
+    <div class="overlay-subtitle">تسابق ضد <b>3</b> منافسين عبر مسار مليء بالعوائق.<br>تجاوز المطارق والكرات والحواجز وكن الأول!</div>
+    <button class="btn btn-gold" id="btnStart">ابدأ السباق</button>
+    <div class="instructions">👆 اضغط مع الاستمرار = جري<br>✋ ارفع إصبعك = توقف وانتظر<br>↔️ اسحب أو استعمل أزرار ◀ ▶ للمراوغة</div>
+  </div>
+</div>
+
+<div class="overlay" id="endOverlay">
+  <div class="overlay-card">
+    <div class="overlay-title gold" id="endTitle">🥇 المركز الأول!</div>
+    <div class="stars-row" id="endStars"></div>
+    <div class="results" id="endResults"></div>
+    <button class="btn btn-gold" id="btnNext">المستوى التالي</button>
+    <button class="btn btn-ghost" id="btnRetry">إعادة السباق</button>
+  </div>
+</div>
+
+<div class="overlay" id="errOverlay" style="display:none">
+  <div class="overlay-card">
+    <div class="overlay-title">⚠️</div>
+    <div class="overlay-subtitle">تعذّر تحميل المحرك ثلاثي الأبعاد.<br>تحقق من اتصال الإنترنت وأعد المحاولة.</div>
+    <button class="btn btn-gold" id="btnReload">إعادة المحاولة</button>
+  </div>
+</div>
+
+<div class="overlay" id="waitOverlay">
+  <div class="overlay-card">
+    <div class="spinner" id="waitSpin"></div>
+    <div class="overlay-title gold" id="waitTitle">جارٍ الاتصال…</div>
+    <div class="overlay-subtitle" id="waitMsg">بانتظار الخصم…</div>
+    <button class="btn btn-ghost" id="waitSolo" style="display:none">🤖 اللعب ضد الكمبيوتر</button>
+    <button class="btn btn-ghost" id="waitCancel">إلغاء</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+(function(){
+"use strict";
+function $i(id){return document.getElementById(id);}
+
+/* ── ENGINE LOAD GUARD ─────────────────────────────────────────────── */
+if(typeof THREE==='undefined'){
+  $i('startOverlay').style.display='none';
+  var eo=$i('errOverlay');eo.style.display='';eo.classList.add('show');
+  $i('btnReload').addEventListener('click',function(){location.reload();});
+  return;
+}
+$i('btnReload').addEventListener('click',function(){location.reload();});
+
+/* ── AUDIO ─────────────────────────────────────────────────────────── */
+var AC=null;
+function initAudio(){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}}
+function tone(freq,t0,dur,vol,type,slideTo){
+  try{var o=AC.createOscillator(),g=AC.createGain();
+    o.type=type||'sine';o.frequency.setValueAtTime(freq,t0);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(slideTo,t0+dur);
+    g.gain.setValueAtTime(vol,t0);g.gain.exponentialRampToValueAtTime(.0008,t0+dur);
+    o.connect(g);g.connect(AC.destination);o.start(t0);o.stop(t0+dur+.02);
+  }catch(e){}}
+function beep(type){
+  if(!AC)return;var t=AC.currentTime;
+  switch(type){
+    case'hit':   tone(160,t,.22,.32,'sawtooth',60);tone(90,t,.25,.22,'square',50);break;
+    case'count': tone(620,t,.14,.25,'sine',620);break;
+    case'go':    tone(440,t,.18,.3,'sine',880);break;
+    case'boost': tone(320,t,.28,.22,'sine',1000);break;
+    case'win':   [523,659,784,1046].forEach(function(f,i){tone(f,t+i*.1,.22,.25,'triangle');});break;
+    case'lose':  [392,330,262].forEach(function(f,i){tone(f,t+i*.13,.26,.22,'triangle');});break;
+  }
+}
+
+/* ── CONFIG ────────────────────────────────────────────────────────── */
+var TRACK_W=8, HALF=TRACK_W/2, X_CLAMP=HALF-0.85;
+var RUN_SP=8.2, STUN_TIME=0.85, KNOCKBACK=2.4, RUN_R=0.5;
+var TOTAL_LEVELS=8;
+var PAL=[
+  {shirt:0xff4757,pants:0x2f3542,shoe:0xffa502,skin:0xffd1a4,hair:0x3a2417,dot:'#ff4757',name:'أنت'},
+  {shirt:0x1e90ff,pants:0x222f3e,shoe:0xeccc68,skin:0xf3c19a,hair:0x14121a,dot:'#1e90ff',name:'المنافس 1'},
+  {shirt:0x2ed573,pants:0x1e272e,shoe:0xff6b81,skin:0xf6caa6,hair:0x4a2c12,dot:'#2ed573',name:'المنافس 2'},
+  {shirt:0xa55eea,pants:0x2d2438,shoe:0x7bed9f,skin:0xe8b890,hair:0x2a1a30,dot:'#a55eea',name:'المنافس 3'}
+];
+
+/* ── ONLINE / MULTIPLAYER GLOBALS (same contract as chess/monopoly) ── */
+var _params=new URLSearchParams(location.search);
+var ROOM_ID=_params.get('room');
+var IS_MP=!!ROOM_ID;                                  // mutable: solo fallback can clear it
+var MY_IDX=parseInt(_params.get('player')||'0',10);   // seat hint (finalised by claim)
+var _authToken=_params.get('token');
+var OPP_NAME=_params.get('oppName')||'الخصم';
+var GAME_KEY='funrace';
+var ONLINE_LEVEL=4;                                   // fixed medium track for fair 1v1
+var _fbConfig={
+  apiKey:"AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:"ingames-9c93b.firebaseapp.com",
+  databaseURL:"https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:"ingames-9c93b",
+  storageBucket:"ingames-9c93b.firebasestorage.app",
+  messagingSenderId:"711825788462",
+  appId:"1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+var _db=null,_roomRef=null,_connectedAt=0,_bothPresent=false,IS_HOST=false,MY_UID='',_watchdog=null;
+var ME=0,OPP=1;                                       // local / opponent runner index (offline ME=0)
+var _lastSeed=-1,_goAt=0,_cdLast='',_netT=0;
+var _myFinishT=0,_oppFinishT=0,_oppLeft=false,_resultShown=false;
+
+/* deterministic PRNG so both clients build the SAME track (mulberry32) */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+var RNG=Math.random;
+
+/* ── THREE GLOBALS ─────────────────────────────────────────────────── */
+var scene,cam,renderer,clock,sun;
+function initThree(){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x87ceeb);
+  scene.fog=new THREE.FogExp2(0x9ed1ec,0.0125);
+
+  cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,260);
+  cam.position.set(0,6,-9);
+
+  var dpr=Math.min(window.devicePixelRatio||1,1.5);
+  renderer=new THREE.WebGLRenderer({antialias:dpr<1.5,powerPreference:'high-performance',stencil:false,precision:'mediump',depth:true});
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(innerWidth,innerHeight);
+  document.body.insertBefore(renderer.domElement,document.body.firstChild);
+
+  scene.add(new THREE.AmbientLight(0xffffff,0.72));
+  sun=new THREE.DirectionalLight(0xfff2d6,0.95);
+  sun.position.set(6,14,-5);
+  scene.add(sun);
+
+  clock=new THREE.Clock();
+  addEventListener('resize',onResize);
+}
+function onResize(){
+  cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+}
+
+/* ── MESH HELPERS ──────────────────────────────────────────────────── */
+function box(w,h,d,c){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:c}));}
+function cyl(r,h,c){return new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,10),new THREE.MeshLambertMaterial({color:c}));}
+function ball(r,c){return new THREE.Mesh(new THREE.SphereGeometry(r,12,8),new THREE.MeshLambertMaterial({color:c}));}
+
+/* ── RUNNER FACTORY ────────────────────────────────────────────────── */
+function makeRunner(pal){
+  var g=new THREE.Group();
+  var hipY=0.95;
+  function hip(side){
+    var p=new THREE.Group();p.position.set(side*0.18,hipY,0);g.add(p);
+    var leg=box(0.26,0.78,0.26,pal.pants);leg.position.y=-0.4;p.add(leg);
+    var shoe=box(0.28,0.18,0.42,pal.shoe);shoe.position.set(0,-0.83,0.09);p.add(shoe);
+    return p;
+  }
+  function arm(side){
+    var p=new THREE.Group();p.position.set(side*0.42,hipY+0.62,0);g.add(p);
+    var a=box(0.18,0.6,0.18,pal.skin);a.position.y=-0.3;p.add(a);
+    var s=box(0.2,0.34,0.2,pal.shirt);s.position.y=-0.06;p.add(s);
+    return p;
+  }
+  var lhip=hip(1),rhip=hip(-1),larm=arm(1),rarm=arm(-1);
+  var torso=box(0.62,0.72,0.36,pal.shirt);torso.position.y=hipY+0.36;g.add(torso);
+  var neck=box(0.18,0.12,0.18,pal.skin);neck.position.y=hipY+0.74;g.add(neck);
+  var head=ball(0.27,pal.skin);head.position.y=hipY+1.0;g.add(head);
+  var hair=new THREE.Mesh(new THREE.SphereGeometry(0.285,12,8,0,Math.PI*2,0,Math.PI*0.55),new THREE.MeshLambertMaterial({color:pal.hair}));
+  hair.position.y=hipY+1.04;g.add(hair);
+  var shadow=new THREE.Mesh(new THREE.CircleGeometry(0.55,18),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.22,depthWrite:false}));
+  shadow.rotation.x=-Math.PI/2;shadow.position.y=0.02;g.add(shadow);
+
+  return {
+    group:g,
+    update:function(phase,moving,stun){
+      var sw=moving?Math.sin(phase)*0.95:Math.sin(phase*0.4)*0.05;
+      lhip.rotation.x=sw;rhip.rotation.x=-sw;
+      larm.rotation.x=-sw*0.9;rarm.rotation.x=sw*0.9;
+      var lean=moving?0.16:0.02;
+      torso.rotation.x=lean;head.rotation.x=lean*0.5;hair.rotation.x=lean*0.5;
+      g.position.y=moving?Math.abs(Math.sin(phase))*0.07:0;
+      if(stun>0){g.rotation.z=Math.sin(stun*34)*0.35;g.rotation.x=-0.25;}
+      else{g.rotation.z=0;g.rotation.x=0;}
+    }
+  };
+}
+
+/* ── WORLD: track, rails, finish, scenery ──────────────────────────── */
+var worldGroup=null, finishGate=null, trackLen=0;
+function buildWorld(len){
+  if(worldGroup)scene.remove(worldGroup);
+  worldGroup=new THREE.Group();scene.add(worldGroup);
+  trackLen=len;
+  var total=len+30;
+
+  // grass base
+  var grass=new THREE.Mesh(new THREE.PlaneGeometry(120,total+40),new THREE.MeshLambertMaterial({color:0x73c057}));
+  grass.rotation.x=-Math.PI/2;grass.position.set(0,-0.02,total/2-15);worldGroup.add(grass);
+
+  // running track — lane edges + dashed center baked into one repeating texture
+  var rt=roadTex();rt.repeat.set(1,(total+10)/4);
+  var road=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,total+10),new THREE.MeshLambertMaterial({map:rt}));
+  road.rotation.x=-Math.PI/2;road.position.set(0,0,total/2-15);worldGroup.add(road);
+
+  // side rails
+  for(var s=-1;s<=1;s+=2){
+    var rail=box(0.3,0.55,total+10,0xeef2f5);rail.position.set(s*(HALF+0.15),0.27,total/2-15);worldGroup.add(rail);
+    var stripe=box(0.32,0.18,total+10,0xff5a5f);stripe.position.set(s*(HALF+0.15),0.5,total/2-15);worldGroup.add(stripe);
+  }
+
+  // scenery: trees + clouds (reduced counts for WebView perf)
+  for(var i=0;i<14;i++){
+    var tz=4+RNG()*(len);
+    var tx=(HALF+2.5+RNG()*9)*(RNG()<.5?-1:1);
+    var trunk=cyl(0.22,1.2,0x8b5a2b);trunk.position.set(tx,0.6,tz);worldGroup.add(trunk);
+    var leaves=ball(0.95+RNG()*0.5,0x3fa14a);leaves.position.set(tx,1.7,tz);worldGroup.add(leaves);
+  }
+  for(var c=0;c<6;c++){
+    var cl=new THREE.Group();
+    var cz=RNG()*len;var cx=(20+RNG()*30)*(RNG()<.5?-1:1);
+    cl.position.set(cx,10+RNG()*8,cz);
+    for(var k=0;k<3;k++){var pf=ball(1.6+RNG(),0xffffff);pf.material.fog=false;pf.position.set(k*1.6-1.6,RNG()*0.6,0);cl.add(pf);}
+    worldGroup.add(cl);
+  }
+
+  // start line
+  var startLine=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,1.2),new THREE.MeshBasicMaterial({map:checkerTex()}));
+  startLine.rotation.x=-Math.PI/2;startLine.position.set(0,0.04,0);worldGroup.add(startLine);
+
+  // finish gate + line
+  finishGate=new THREE.Group();finishGate.position.z=len;worldGroup.add(finishGate);
+  var fline=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W,1.6),new THREE.MeshBasicMaterial({map:checkerTex()}));
+  fline.rotation.x=-Math.PI/2;fline.position.set(0,0.05,0);finishGate.add(fline);
+  for(var p2=-1;p2<=1;p2+=2){var post=cyl(0.2,4.5,0xff3838);post.position.set(p2*(HALF+0.2),2.25,0);finishGate.add(post);}
+  var banner=box(TRACK_W+1.2,1.0,0.2,0xff3838);banner.position.set(0,4.2,0);finishGate.add(banner);
+  var bannerTxt=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W+0.8,0.85),new THREE.MeshBasicMaterial({map:bannerTex(),transparent:true}));
+  bannerTxt.position.set(0,4.2,0.12);finishGate.add(bannerTxt);
+
+  // freeze static transforms: skip per-frame matrix recompute (WebView CPU win).
+  // Obstacles/runners are added later / live on `scene`, so they stay dynamic.
+  worldGroup.traverse(function(o){if(o!==worldGroup){o.updateMatrix();o.matrixAutoUpdate=false;}});
+}
+
+// checker + banner canvas textures
+var _checkerTex=null;
+function checkerTex(){
+  if(_checkerTex)return _checkerTex;
+  var cv=document.createElement('canvas');cv.width=128;cv.height=32;var x=cv.getContext('2d');
+  for(var i=0;i<8;i++)for(var j=0;j<2;j++){x.fillStyle=((i+j)%2)?'#ffffff':'#1a1a1a';x.fillRect(i*16,j*16,16,16);}
+  _checkerTex=new THREE.CanvasTexture(cv);return _checkerTex;
+}
+var _roadTex=null;
+function roadTex(){
+  if(_roadTex)return _roadTex;
+  var cv=document.createElement('canvas');cv.width=64;cv.height=128;var x=cv.getContext('2d');
+  x.fillStyle='#8a98a6';x.fillRect(0,0,64,128);                 // asphalt
+  x.fillStyle='rgba(255,255,255,0.30)';x.fillRect(4,0,3,128);x.fillRect(57,0,3,128); // lane edges
+  x.fillStyle='#f3f6f8';x.fillRect(29,16,6,52);                 // dashed centre stripe (one tile)
+  var t=new THREE.CanvasTexture(cv);
+  t.wrapS=THREE.ClampToEdgeWrapping;t.wrapT=THREE.RepeatWrapping;
+  _roadTex=t;return t;
+}
+var _bannerTex=null;
+function bannerTex(){
+  if(_bannerTex)return _bannerTex;
+  var cv=document.createElement('canvas');cv.width=512;cv.height=96;var x=cv.getContext('2d');
+  x.clearRect(0,0,512,96);x.fillStyle='#ffffff';x.font='900 60px Segoe UI, sans-serif';
+  x.textAlign='center';x.textBaseline='middle';x.fillText('النهاية',256,52);
+  _bannerTex=new THREE.CanvasTexture(cv);return _bannerTex;
+}
+
+/* ── OBSTACLES ─────────────────────────────────────────────────────── */
+// every obstacle exposes: mesh group, z, update(dt), hits(px,pz,r),
+// and for AI: timing(bool), steer(bool), blocked(px,buf) / safeX(px)
+var obstacles=[];
+function clearObstacles(){
+  for(var i=0;i<obstacles.length;i++)if(obstacles[i].grp)worldGroup.remove(obstacles[i].grp);
+  obstacles=[];
+}
+
+function addHammer(z,spd){
+  var g=new THREE.Group();g.position.z=z;worldGroup.add(g);
+  var post=cyl(0.2,3.4,0x4b5563);post.position.y=1.7;g.add(post);
+  var len=TRACK_W*1.04;
+  var bar=box(len,0.46,0.5,0xff5252);bar.position.y=1.25;g.add(bar);
+  var capL=box(0.7,0.7,0.7,0xc0392b);capL.position.set(len/2,1.25,0);bar.add(capL);
+  var capR=box(0.7,0.7,0.7,0xc0392b);capR.position.set(-len/2,1.25,0);bar.add(capR);
+  var o={grp:g,z:z,timing:true,steer:false,len:len,thick:0.5,angle:RNG()*6.28,speed:spd};
+  o.update=function(dt){o.angle+=o.speed*dt;bar.rotation.y=o.angle;};
+  o.hits=function(px,pz,r){
+    var dx=px-0,dz=pz-o.z;
+    var dirx=Math.cos(o.angle),dirz=-Math.sin(o.angle);
+    var along=Math.abs(dx*dirx+dz*dirz);
+    var perp=Math.abs(dx*(-dirz)+dz*dirx);
+    return along<o.len/2 && perp<o.thick/2+r;
+  };
+  o.blocked=function(px,buf){return o.hits(px,o.z,RUN_R+buf);};
+  obstacles.push(o);
+}
+
+function addPendulum(z,spd){
+  var g=new THREE.Group();g.position.set(0,0,z);worldGroup.add(g);
+  var beam=box(0.3,0.3,TRACK_W+1,0x4b5563);beam.position.y=3.5;g.add(beam);
+  for(var s=-1;s<=1;s+=2){var leg=cyl(0.18,3.6,0x4b5563);leg.position.set(s*(HALF+0.2),1.8,0);g.add(leg);}
+  var pivot=new THREE.Group();pivot.position.y=3.5;g.add(pivot);
+  var L=2.55;
+  var rope=cyl(0.07,L,0x2c3e50);rope.position.y=-L/2;pivot.add(rope);
+  var bob=ball(0.6,0xffa502);bob.position.y=-L;pivot.add(bob);
+  var o={grp:g,z:z,timing:true,steer:false,amp:1.05,phase:RNG()*6.28,speed:spd,L:L,bx:0,by:0,br:0.6};
+  o.update=function(dt){
+    o.phase+=o.speed*dt;
+    var ang=o.amp*Math.sin(o.phase);
+    pivot.rotation.z=ang;
+    o.bx=Math.sin(ang)*o.L;          // ball world x
+    o.by=3.5-Math.cos(ang)*o.L;      // ball world y
+  };
+  o.hits=function(px,pz,r){
+    if(o.by-o.br>1.7)return false;   // ball is high → safe to pass under
+    return Math.abs(px-o.bx)<o.br+r && Math.abs(pz-o.z)<o.br+r;
+  };
+  o.blocked=function(px,buf){
+    if(o.by-o.br>1.7)return false;
+    return Math.abs(px-o.bx)<o.br+RUN_R+buf && Math.abs(o.z)>=0; // same-lane & low
+  };
+  obstacles.push(o);
+}
+
+function addSweeper(z,spd){
+  var g=new THREE.Group();g.position.z=z;worldGroup.add(g);
+  var w=3.4;
+  var blk=box(w,1.7,0.7,0x575fcf);blk.position.y=0.85;g.add(blk);
+  var arrow=box(w*0.7,0.12,0.74,0xffd33f);arrow.position.y=1.5;g.add(arrow);
+  var o={grp:g,z:z,timing:false,steer:true,w:w,amp:X_CLAMP-0.3,phase:RNG()*6.28,speed:spd,x:0};
+  o.update=function(dt){o.phase+=o.speed*dt;o.x=Math.sin(o.phase)*o.amp;blk.position.x=o.x;arrow.position.x=o.x;};
+  o.hits=function(px,pz,r){return Math.abs(pz-o.z)<0.35+r && Math.abs(px-o.x)<o.w/2+r;};
+  o.safeX=function(px){return o.x>=0?-X_CLAMP*0.85:X_CLAMP*0.85;};
+  o.blocked=function(px,buf){return Math.abs(px-o.x)<o.w/2+RUN_R+buf;};
+  obstacles.push(o);
+}
+
+function addPillars(z,pattern){
+  // pattern: array of {x,w} solid blocks; gaps are everywhere else
+  var g=new THREE.Group();g.position.z=z;worldGroup.add(g);
+  for(var i=0;i<pattern.length;i++){
+    var b=box(pattern[i].w,1.8,1.0,0x9b7653);b.position.set(pattern[i].x,0.9,0);g.add(b);
+    var top=box(pattern[i].w+0.2,0.25,1.2,0x6f5235);top.position.set(pattern[i].x,1.9,0);g.add(top);
+  }
+  // find the WIDEST clear interval → the lane runner+AI should thread
+  var bestA=0,bestB=0,curA=null;
+  for(var gx=-X_CLAMP;gx<=X_CLAMP+1e-6;gx+=0.1){
+    var free=true;
+    for(var j=0;j<pattern.length;j++){if(Math.abs(gx-pattern[j].x)<pattern[j].w/2+RUN_R+0.1){free=false;break;}}
+    if(free){if(curA===null)curA=gx;}
+    else{if(curA!==null){if(gx-curA>bestB-bestA){bestA=curA;bestB=gx;}curA=null;}}
+  }
+  if(curA!==null && (X_CLAMP-curA)>(bestB-bestA)){bestA=curA;bestB=X_CLAMP;}
+  var o={grp:g,z:z,timing:false,steer:true,pattern:pattern,gapC:(bestA+bestB)/2,gapHalf:(bestB-bestA)/2};
+  o.update=function(){};
+  o.hits=function(px,pz,r){
+    if(Math.abs(pz-o.z)>0.5+r)return false;
+    for(var j=0;j<o.pattern.length;j++)if(Math.abs(px-o.pattern[j].x)<o.pattern[j].w/2+r)return true;
+    return false;
+  };
+  o.safeX=function(){return o.gapC;};        // aim at the widest gap centre
+  o.blocked=function(px,buf){
+    for(var j=0;j<o.pattern.length;j++)if(Math.abs(px-o.pattern[j].x)<o.pattern[j].w/2+RUN_R+buf)return true;
+    return false;
+  };
+  obstacles.push(o);
+}
+
+function addBoost(z){
+  var g=new THREE.Group();g.position.z=z;worldGroup.add(g);
+  var pad=new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W-1,2.4),new THREE.MeshBasicMaterial({color:0x2ed573,transparent:true,opacity:0.85}));
+  pad.rotation.x=-Math.PI/2;pad.position.y=0.06;g.add(pad);
+  for(var a=0;a<3;a++){var ar=box(0.8,0.05,0.5,0xeafff1);ar.position.set(0,0.08,-0.6+a*0.6);g.add(ar);}
+  var o={grp:g,z:z,timing:false,steer:false,boost:true};
+  o.update=function(){};
+  o.hits=function(){return false;};
+  o.inZone=function(pz){return Math.abs(pz-o.z)<1.4;};
+  obstacles.push(o);
+}
+
+/* ── LEVEL GENERATION ──────────────────────────────────────────────── */
+function rand(a,b){return a+RNG()*(b-a);}
+function pick(arr){return arr[(RNG()*arr.length)|0];}
+
+function buildLevel(level){
+  // seed the PRNG from the match seed so both online clients build an identical track
+  RNG=mulberry32(((((G.seed>>>0)||1)*2654435761)^(level*2246822519))>>>0 || 1);
+  var len=80+level*18;            // track length grows with level
+  var diff=Math.min(1,(level-1)/(TOTAL_LEVELS-1));
+  buildWorld(len);
+  clearObstacles();
+
+  var z=14;
+  var gap=Math.max(8.5,12-diff*3);
+  var spdScale=0.9+diff*0.9;
+  var types=['hammer','sweeper','pillars','pendulum'];
+  while(z<len-12){
+    // a boost pad occasionally on the longer straights
+    if(RNG()<0.16 && z>22){addBoost(z);z+=6;continue;}
+    var t=pick(types);
+    if(t==='hammer')      addHammer(z,rand(1.3,1.8)*spdScale);
+    else if(t==='sweeper')addSweeper(z,rand(1.5,2.1)*spdScale);
+    else if(t==='pendulum')addPendulum(z,rand(1.4,1.9)*spdScale);
+    else {
+      // pillars: always leave one comfortably-wide gap (passable by a 0.5r runner)
+      var pr=RNG(),pat;
+      if(pr<0.34) pat=[{x:0,w:rand(1.8,2.3)}];                                   // centre block → two side gaps
+      else if(pr<0.67){var pw=rand(1.3,1.8);pat=[{x:-2.35,w:pw},{x:2.35,w:pw}];} // edge blocks → wide centre gap
+      else {var sd=RNG()<0.5?-1:1;pat=[{x:sd*1.35,w:rand(2.0,2.5)}];}            // offset block → wide far-side gap
+      addPillars(z,pat);
+    }
+    z+=gap+rand(0,2.5);
+  }
+  return len;
+}
+
+/* ── GAME STATE ────────────────────────────────────────────────────── */
+var G={phase:'menu',level:1,raceTime:0,finishOrder:[],seed:(Math.random()*1e9|0)+1};
+var runners=[];      // offline: [you,3 bots]; online: [seat0,seat1]
+var save=loadSave();
+
+function loadSave(){
+  try{var s=JSON.parse(localStorage.getItem('funrace_v1'));if(s&&s.stars)return s;}catch(e){}
+  return {unlocked:1,stars:{}};
+}
+function persist(){try{localStorage.setItem('funrace_v1',JSON.stringify(save));}catch(e){}}
+
+function makeRunners(count){
+  count=count||(IS_MP?2:4);
+  for(var i=0;i<runners.length;i++)scene.remove(runners[i].model.group);
+  runners=[];
+  var lanes=count===2?[-1.3,1.3]:[-2.4,-0.8,0.8,2.4];
+  for(var i=0;i<count;i++){
+    var pal=PAL[i];
+    var model=makeRunner(pal);
+    scene.add(model.group);
+    var isMe=IS_MP?(i===ME):(i===0);
+    var skill=isMe?1:rand(0.5,0.9);     // bots imperfect
+    runners.push({
+      model:model,isPlayer:isMe,isNet:(IS_MP&&i!==ME),pal:pal,
+      name:isMe?'أنت':(IS_MP?OPP_NAME:pal.name),
+      x:lanes[i],targetX:lanes[i],z:0,v:0,dist:0,
+      stun:0,invuln:0,boost:0,finished:false,place:0,finishT:0,
+      // ai params (offline bots)
+      skill:skill,baseSpeed:isMe?RUN_SP:RUN_SP*rand(0.9,1.02),
+      decideT:0,running:true,
+      // net-interp targets (online opponent)
+      netX:lanes[i],netZ:0,netMoving:false,netStun:false,_lastZ:0
+    });
+  }
+}
+
+/* ── DOM ladder dots ───────────────────────────────────────────────── */
+var ladderDots=[];
+function buildLadder(count){
+  count=count||runners.length||4;
+  var lad=$i('ladder');
+  for(var i=0;i<ladderDots.length;i++)lad.removeChild(ladderDots[i]);
+  ladderDots=[];
+  for(var i=0;i<count;i++){
+    var d=document.createElement('div');
+    var isMe=IS_MP?(i===ME):(i===0);
+    d.className='runner-dot'+(isMe?' me':'');
+    d.style.background=PAL[i].dot;
+    lad.appendChild(d);ladderDots.push(d);
+  }
+}
+function updateLadder(){
+  for(var i=0;i<runners.length;i++){
+    var frac=Math.max(0,Math.min(1,runners[i].z/trackLen));
+    ladderDots[i].style.bottom=(frac*100)+'%';
+  }
+}
+
+/* ── INPUT ─────────────────────────────────────────────────────────── */
+var pointerHeld=false,pStartX=0,pBaseX=0,pxPerUnit=200;
+var keys={run:false,left:false,right:false};
+var btn={run:false,left:false,right:false};   // on-screen touch buttons
+
+function steerScale(){return TRACK_W/(Math.min(innerWidth,innerHeight)*0.45);}
+function onDown(cx){
+  initAudio();pointerHeld=true;pStartX=cx;pBaseX=player()?player().targetX:0;
+  $i('hint').classList.add('hidden');
+}
+function onMove(cx){
+  if(!pointerHeld||!player())return;
+  // drag matches the on-screen direction (and the reversed ◀ ▶ buttons): drag left → go left
+  player().targetX=clamp(pBaseX-(cx-pStartX)*steerScale(),-X_CLAMP,X_CLAMP);
+}
+function onUp(){pointerHeld=false;}
+
+addEventListener('touchstart',function(e){if(G.phase==='race'||G.phase==='count'){e.preventDefault();}onDown(e.touches[0].clientX);},{passive:false});
+addEventListener('touchmove',function(e){e.preventDefault();onMove(e.touches[0].clientX);},{passive:false});
+addEventListener('touchend',function(e){e.preventDefault();onUp();},{passive:false});
+addEventListener('mousedown',function(e){onDown(e.clientX);});
+addEventListener('mousemove',function(e){onMove(e.clientX);});
+addEventListener('mouseup',onUp);
+addEventListener('keydown',function(e){
+  if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){keys.run=true;e.preventDefault();}
+  if(e.code==='ArrowLeft'||e.code==='KeyA')keys.left=true;
+  if(e.code==='ArrowRight'||e.code==='KeyD')keys.right=true;
+});
+addEventListener('keyup',function(e){
+  if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space')keys.run=false;
+  if(e.code==='ArrowLeft'||e.code==='KeyA')keys.left=false;
+  if(e.code==='ArrowRight'||e.code==='KeyD')keys.right=false;
+});
+
+// on-screen hold-buttons (stopPropagation so they don't double-trigger hold-anywhere)
+function holdBtn(el,setFlag){
+  function down(e){e.preventDefault();e.stopPropagation();initAudio();setFlag(true);el.classList.add('on');$i('hint').classList.add('hidden');}
+  function up(e){if(e){e.preventDefault();e.stopPropagation();}setFlag(false);el.classList.remove('on');}
+  el.addEventListener('touchstart',down,{passive:false});
+  el.addEventListener('touchend',up,{passive:false});
+  el.addEventListener('touchcancel',up,{passive:false});
+  el.addEventListener('mousedown',down);
+  el.addEventListener('mouseup',up);
+  el.addEventListener('mouseleave',function(){if(el.classList.contains('on'))up();});
+}
+holdBtn($i('btnLeft'), function(v){btn.left=v;});
+holdBtn($i('btnRight'),function(v){btn.right=v;});
+holdBtn($i('btnRun'),  function(v){btn.run=v;});
+
+function player(){return runners[ME];}
+function clamp(v,a,b){return v<a?a:v>b?b:v;}
+
+/* ── COUNTDOWN + START ─────────────────────────────────────────────── */
+function startLevel(level){
+  G.level=level;G.phase='count';G.raceTime=0;G.finishOrder=[];_acc=0;
+  G.seed=(Math.random()*1e9|0)+1;                 // fresh offline layout each run
+  buildLevel(level);makeRunners(4);buildLadder(4);
+  $i('btnRetry').style.display='';
+  $i('endOverlay').classList.remove('show');
+  $i('startOverlay').classList.remove('show');
+  $i('hudLevel').textContent=level;
+  $i('hudPlace').textContent='1';
+  $i('hudDist').textContent='0%';
+  $i('hint').classList.remove('hidden');
+  // place camera behind start
+  cam.position.set(0,6,-9);
+  doCountdown();
+}
+function doCountdown(){
+  var seq=['3','2','1','انطلق!'];var idx=0;
+  var cd=$i('countdown');
+  function step(){
+    if(idx<seq.length){
+      cd.textContent=seq[idx];cd.classList.remove('show');void cd.offsetWidth;cd.classList.add('show');
+      beep(idx<3?'count':'go');
+      if(idx===3)G.phase='race';
+      idx++;setTimeout(step,800);
+    }
+  }
+  step();
+}
+
+/* ── UPDATE: player movement ───────────────────────────────────────── */
+function updatePlayer(dt){
+  var p=player();
+  if(p.finished)return;
+  // steering: keyboard or on-screen buttons.
+  // ◀ / Left moves the runner LEFT on screen, ▶ / Right moves it RIGHT.
+  // (the chase-cam looks toward +Z, so world-X is mirrored on screen — hence the signs)
+  if(keys.left||btn.left)  p.targetX=clamp(p.targetX+7*dt,-X_CLAMP,X_CLAMP);
+  if(keys.right||btn.right)p.targetX=clamp(p.targetX-7*dt,-X_CLAMP,X_CLAMP);
+  // run if: holding screen, run key, run button, OR holding a steer button
+  var run=pointerHeld||keys.run||btn.run||btn.left||btn.right;
+  var moving=run&&p.stun<=0&&G.phase==='race';
+  stepRunner(p,dt,moving);
+}
+
+/* ── UPDATE: bots AI ───────────────────────────────────────────────── */
+function updateBot(b,dt){
+  if(b.finished)return;
+  b.decideT-=dt;
+  if(b.decideT<=0){
+    b.decideT=0.32-b.skill*0.2;   // reaction interval
+    decideBot(b);
+  }
+  var moving=b.running&&b.stun<=0&&G.phase==='race';
+  stepRunner(b,dt,moving);
+}
+function decideBot(b){
+  var approach=4.0+b.skill*2.2;
+  var buf=0.25+b.skill*0.55;
+  var nearest=null,nd=1e9;
+  for(var i=0;i<obstacles.length;i++){
+    var o=obstacles[i];if(o.boost)continue;
+    var d=o.z-b.z;
+    if(d>-0.5&&d<approach&&d<nd){nd=d;nearest=o;}
+  }
+  b.running=true;
+  if(!nearest)return;
+  if(nearest.steer){
+    // steer toward the safe lane; brake only if about to clip at current x
+    // (small fixed margin, NOT skill-buf, so a steered-aside runner never freezes)
+    b.targetX=clamp(nearest.safeX(b.x),-X_CLAMP,X_CLAMP);
+    if(nd<1.4 && nearest.blocked(b.x,0.12))b.running=false;
+  } else if(nearest.timing){
+    // stop and wait if our lane is currently dangerous
+    if(nearest.blocked(b.x,buf))b.running=false;
+    // pendulum: a side lane may be clear → try to slip aside
+    if(nearest.blocked(b.x,buf)){
+      var tryL=clamp(b.x-1.8,-X_CLAMP,X_CLAMP),tryR=clamp(b.x+1.8,-X_CLAMP,X_CLAMP);
+      if(!nearest.blocked(tryR,buf)){b.targetX=tryR;}
+      else if(!nearest.blocked(tryL,buf)){b.targetX=tryL;}
+    }
+  }
+}
+
+/* ── shared runner step (forward + lateral + collisions) ───────────── */
+function stepRunner(r,dt,moving){
+  // boost decay
+  if(r.boost>0)r.boost-=dt;
+  // lateral easing
+  r.x+=(r.targetX-r.x)*Math.min(1,dt*11);
+  r.x=clamp(r.x,-X_CLAMP,X_CLAMP);
+  // forward speed
+  var spTarget=moving?(r.baseSpeed*(r.boost>0?1.7:1)):0;
+  r.v+=(spTarget-r.v)*Math.min(1,dt*7);
+  if(r.stun>0){r.v=0;}
+  r.z+=r.v*dt;
+  r.dist+=Math.abs(r.v)*dt;
+  // timers
+  if(r.stun>0)r.stun-=dt;
+  if(r.invuln>0)r.invuln-=dt;
+  // collisions
+  if(r.stun<=0&&r.invuln<=0){
+    for(var i=0;i<obstacles.length;i++){
+      var o=obstacles[i];
+      if(Math.abs(o.z-r.z)>3.5)continue;
+      if(o.boost){ if(o.inZone(r.z)&&r.boost<=0){r.boost=1.3;if(r.isPlayer)beep('boost');} continue; }
+      if(o.hits(r.x,r.z,RUN_R)){
+        r.stun=STUN_TIME;r.invuln=STUN_TIME+0.35;r.v=0;
+        r.z=Math.max(0,r.z-KNOCKBACK);
+        if(r.isPlayer){beep('hit');flashHit();}
+        break;
+      }
+    }
+  }
+  // finish
+  if(!r.finished&&r.z>=trackLen){
+    r.finished=true;r.finishT=G.raceTime;r.z=trackLen;
+    G.finishOrder.push(r);r.place=G.finishOrder.length;
+    if(r.isPlayer){ if(IS_MP)onMyFinishOnline(); else onPlayerFinish(); }
+  }
+  // apply transform + animation
+  r.model.group.position.set(r.x,0,r.z);
+  r.model.update(r.dist*2.0,moving&&r.stun<=0,r.stun);
+}
+
+function flashHit(){
+  var f=$i('hitFlash');f.classList.add('show');
+  setTimeout(function(){f.classList.remove('show');},120);
+}
+
+/* ── camera + HUD ──────────────────────────────────────────────────── */
+function updateCamera(dt){
+  var p=player();
+  var tx=p.x*0.45, ty=5.4, tz=p.z-9.0;
+  var k=Math.min(1,dt*4.5);
+  cam.position.x+=(tx-cam.position.x)*k;
+  cam.position.y+=(ty-cam.position.y)*k;
+  cam.position.z+=(tz-cam.position.z)*k;
+  cam.lookAt(p.x*0.3,1.3,p.z+6);
+}
+function updateHUD(){
+  var p=player();
+  // live placement = 1 + runners ahead in z (or by finish order if finished)
+  var place=1;
+  for(var i=0;i<runners.length;i++){
+    if(runners[i]===p)continue;
+    var ahead = runners[i].finished ? (p.finished? runners[i].finishT<p.finishT : true)
+                                    : (runners[i].z>p.z);
+    if(ahead)place++;
+  }
+  $i('hudPlace').textContent=place;
+  $i('hudDist').textContent=Math.min(100,Math.round(p.z/trackLen*100))+'%';
+}
+
+/* ── FINISH / RESULTS ──────────────────────────────────────────────── */
+var ORD=['الأول','الثاني','الثالث','الرابع'];
+var MEDAL=['🥇','🥈','🥉','🏁'];
+function onPlayerFinish(){
+  // resolve any not-yet-finished runners by current z for final standings
+  var rest=runners.filter(function(r){return !r.finished;}).sort(function(a,b){return b.z-a.z;});
+  for(var i=0;i<rest.length;i++){if(!rest[i].finished){rest[i].finished=true;rest[i].place=G.finishOrder.length+1;G.finishOrder.push(rest[i]);}}
+  G.phase='finished';
+  var place=player().place;
+  var stars=4-place;            // 1st→3, 2nd→2, 3rd→1, 4th→0
+  if(stars<0)stars=0;
+  beep(place===1?'win':'lose');
+  // save stars / unlock
+  var prev=save.stars[G.level]||0;
+  if(stars>prev)save.stars[G.level]=stars;
+  if(place<=3 && save.unlocked<Math.min(TOTAL_LEVELS,G.level+1))save.unlocked=Math.min(TOTAL_LEVELS,G.level+1);
+  persist();
+  showResults(place,stars);
+}
+function showResults(place,stars){
+  $i('endTitle').innerHTML=MEDAL[place-1]+' المركز '+ORD[place-1]+(place===1?'!':'');
+  // stars
+  var sr=$i('endStars');sr.innerHTML='';
+  for(var i=0;i<3;i++){
+    var sv=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    sv.setAttribute('viewBox','0 0 24 24');sv.classList.add('star-svg');
+    if(i<stars){sv.classList.add('earned');sv.style.transitionDelay=(i*.18)+'s';}
+    sv.innerHTML='<polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="'+(i<stars?'#ffcf3f':'rgba(255,255,255,.12)')+'"/>';
+    sr.appendChild(sv);
+  }
+  // standings
+  var order=G.finishOrder.slice().sort(function(a,b){return a.place-b.place;});
+  var html='';
+  for(var i=0;i<order.length;i++){
+    var r=order[i];
+    html+='<div class="res-row'+(r.isPlayer?' me':'')+'">'+
+      '<span class="res-pos">'+r.place+'</span>'+
+      '<span class="res-swatch" style="background:'+r.pal.dot+'"></span>'+
+      '<span class="res-name">'+r.pal.name+'</span>'+
+      (r.isPlayer?'<span>👈</span>':'')+'</div>';
+  }
+  $i('endResults').innerHTML=html;
+  // next button label / lock
+  var isLast=G.level>=TOTAL_LEVELS;
+  var canAdvance=place<=3 && !isLast;
+  var nb=$i('btnNext');
+  if(isLast){
+    nb.textContent='🏆 أنهيت كل المستويات!';nb.disabled=false;
+    nb.onclick=function(){startLevel(1);};
+    try{if(window.FlutterBridge&&FlutterBridge.postMessage)FlutterBridge.postMessage('gameOver');}catch(e){}
+  } else if(canAdvance){
+    nb.textContent='المستوى التالي ◀';nb.disabled=false;
+    nb.onclick=function(){startLevel(G.level+1);};
+  } else {
+    nb.textContent='حاول مجدداً لتتأهل';nb.disabled=false;
+    nb.onclick=function(){startLevel(G.level);};
+  }
+  setTimeout(function(){$i('endOverlay').classList.add('show');},700);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ONLINE 1v1 MULTIPLAYER  (Firebase RTDB — same contract as chess/monopoly)
+   rooms/<room>/funrace : seats{0,1} · players{0,1} · match{seed} ·
+                          ctrl{startTs} · state{0,1} · finish{0,1} · rematch
+   ══════════════════════════════════════════════════════════════════════ */
+function showWaitOverlay(){var w=$i('waitOverlay');if(w)w.classList.add('show');}
+function hideWaitOverlay(){var w=$i('waitOverlay');if(w)w.classList.remove('show');}
+function showWaitFail(msg){
+  if(_watchdog){clearTimeout(_watchdog);_watchdog=null;}
+  var sp=$i('waitSpin');if(sp)sp.style.display='none';
+  $i('waitTitle').textContent='تعذّر الاتصال';
+  $i('waitMsg').innerHTML=msg;
+  var b=$i('waitSolo');if(b)b.style.display='';
+}
+function showToastMsg(m){var t=$i('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2200);}
+function formatT(s){return (Math.round(s*10)/10).toFixed(1)+' ث';}
+
+async function initFirebase(){
+  var stage=function(m){var t=$i('waitTitle');if(t)t.textContent=m;};
+  _watchdog=setTimeout(function(){showWaitFail('انتهت المهلة. تحقّق من الاتصال.');},9000);
+  try{
+    if(typeof firebase==='undefined')throw new Error('تعذّر تحميل خدمة الاتصال.');
+    stage('تهيئة الاتصال'); var app=firebase.initializeApp(_fbConfig);
+    stage('تسجيل الدخول'); var _auth=firebase.auth(app);
+    try{await _auth.setPersistence(firebase.auth.Auth.Persistence.NONE);}catch(_){}
+    var cred=await Promise.race([_auth.signInAnonymously(),
+      new Promise(function(_,rej){setTimeout(function(){rej(new Error('انتهت مهلة تسجيل الدخول'));},7000);})]);
+    MY_UID=(cred&&cred.user&&cred.user.uid)||('u'+Date.now()+Math.random());
+    stage('فتح الغرفة'); _db=firebase.database(app);
+    _roomRef=_db.ref('rooms/'+ROOM_ID+'/'+GAME_KEY); _connectedAt=Date.now();
+    stage('الانضمام للغرفة');
+    var seatRef=_roomRef.child('seats');
+    var claim=await seatRef.transaction(function(seats){ seats=seats||{};
+      if(seats['0']===MY_UID)return seats; if(seats['1']===MY_UID)return seats;
+      var hint=(MY_IDX===1)?1:0;
+      if(seats[String(hint)]==null){seats[String(hint)]=MY_UID;return seats;}
+      var other=String(1-hint); if(seats[other]==null){seats[other]=MY_UID;return seats;} return; });
+    if(!claim.committed||!claim.snapshot.exists())throw new Error('الغرفة ممتلئة.');
+    var seats=claim.snapshot.val()||{}; MY_IDX=(seats['0']===MY_UID)?0:1; IS_HOST=(MY_IDX===0);
+    ME=MY_IDX; OPP=1-ME;
+    seatRef.child(String(MY_IDX)).onDisconnect().remove();
+    await _roomRef.child('players/'+MY_IDX).set(true);
+    _roomRef.child('players/'+MY_IDX).onDisconnect().remove();
+    if(_watchdog){clearTimeout(_watchdog);_watchdog=null;}
+    stage('بانتظار الخصم'); var wm=$i('waitMsg'); if(wm)wm.textContent='شارك الرابط لينضم صديقك… (1/2)';
+    seatRef.on('value',function(snap){ var s=snap.val()||{},count=(s['0']?1:0)+(s['1']?1:0);
+      if(count>=2 && !_bothPresent){ _bothPresent=true; onBothPresent(); }
+      else if(_bothPresent && count<2){ onOppLeft(); }
+      else if(!_bothPresent && wm){ wm.textContent='بانتظار الخصم… ('+count+'/2)'; }
+    });
+  }catch(e){ console.error(e); showWaitFail((e&&e.message)||'خطأ غير معروف'); }
+}
+
+function onBothPresent(){
+  hideWaitOverlay();
+  // host seeds the match once; both react to the seed
+  _roomRef.child('match').transaction(function(cur){return cur||{seed:(Math.random()*1e9|0)+1,ts:Date.now()};});
+  _roomRef.child('match').on('value',function(s){ var m=s.val(); if(m&&m.seed!==_lastSeed){ _lastSeed=m.seed; startOnlineRace(m.seed); }});
+  _roomRef.child('ctrl').on('value',function(s){ var c=s.val(); if(c&&typeof c.startTs==='number'){ _goAt=c.startTs+3500; _cdLast=''; if(G.phase!=='race')G.phase='count'; }});
+  _roomRef.child('state/'+OPP).on('value',function(s){ var v=s.val(); var o=runners[OPP]; if(!v||!o)return;
+    o.netX=v.x; o.netZ=v.z; o.netMoving=!!v.mv; o.netStun=!!v.st; if(v.f)o.netZ=Math.max(o.netZ,trackLen); });
+  _roomRef.child('finish/'+OPP).on('value',function(s){ var v=s.val(); if(!v)return; _oppFinishT=v.t;
+    if(runners[OPP]){runners[OPP].finished=true;runners[OPP].finishT=v.t;} resolveOnline(); });
+  _roomRef.child('rematch').on('value',function(s){ var v=s.val(); if(v&&v.ts>_connectedAt&&IS_HOST) hostRematch(); });
+}
+
+function startOnlineRace(seed){
+  _resultShown=false;_myFinishT=0;_oppFinishT=0;_oppLeft=false;_goAt=0;_cdLast='';_netT=0;
+  G.seed=seed;G.level=ONLINE_LEVEL;G.raceTime=0;_acc=0;G.finishOrder=[];
+  hideWaitOverlay();
+  $i('endOverlay').classList.remove('show');
+  $i('startOverlay').classList.remove('show');
+  $i('btnRetry').style.display='none';
+  buildLevel(ONLINE_LEVEL); makeRunners(2); buildLadder(2);
+  $i('hudLevel').textContent='🆚'; $i('hudPlace').textContent='1'; $i('hudDist').textContent='0%';
+  $i('hint').classList.remove('hidden');
+  cam.position.set(0,6,-9);
+  G.phase='count';
+  if(IS_HOST&&_roomRef) _roomRef.child('ctrl').set({startTs:firebase.database.ServerValue.TIMESTAMP});
+}
+
+function tickCountdown(){
+  if(!_goAt||!runners[ME])return;
+  var rem=_goAt-Date.now(), cd=$i('countdown');
+  if(rem<=0){ G.phase='race';G.raceTime=0;_acc=0;_netT=0; cd.classList.remove('show'); _cdLast='__go'; return; }
+  var label=rem>2500?'3':rem>1500?'2':rem>500?'1':'انطلق!';
+  if(label!==_cdLast){ _cdLast=label; cd.textContent=label; cd.classList.remove('show'); void cd.offsetWidth; cd.classList.add('show'); beep(label==='انطلق!'?'go':'count'); }
+}
+
+function sendMyState(){
+  if(!_roomRef)return; var p=runners[ME]; if(!p)return;
+  _roomRef.child('state/'+ME).set({ x:Math.round(p.x*100)/100, z:Math.round(p.z*100)/100, mv:(p.v>0.5), st:(p.stun>0), f:p.finished?1:0 });
+}
+
+function smoothOpp(dt){
+  var o=runners[OPP]; if(!o)return;
+  o.x+=(o.netX-o.x)*Math.min(1,dt*10);
+  o.z+=(o.netZ-o.z)*Math.min(1,dt*7);
+  var adv=o.z-o._lastZ; o._lastZ=o.z; if(adv>0)o.dist+=adv;
+  var moving=o.netMoving && o.z<trackLen;
+  o.model.group.position.set(o.x,0,o.z);
+  o.model.update(o.dist*2.0, moving, o.netStun?0.5:0);
+}
+
+function onMyFinishOnline(){
+  _myFinishT=G.raceTime; beep('go');
+  if(_roomRef)_roomRef.child('finish/'+ME).set({t:_myFinishT,ts:Date.now()});
+  if(_oppFinishT<=0 && !_oppLeft) showToastMsg('🏁 وصلت! بانتظار الخصم…');
+  resolveOnline();
+}
+function onOppLeft(){ _oppLeft=true; if(!_resultShown) showOnlineResult('win','🚪 غادر الخصم'); }
+function resolveOnline(){
+  if(_resultShown)return;
+  if(_oppLeft){ showOnlineResult('win','🚪 غادر الخصم'); return; }
+  if(_myFinishT>0 && _oppFinishT>0){
+    var r=Math.abs(_myFinishT-_oppFinishT)<0.01?'tie':(_myFinishT<_oppFinishT?'win':'lose');
+    showOnlineResult(r,'');
+  }
+}
+function showOnlineResult(result,note){
+  if(_resultShown)return; _resultShown=true; G.phase='finished';
+  $i('endTitle').innerHTML = result==='win'?'🏆 فزت!' : result==='lose'?'😞 خسرت' : '🤝 تعادل';
+  $i('endStars').innerHTML='';
+  var rows=[{name:'أنت',t:_myFinishT,me:true,dot:PAL[ME].dot},{name:OPP_NAME,t:_oppFinishT,me:false,dot:PAL[OPP].dot}];
+  rows.sort(function(a,b){return (a.t||1e9)-(b.t||1e9);});
+  var html='';
+  for(var i=0;i<rows.length;i++){ var r=rows[i];
+    html+='<div class="res-row'+(r.me?' me':'')+'"><span class="res-pos">'+(i+1)+'</span>'+
+      '<span class="res-swatch" style="background:'+r.dot+'"></span>'+
+      '<span class="res-name">'+r.name+'</span>'+
+      '<span class="res-time">'+(r.t>0?formatT(r.t):'—')+'</span></div>';
+  }
+  if(note)html+='<div class="instructions" style="margin-top:8px">'+note+'</div>';
+  $i('endResults').innerHTML=html;
+  var nb=$i('btnNext'); nb.textContent='سباق جديد ↻'; nb.disabled=false; nb.onclick=requestRematch;
+  $i('btnRetry').style.display='none';
+  beep(result==='win'?'win':result==='lose'?'lose':'go');
+  try{if(window.FlutterBridge&&FlutterBridge.postMessage)FlutterBridge.postMessage('gameOver');}catch(e){}
+  setTimeout(function(){$i('endOverlay').classList.add('show');},500);
+}
+function requestRematch(){
+  $i('endOverlay').classList.remove('show');
+  if(IS_HOST) hostRematch();
+  else { if(_roomRef)_roomRef.child('rematch').set({from:MY_IDX,ts:Date.now()}); $i('btnNext').textContent='بانتظار المضيف…'; }
+}
+function hostRematch(){
+  if(!_roomRef)return;
+  _roomRef.child('finish').remove(); _roomRef.child('state').remove();
+  _roomRef.child('match').set({seed:(Math.random()*1e9|0)+1,ts:Date.now()});
+}
+
+/* ── MAIN LOOP (fixed-timestep sim for stable, jank-free motion) ────── */
+var _acc=0, FIXED=1/60, _domT=0;
+function stepSim(h){
+  for(var i=0;i<obstacles.length;i++)obstacles[i].update(h);
+  G.raceTime+=h;
+  updatePlayer(h);
+  if(!IS_MP){ for(var b=1;b<runners.length;b++)updateBot(runners[b],h); }
+}
+function loop(){
+  requestAnimationFrame(loop);
+  var dt=Math.min(clock.getDelta(),0.1);
+  // Throttle DOM-heavy HUD / ladder writes to ~12 Hz. Fewer style/layout recalcs
+  // per second keeps WebView frames smooth; the 3D scene still renders every frame
+  // and the ladder dots ease via their CSS transition between updates.
+  _domT+=dt; var domTick=(_domT>=0.08); if(domTick)_domT=0;
+  if(IS_MP && G.phase==='count') tickCountdown();   // server-clock countdown → flips to 'race'
+  if(G.phase==='race' && runners[ME]){
+    _acc+=dt;var n=0;
+    while(_acc>=FIXED && n<5){stepSim(FIXED);_acc-=FIXED;n++;}
+    if(n>=5)_acc=0;                 // anti-spiral on a long frame hitch
+    if(IS_MP){ _netT+=dt; if(_netT>=0.09){_netT=0;sendMyState();} }
+    if(domTick)updateHUD();
+  } else {
+    // idle animation for menu / countdown / finished
+    for(var i=0;i<obstacles.length;i++)obstacles[i].update(dt);
+    for(var j=0;j<runners.length;j++){ if(IS_MP&&j===OPP)continue; var r=runners[j];r.model.group.position.set(r.x,0,r.z);r.model.update(0,false,r.stun);}
+  }
+  if(IS_MP && runners[OPP]) smoothOpp(dt);           // opponent driven by network state
+  if(runners.length){ if(domTick)updateLadder(); updateCamera(dt);}
+  renderer.render(scene,cam);
+}
+
+/* ── BUTTONS ───────────────────────────────────────────────────────── */
+function tap(el,cb){
+  el.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();initAudio();cb();},{passive:false});
+  el.addEventListener('mousedown',function(e){e.stopPropagation();initAudio();cb();});
+}
+tap($i('btnStart'),function(){startLevel(save.unlocked||1);});
+tap($i('btnRetry'),function(){startLevel(G.level);});
+// btnNext handler is set per-result in showResults / showOnlineResult
+tap($i('waitCancel'),function(){ try{if(window.FlutterBridge&&FlutterBridge.postMessage)FlutterBridge.postMessage('gameOver');}catch(e){} try{history.back();}catch(e){} });
+tap($i('waitSolo'),function(){ hideWaitOverlay(); IS_MP=false; ME=0; OPP=1; startLevel(1); });
+
+/* ── INIT ──────────────────────────────────────────────────────────── */
+function init(){
+  initThree();
+  if(IS_MP){
+    // online: skip the solo menu, connect straight away
+    buildLevel(ONLINE_LEVEL); makeRunners(2); buildLadder(2); G.phase='menu';
+    cam.position.set(0,6,-9);
+    $i('startOverlay').classList.remove('show');
+    showWaitOverlay();
+    loop();
+    initFirebase();
+  } else {
+    // offline: preview world behind the menu
+    buildLevel(1); makeRunners(4); buildLadder(4); G.phase='menu';
+    cam.position.set(2,5,-6); cam.lookAt(0,1,8);
+    loop();
+  }
+}
+init();
+})();
+</script>
+</body>
+</html>
