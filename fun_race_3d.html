@@ -29,21 +29,6 @@ canvas{display:block;width:100%;height:100%}
   border:2px solid rgba(0,0,0,.35);transition:bottom .12s linear}
 .runner-dot.me{width:18px;height:18px;border:2px solid #fff;box-shadow:0 0 8px rgba(255,255,255,.6);z-index:2}
 
-/* ── live head-to-head progress bar (online only) ── */
-#vsBar{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:96;
-  width:min(440px,calc(100% - 20px));background:rgba(8,16,26,0.80);
-  border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:8px 12px;
-  display:none;flex-direction:column;gap:7px;pointer-events:none;direction:ltr;
-  box-shadow:0 4px 16px rgba(0,0,0,.3)}
-.vs-row{display:flex;align-items:center;gap:8px}
-.vs-name{font-size:11px;font-weight:800;width:54px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;color:rgba(255,255,255,.8)}
-.vs-track{position:relative;flex:1;height:11px;background:rgba(255,255,255,0.13);border-radius:99px}
-.vs-fill{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:99px;transition:width .14s linear}
-.vs-flag{position:absolute;top:50%;right:1px;transform:translateY(-50%);font-size:10px;opacity:.6;line-height:1}
-.vs-marker{position:absolute;top:50%;left:0;transform:translate(-50%,-50%);font-size:14px;line-height:1;transition:left .14s linear;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
-.vs-pct{font-size:11px;font-weight:800;width:32px;text-align:left;flex:0 0 auto;color:#fff;font-variant-numeric:tabular-nums}
-.vs-row.lead .vs-name,.vs-row.lead .vs-pct{color:#ffcf3f}
-
 /* ── overlays ── */
 .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:500;background:rgba(6,12,20,0.82);opacity:0;pointer-events:none;transition:opacity .4s}
 .overlay.show{opacity:1;pointer-events:auto}
@@ -102,25 +87,11 @@ canvas{display:block;width:100%;height:100%}
   <div class="hud-card"><div class="hud-label">المركز</div><div class="hud-value gold" id="hudPlace">1</div></div>
   <div class="hud-card"><div class="hud-label">المستوى</div><div class="hud-value" id="hudLevel">1</div></div>
 </div>
-<div class="place-badge" id="distBadge"><div class="hud-label">المسافة</div><div class="hud-value" id="hudDist">0%</div></div>
+<div class="place-badge"><div class="hud-label">المسافة</div><div class="hud-value" id="hudDist">0%</div></div>
 
 <div class="ladder" id="ladder">
   <div class="ladder-rail"></div>
   <div class="ladder-finish"></div>
-</div>
-
-<!-- live head-to-head progress (online races only) -->
-<div id="vsBar">
-  <div class="vs-row" id="vsMeRow">
-    <span class="vs-name" id="vsMeName">أنت</span>
-    <div class="vs-track"><div class="vs-fill" id="vsMeFill"></div><span class="vs-flag">🏁</span><span class="vs-marker" id="vsMeMark">🏃</span></div>
-    <span class="vs-pct" id="vsMePct">0%</span>
-  </div>
-  <div class="vs-row" id="vsOppRow">
-    <span class="vs-name" id="vsOppName">الخصم</span>
-    <div class="vs-track"><div class="vs-fill" id="vsOppFill"></div><span class="vs-flag">🏁</span><span class="vs-marker" id="vsOppMark">🏃</span></div>
-    <span class="vs-pct" id="vsOppPct">0%</span>
-  </div>
 </div>
 
 <div class="countdown" id="countdown">3</div>
@@ -330,6 +301,19 @@ function makeRunner(pal){
       else{g.rotation.z=0;g.rotation.x=0;}
     }
   };
+}
+
+/* floating name tag (billboard sprite) — marks the live opponent above their runner */
+function makeLabelSprite(text){
+  var cv=document.createElement('canvas');cv.width=256;cv.height=64;
+  var x=cv.getContext('2d');
+  x.font='bold 34px Segoe UI, sans-serif';x.textAlign='center';x.textBaseline='middle';
+  x.lineWidth=7;x.strokeStyle='rgba(0,0,0,0.92)';x.strokeText(text,128,36);   // outline so it reads on any background
+  x.fillStyle='#ffffff';x.fillText(text,128,36);
+  var tex=new THREE.CanvasTexture(cv);tex.anisotropy=MAX_ANISO;
+  var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,depthWrite:false}));
+  sp.scale.set(2.4,0.6,1);sp.position.set(0,2.8,0);sp.renderOrder=10;   // depthTest off → stays visible even behind obstacles
+  return sp;
 }
 
 /* ── WORLD: track, rails, finish, scenery ──────────────────────────── */
@@ -586,6 +570,7 @@ function makeRunners(count){
     var model=makeRunner(pal);
     scene.add(model.group);
     var isMe=IS_MP?(i===ME):(i===0);
+    if(IS_MP && !isMe) model.group.add(makeLabelSprite(OPP_NAME));   // live opponent's name floats above them
     var skill=isMe?1:rand(0.5,0.9);     // bots imperfect
     runners.push({
       model:model,isPlayer:isMe,isNet:(IS_MP&&i!==ME),pal:pal,
@@ -621,18 +606,6 @@ function updateLadder(){
     var frac=Math.max(0,Math.min(1,runners[i].z/trackLen));
     ladderDots[i].style.bottom=(frac*100)+'%';
   }
-}
-/* live head-to-head progress bar — both runners' advancement, updated at the DOM tick */
-function updateVsBar(){
-  if(!runners[ME])return;
-  var me=runners[ME], op=runners[OPP];
-  var mp =Math.max(0,Math.min(100, me.z/trackLen*100));
-  var op2=op?Math.max(0,Math.min(100, op.z/trackLen*100)):0;
-  $i('vsMeFill').style.width =mp.toFixed(1)+'%'; $i('vsMeMark').style.left =mp.toFixed(1)+'%'; $i('vsMePct').textContent =Math.round(mp)+'%';
-  $i('vsOppFill').style.width=op2.toFixed(1)+'%';$i('vsOppMark').style.left=op2.toFixed(1)+'%';$i('vsOppPct').textContent=Math.round(op2)+'%';
-  var meLead=mp>=op2;                                  // gold-highlight whoever's ahead
-  $i('vsMeRow').classList.toggle('lead',meLead);
-  $i('vsOppRow').classList.toggle('lead',!meLead);
 }
 
 /* ── INPUT ─────────────────────────────────────────────────────────── */
@@ -692,8 +665,6 @@ function startLevel(level){
   G.level=level;G.phase='count';G.raceTime=0;G.finishOrder=[];_acc=0;
   G.seed=(Math.random()*1e9|0)+1;                 // fresh offline layout each run
   buildLevel(level);makeRunners(4);buildLadder(4);
-  $i('ladder').style.display=''; var _db=$i('distBadge'); if(_db)_db.style.display='';
-  var _vb=$i('vsBar'); if(_vb)_vb.style.display='none';   // solo uses the vertical ladder
   $i('btnRetry').style.display='';
   $i('endOverlay').classList.remove('show');
   $i('startOverlay').classList.remove('show');
@@ -977,15 +948,6 @@ function startOnlineRace(seed){
   $i('startOverlay').classList.remove('show');
   $i('btnRetry').style.display='none';
   buildLevel(ONLINE_LEVEL); makeRunners(2); buildLadder(2);
-  // online: show the live head-to-head bar, hide the solo ladder + distance badge
-  $i('ladder').style.display='none';
-  var _db=$i('distBadge'); if(_db)_db.style.display='none';
-  var _vb=$i('vsBar'); if(_vb)_vb.style.display='flex';
-  $i('vsMeName').textContent='أنت'; $i('vsOppName').textContent=OPP_NAME;
-  $i('vsMeFill').style.background=PAL[ME].dot; $i('vsOppFill').style.background=PAL[OPP].dot;
-  $i('vsMeFill').style.width='0%'; $i('vsOppFill').style.width='0%';
-  $i('vsMeMark').style.left='0%'; $i('vsOppMark').style.left='0%';
-  $i('vsMePct').textContent='0%'; $i('vsOppPct').textContent='0%';
   $i('hudLevel').textContent='🆚'; $i('hudPlace').textContent='1'; $i('hudDist').textContent='0%';
   $i('hint').classList.remove('hidden');
   cam.position.set(0,6,-9);
@@ -1091,7 +1053,7 @@ function loop(){
     for(var j=0;j<runners.length;j++){ if(IS_MP&&j===OPP)continue; var r=runners[j];r.model.group.position.set(r.x,0,r.z);r.model.update(0,false,r.stun);}
   }
   if(IS_MP && runners[OPP]) smoothOpp(dt);           // opponent driven by network state
-  if(runners.length){ if(domTick){ if(IS_MP)updateVsBar(); else updateLadder(); } updateCamera(dt);}
+  if(runners.length){ if(domTick)updateLadder(); updateCamera(dt);}
   renderer.render(scene,cam);
 }
 
