@@ -592,9 +592,10 @@ function finishLocalMove(){
   curMove.promote=promoted;
   lastMove=curMove.wps.map(p=>p.slice());
   noProgress = (curMove.caps.length>0 || !curMove.startKing) ? 0 : noProgress+1;
-  if(IS_MP) pushMove(curMove);
+  const m=curMove;
   selected=null; curSteps=[]; lockPiece=null; curMove=null;
-  turn = pl===0?1:0;
+  turn = pl===0?1:0;              // switch turn BEFORE broadcasting so the opponent receives their own turn
+  if(IS_MP) pushMove(m);
   afterMove();
 }
 function afterMove(){
@@ -679,10 +680,10 @@ function commitFullMove(m, broadcast){
   const end=m.wps[m.wps.length-1], pl=owner(bd[end[0]*8+end[1]]);
   lastMove=m.wps.map(p=>p.slice());
   noProgress = (m.caps.length>0 || !startKing) ? 0 : noProgress+1;
-  if(broadcast && IS_MP) pushMove(m);
   seqLock=true; startSeqAnim(m.wps, caps, bd[end[0]*8+end[1]]);
   selected=null; curSteps=[]; lockPiece=null; curMove=null;
-  turn = pl===0?1:0;
+  turn = pl===0?1:0;             // switch turn BEFORE broadcasting
+  if(broadcast && IS_MP) pushMove(m);
   afterMove();
 }
 
