@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0c0c10">
+<title>خمسة على التوالي</title>
+<!-- Firebase SDK (shared InGames realtime backend) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:radial-gradient(125% 90% at 50% 0%,#1c1a26 0%,#0d0c11 55%,#070709 100%)}
+body{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+
+/* ── HUD ── */
+#hud{width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 10px;
+  background:linear-gradient(180deg,rgba(0,0,0,.42),rgba(0,0,0,.04));flex-shrink:0;gap:6px}
+.pcard{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:15px;flex:1 1 0;min-width:0;max-width:150px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);
+  transition:border-color .3s,box-shadow .3s,background .3s}
+.pcard.r2{flex-direction:row-reverse;text-align:left}
+.pcard.active{border-color:rgba(227,192,101,.5);background:rgba(227,192,101,.07);
+  box-shadow:0 0 18px rgba(227,192,101,.15)}
+.stone-ico{width:26px;height:26px;border-radius:50%;flex-shrink:0;
+  box-shadow:0 2px 5px rgba(0,0,0,.5),inset 0 2px 3px rgba(255,255,255,.35),inset 0 -3px 5px rgba(0,0,0,.5)}
+.stone-ico.b{background:radial-gradient(circle at 34% 30%,#6a6a76 0%,#23232b 45%,#070709 100%)}
+.stone-ico.w{background:radial-gradient(circle at 34% 30%,#ffffff 0%,#e7eaf0 45%,#bcc2cd 100%)}
+.pcard .meta{min-width:0}
+.pcard .name{font-size:.76rem;color:rgba(255,255,255,.85);font-weight:800;letter-spacing:.3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .cnt{font-size:.66rem;color:rgba(255,255,255,.42);font-weight:700;margin-top:1px}
+#title{display:flex;flex-direction:column;align-items:center;flex-shrink:0;padding:0 2px}
+#title .ico{font-size:1rem;letter-spacing:-3px;margin-bottom:1px}
+#title .txt{font-size:.6rem;color:rgba(227,192,101,.85);letter-spacing:2px;font-weight:800;white-space:nowrap}
+
+/* ── Board ── */
+#board-wrap{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:8px;min-height:0}
+#board-outer{position:relative;padding:12px;border-radius:16px;
+  background:linear-gradient(150deg,#6b4a27 0%,#4a3119 55%,#321f0e 100%);
+  box-shadow:0 16px 40px rgba(0,0,0,.55),0 2px 0 rgba(255,255,255,.06) inset,
+             0 -3px 8px rgba(0,0,0,.45) inset}
+canvas#board{display:block;border-radius:6px;touch-action:none}
+
+/* ── Bottom ── */
+#bot{width:100%;flex-shrink:0;background:linear-gradient(0deg,rgba(0,0,0,.46),rgba(0,0,0,.08));
+  border-top:1px solid rgba(227,192,101,.1);padding:11px 16px;min-height:52px;
+  display:flex;align-items:center;justify-content:center;gap:12px;position:relative}
+#msg{font-size:.82rem;color:rgba(255,255,255,.62);text-align:center;font-weight:700;letter-spacing:.3px}
+#msg .live{display:inline-block;width:7px;height:7px;border-radius:50%;background:#e3c065;margin-inline-start:6px;
+  vertical-align:middle;animation:blink 1.1s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+#menu-btn{position:absolute;inset-inline-start:14px;top:50%;transform:translateY(-50%);
+  width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  color:rgba(255,255,255,.6);font-size:1.05rem;display:none;align-items:center;justify-content:center;cursor:pointer}
+#menu-btn:active{transform:translateY(-50%) scale(.9)}
+
+/* ── Buttons ── */
+.btn{background:linear-gradient(135deg,#e7c873,#bd932f);color:#1a1409;border:none;border-radius:999px;
+  padding:13px 30px;font-size:.86rem;font-weight:800;font-family:inherit;cursor:pointer;letter-spacing:.6px;
+  box-shadow:0 4px 0 #8a6918,0 7px 16px rgba(0,0,0,.4);transition:transform .1s,box-shadow .1s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #8a6918}
+.btn.sec{background:rgba(255,255,255,.07);color:rgba(255,255,255,.72);box-shadow:none;
+  border:1px solid rgba(255,255,255,.14);padding:12px 26px}
+
+/* ── Overlays ── */
+.overlay{position:fixed;inset:0;background:rgba(7,7,10,.74);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
+.overlay.hidden{display:none}
+.card{background:linear-gradient(158deg,#221f2b,#14120d);border:1px solid rgba(227,192,101,.2);
+  border-radius:26px;padding:30px 26px;max-width:330px;width:100%;text-align:center;
+  box-shadow:0 22px 55px rgba(0,0,0,.6)}
+.card h2{font-size:1.4rem;font-weight:900;color:#e7c873;margin-bottom:6px}
+.card p{font-size:.82rem;color:rgba(255,255,255,.52);line-height:1.7;margin-bottom:22px}
+.card-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* Solo menu */
+#menu-ov .card{border-color:rgba(227,192,101,.24)}
+.mode-row{display:flex;flex-direction:column;gap:11px;margin-bottom:20px}
+.mode{display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:16px;cursor:pointer;
+  background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.08);transition:.18s;text-align:start}
+.mode:active{transform:scale(.97)}
+.mode.on{border-color:#e7c873;background:rgba(227,192,101,.1)}
+.mode .em{font-size:1.7rem;line-height:1;flex-shrink:0}
+.mode .mt{font-size:.92rem;font-weight:800;color:#fff}
+.mode .ms{font-size:.7rem;color:rgba(255,255,255,.5);margin-top:2px}
+.diff-row{display:flex;gap:8px;justify-content:center;margin-bottom:22px}
+.diff{flex:1;padding:9px 6px;border-radius:13px;font-size:.78rem;font-weight:800;cursor:pointer;
+  background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.08);color:rgba(255,255,255,.6);transition:.16s}
+.diff.on{border-color:#e7c873;background:rgba(227,192,101,.12);color:#e7c873}
+.diff-wrap{overflow:hidden;transition:max-height .25s ease,opacity .2s;max-height:0;opacity:0}
+.diff-wrap.show{max-height:90px;opacity:1}
+.diff-lbl{font-size:.66rem;color:rgba(255,255,255,.4);font-weight:700;letter-spacing:1px;margin-bottom:8px}
+
+/* Waiting */
+#wait-ov{background:rgba(9,9,13,.96)}
+#wait-ov .card{border-color:rgba(77,155,255,.32)}
+#wait-ov .card h2{color:#4d9bff}
+.spinner{width:42px;height:42px;border:3px solid rgba(77,155,255,.2);border-top-color:#4d9bff;
+  border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="pcard" id="cardB">
+    <div class="stone-ico b"></div>
+    <div class="meta"><div class="name" id="nameB">أسود</div><div class="cnt" id="cntB">0 حجر</div></div>
+  </div>
+  <div id="title"><div class="ico">⚫⚪</div><div class="txt">خمسة على التوالي</div></div>
+  <div class="pcard r2" id="cardW">
+    <div class="stone-ico w"></div>
+    <div class="meta"><div class="name" id="nameW">أبيض</div><div class="cnt" id="cntW">0 حجر</div></div>
+  </div>
+</div>
+
+<!-- Board -->
+<div id="board-wrap"><div id="board-outer"><canvas id="board"></canvas></div></div>
+
+<!-- Bottom -->
+<div id="bot">
+  <div id="menu-btn">≡</div>
+  <span id="msg">ابدأ اللعب</span>
+</div>
+
+<!-- End overlay -->
+<div class="overlay hidden" id="end-ov">
+  <div class="card">
+    <div style="font-size:3rem;margin-bottom:6px" id="end-icon">🏆</div>
+    <h2 id="end-title">فاز الأسود!</h2>
+    <p id="end-sub">خمسة على التوالي</p>
+    <div class="card-btns">
+      <button class="btn" id="btn-restart">العب مجدداً</button>
+    </div>
+  </div>
+</div>
+
+<!-- Solo start menu -->
+<div class="overlay hidden" id="menu-ov">
+  <div class="card">
+    <h2 style="margin-bottom:4px">خمسة على التوالي</h2>
+    <p style="margin-bottom:18px">رتّب خمسة أحجار على التوالي للفوز</p>
+    <div class="mode-row">
+      <div class="mode on" id="mode-ai" data-mode="ai">
+        <div class="em">🤖</div>
+        <div><div class="mt">ضد الكمبيوتر</div><div class="ms">تحدّى ذكاءً اصطناعياً</div></div>
+      </div>
+      <div class="mode" id="mode-hot" data-mode="hot">
+        <div class="em">👥</div>
+        <div><div class="mt">لاعبان</div><div class="ms">العبا على نفس الجهاز</div></div>
+      </div>
+    </div>
+    <div class="diff-wrap show" id="diff-wrap">
+      <div class="diff-lbl">مستوى الصعوبة</div>
+      <div class="diff-row">
+        <div class="diff" data-diff="easy">سهل</div>
+        <div class="diff on" data-diff="medium">متوسط</div>
+        <div class="diff" data-diff="hard">صعب</div>
+      </div>
+    </div>
+    <button class="btn" id="btn-start" style="width:100%">ابدأ</button>
+  </div>
+</div>
+
+<!-- Waiting overlay (online) -->
+<div class="overlay hidden" id="wait-ov">
+  <div class="card">
+    <div class="spinner"></div>
+    <h2 id="wait-title">جارٍ الاتصال...</h2>
+    <p id="wait-msg">يرجى الانتظار</p>
+    <button class="btn sec" id="btn-cancel" style="margin-top:4px">إلغاء</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+// ══════════════════════════════════════════════════
+// URL PARAMS  ?room=&player=0|1&token=&name=&oppName=
+// ══════════════════════════════════════════════════
+const params    = new URLSearchParams(location.search);
+const ROOM_ID   = params.get('room');
+const MY_IDX    = parseInt(params.get('player') || '0', 10);   // 0 = black (first), 1 = white
+const IS_MP     = !!ROOM_ID;
+const MY_COLOR  = MY_IDX === 0 ? 'b' : 'w';
+const _authToken = params.get('token');
+const MY_NAME   = params.get('name')    || '';
+const OPP_NAME  = params.get('oppName') || '';
+
+const _fbConfig = {
+  apiKey:            "AIzaSyD3w3nzf89A7HYjtCsNkQjvVaCJqes0Jzs",
+  authDomain:        "ingames-9c93b.firebaseapp.com",
+  databaseURL:       "https://ingames-9c93b-default-rtdb.firebaseio.com",
+  projectId:         "ingames-9c93b",
+  storageBucket:     "ingames-9c93b.firebasestorage.app",
+  messagingSenderId: "711825788462",
+  appId:             "1:711825788462:web:bf1e4a59d4d18a543f59bf"
+};
+
+// ══════════════════════════════════════════════════
+// CONSTANTS / STATE
+// ══════════════════════════════════════════════════
+const N = 15;                 // 15×15 board
+const WIN = 5;                // 5 in a row
+const STAR = [[3,3],[3,7],[3,11],[7,3],[7,7],[7,11],[11,3],[11,7],[11,11]];
+
+let board = [];               // null | 'b' | 'w'
+let turn = 'b';               // 'b' first
+let moveCount = 0;
+let lastMove = null;          // [r,c]
+let winLine = null;           // [[r,c],...] winning stones
+let gameOver = false;
+let winner = null;            // 'b' | 'w' | null(draw)
+
+// modes
+let soloMode = 'ai';          // 'ai' | 'hot' (offline only)
+let difficulty = 'medium';
+let aiThinking = false;
+let started = false;          // whether play has begun (menu dismissed)
+const HUMAN_COLOR = 'b';      // human is black in vs-AI
+const AI_COLOR    = 'w';
+
+const inB = (r,c)=> r>=0 && r<N && c>=0 && c<N;
+const clamp = (v,a,b)=> v<a?a : v>b?b : v;
+
+function resetGame(){
+  board = Array.from({length:N},()=>Array(N).fill(null));
+  turn='b'; moveCount=0; lastMove=null; winLine=null; gameOver=false; winner=null;
+  aiThinking=false; anims.length=0; winT=0;
+}
+
+// ══════════════════════════════════════════════════
+// CANVAS RENDERING
+// ══════════════════════════════════════════════════
+const cv = document.getElementById('board');
+const cx = cv.getContext('2d');
+let BS=0, cell=0, DPR=1;
+let boardBG=null, stoneSprite={};
+let ghost=null;               // [r,c] preview
+const anims=[];               // active stone drop animations {r,c,color,start}
+let winT=0;                   // win-line pulse timer base
+let rafId=0;
+
+function xy(r,c){ return { x:(c+1)*cell, y:(r+1)*cell }; }   // intersection center (CSS px)
+
+function resize(){
+  const wrap=document.getElementById('board-wrap');
+  const cs=getComputedStyle(wrap);
+  const padX=parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight);
+  const padY=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
+  const FRAME=24;                                   // board-outer padding (12*2)
+  // content box of the wrap, hard-clamped to the viewport so the board never overflows
+  const availW=Math.min(wrap.clientWidth-padX, (window.innerWidth||wrap.clientWidth)-16);
+  const availH=wrap.clientHeight-padY;
+  const avail=Math.min(availW, availH)-FRAME-6;
+  BS=Math.max(120, Math.floor(avail));
+  cell=BS/(N+1);
+  DPR=Math.min(window.devicePixelRatio||1, 2);
+  cv.style.width=BS+'px'; cv.style.height=BS+'px';
+  cv.width=Math.round(BS*DPR); cv.height=Math.round(BS*DPR);
+  cx.setTransform(DPR,0,0,DPR,0,0);
+  buildBoardBG();
+  buildStones();
+  render();
+}
+
+// ── Pre-render wooden board + grid + star points (device resolution) ──
+function buildBoardBG(){
+  const px=Math.round(BS*DPR), sc=px/BS;
+  boardBG=document.createElement('canvas');
+  boardBG.width=boardBG.height=px;
+  const g=boardBG.getContext('2d');
+
+  // wood base
+  const grad=g.createLinearGradient(0,0,px,px);
+  grad.addColorStop(0,'#f0c886'); grad.addColorStop(.5,'#e3b06a'); grad.addColorStop(1,'#d49a52');
+  g.fillStyle=grad; g.fillRect(0,0,px,px);
+
+  // soft wood grain (baked once)
+  g.save();
+  for(let i=0;i<46;i++){
+    const yy=(i/46)*px + Math.sin(i*1.7)*px*0.012;
+    g.strokeStyle=`rgba(120,75,30,${0.04+(i%3)*0.018})`;
+    g.lineWidth=(0.6+(i%2)*0.9)*sc;
+    g.beginPath();
+    for(let x=0;x<=px;x+=px/10){ const oy=yy+Math.sin((x/px)*6+i)*px*0.006; x===0?g.moveTo(x,oy):g.lineTo(x,oy); }
+    g.stroke();
+  }
+  g.restore();
+
+  // warm radial sheen
+  const sh=g.createRadialGradient(px*0.38,px*0.32,px*0.05,px*0.5,px*0.5,px*0.75);
+  sh.addColorStop(0,'rgba(255,240,210,.28)'); sh.addColorStop(1,'rgba(120,70,25,.10)');
+  g.fillStyle=sh; g.fillRect(0,0,px,px);
+
+  // grid lines
+  g.strokeStyle='rgba(64,40,16,.82)';
+  g.lineWidth=Math.max(1, 1.15*sc);
+  g.beginPath();
+  for(let i=0;i<N;i++){
+    const p=(i+1)*cell*sc;
+    g.moveTo((1)*cell*sc, p); g.lineTo(N*cell*sc, p);   // horizontal
+    g.moveTo(p, (1)*cell*sc); g.lineTo(p, N*cell*sc);   // vertical
+  }
+  g.stroke();
+  // outer border a touch bolder
+  g.strokeStyle='rgba(54,32,12,.9)';
+  g.lineWidth=Math.max(1.4, 1.8*sc);
+  g.strokeRect(cell*sc, cell*sc, (N-1)*cell*sc, (N-1)*cell*sc);
+
+  // star points
+  g.fillStyle='rgba(54,32,12,.92)';
+  for(const [r,c] of STAR){
+    g.beginPath();
+    g.arc((c+1)*cell*sc,(r+1)*cell*sc, Math.max(2,cell*0.085*sc), 0, Math.PI*2);
+    g.fill();
+  }
+  // inner edge shading
+  g.strokeStyle='rgba(0,0,0,.14)'; g.lineWidth=Math.max(1,3*sc);
+  g.strokeRect(g.lineWidth/2,g.lineWidth/2,px-g.lineWidth,px-g.lineWidth);
+}
+
+// ── Pre-render glossy stones ──
+function buildStones(){
+  stoneSprite={};
+  const d=Math.max(10, Math.round(cell*0.92*DPR));   // diameter in device px
+  for(const color of ['b','w']){
+    const c=document.createElement('canvas'); c.width=c.height=d;
+    const g=c.getContext('2d');
+    const cxp=d/2, cyp=d/2, R=d*0.46;
+    // base sphere
+    const grad=g.createRadialGradient(cxp-R*0.32, cyp-R*0.36, R*0.12, cxp, cyp, R);
+    if(color==='b'){ grad.addColorStop(0,'#73737f'); grad.addColorStop(.42,'#2c2c34'); grad.addColorStop(1,'#060608'); }
+    else           { grad.addColorStop(0,'#ffffff'); grad.addColorStop(.5,'#eef0f4'); grad.addColorStop(1,'#bcc2cd'); }
+    g.beginPath(); g.arc(cxp,cyp,R,0,Math.PI*2); g.fillStyle=grad; g.fill();
+    // rim
+    g.lineWidth=Math.max(1, d*0.012);
+    g.strokeStyle = color==='b' ? 'rgba(0,0,0,.55)' : 'rgba(150,158,172,.6)';
+    g.stroke();
+    // specular highlight
+    const sp=g.createRadialGradient(cxp-R*0.34, cyp-R*0.4, 0, cxp-R*0.34, cyp-R*0.4, R*0.72);
+    sp.addColorStop(0, color==='b'?'rgba(255,255,255,.55)':'rgba(255,255,255,.95)');
+    sp.addColorStop(.35, color==='b'?'rgba(255,255,255,.10)':'rgba(255,255,255,.25)');
+    sp.addColorStop(1,'rgba(255,255,255,0)');
+    g.beginPath(); g.arc(cxp,cyp,R,0,Math.PI*2); g.fillStyle=sp; g.fill();
+    stoneSprite[color]=c;
+  }
+}
+
+function drawStone(r,c,color,scale){
+  scale=scale==null?1:scale;
+  const {x,y}=xy(r,c);
+  const d=cell*0.92*scale;
+  // contact shadow
+  if(scale>0.55){
+    cx.beginPath();
+    cx.ellipse(x, y+d*0.12, d*0.46, d*0.40, 0, 0, Math.PI*2);
+    cx.fillStyle='rgba(0,0,0,.26)'; cx.fill();
+  }
+  const sp=stoneSprite[color];
+  if(sp) cx.drawImage(sp, x-d/2, y-d/2, d, d);
+}
+
+function render(){
+  if(!BS) return;
+  cx.clearRect(0,0,BS,BS);
+  if(boardBG) cx.drawImage(boardBG,0,0,BS,BS);
+
+  const now=performance.now();
+  // stones (with drop animation)
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const v=board[r][c]; if(!v) continue;
+    const a=anims.find(a=>a.r===r&&a.c===c);
+    let s=1;
+    if(a){
+      // Pop-in overshoot that is ALWAYS >= 1, so a freshly placed stone is
+      // visible on the very first frame even if rAF/clock is throttled (WebViews).
+      const t=clamp((now-a.start)/150,0,1);
+      s=1 + 0.14*(1-t)*(1-t);
+    }
+    drawStone(r,c,v,s);
+  }
+
+  // last-move marker
+  if(lastMove && !winLine){
+    const {x,y}=xy(lastMove[0],lastMove[1]);
+    const col=board[lastMove[0]][lastMove[1]];
+    cx.beginPath(); cx.arc(x,y,cell*0.12,0,Math.PI*2);
+    cx.fillStyle = col==='b' ? 'rgba(255,255,255,.85)' : 'rgba(20,20,28,.8)';
+    cx.fill();
+  }
+
+  // ghost preview
+  if(ghost && !gameOver){
+    const {x,y}=xy(ghost[0],ghost[1]);
+    const d=cell*0.92;
+    cx.save(); cx.globalAlpha=0.42;
+    const sp=stoneSprite[turn]; if(sp) cx.drawImage(sp,x-d/2,y-d/2,d,d);
+    cx.restore();
+    cx.beginPath(); cx.arc(x,y,d*0.5,0,Math.PI*2);
+    cx.strokeStyle='rgba(227,200,115,.9)'; cx.lineWidth=2; cx.stroke();
+  }
+
+  // winning line
+  if(winLine){
+    const a=xy(winLine[0][0],winLine[0][1]);
+    const b=xy(winLine[winLine.length-1][0],winLine[winLine.length-1][1]);
+    const pulse=0.5+0.5*Math.sin((now-winT)/180);
+    cx.save();
+    cx.strokeStyle=`rgba(255,216,107,${0.85})`;
+    cx.lineWidth=cell*0.16; cx.lineCap='round';
+    cx.shadowColor='rgba(255,200,80,'+(0.5+pulse*0.5)+')';
+    cx.shadowBlur=cell*(0.4+pulse*0.5);
+    cx.beginPath(); cx.moveTo(a.x,a.y); cx.lineTo(b.x,b.y); cx.stroke();
+    cx.restore();
+  }
+}
+
+function animActive(){
+  const now=performance.now();
+  for(let i=anims.length-1;i>=0;i--){ if(now-anims[i].start>180) anims.splice(i,1); }
+  return anims.length>0 || !!winLine;
+}
+function loop(){ render(); if(animActive()){ rafId=requestAnimationFrame(loop); } else { rafId=0; render(); } }
+function kick(){ if(!rafId) loop(); }
+
+// ══════════════════════════════════════════════════
+// GAME LOGIC
+// ══════════════════════════════════════════════════
+function checkWin(r,c,color){
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(const [dr,dc] of dirs){
+    const cells=[[r,c]];
+    let rr=r+dr,cc=c+dc;
+    while(inB(rr,cc)&&board[rr][cc]===color){ cells.push([rr,cc]); rr+=dr; cc+=dc; }
+    rr=r-dr; cc=c-dc;
+    while(inB(rr,cc)&&board[rr][cc]===color){ cells.unshift([rr,cc]); rr-=dr; cc-=dc; }
+    if(cells.length>=WIN) return cells;
+  }
+  return null;
+}
+
+// place a stone (assumes validity already checked)
+function place(r,c,color){
+  board[r][c]=color;
+  lastMove=[r,c];
+  moveCount++;
+  anims.push({r,c,color,start:performance.now()});
+  const line=checkWin(r,c,color);
+  if(line){ winLine=line; winT=performance.now(); gameOver=true; winner=color; onEnd(); }
+  else if(moveCount>=N*N){ gameOver=true; winner=null; onEnd(); }
+  else { turn = color==='b'?'w':'b'; }
+  updateHUD();
+  kick();
+}
+
+// local human move (also fans out to network / triggers AI)
+function localMove(r,c){
+  if(board[r][c]) return;           // occupied
+  place(r,c,turn);
+  if(IS_MP) pushMove(r,c);
+  if(!IS_MP && soloMode==='ai' && !gameOver && turn===AI_COLOR){
+    aiThinking=true; updateHUD();
+    setTimeout(()=>{
+      const m=chooseAI();
+      aiThinking=false;
+      if(m) place(m[0],m[1],AI_COLOR);
+      render();
+    }, 360);
+  }
+}
+
+function canPlay(){
+  if(!started || gameOver || aiThinking) return false;
+  if(IS_MP) return turn===MY_COLOR;
+  if(soloMode==='ai') return turn===HUMAN_COLOR;
+  return true; // hot-seat: current player taps
+}
+
+// ══════════════════════════════════════════════════
+// AI  (1-ply window-pattern heuristic — cheap & sharp)
+// ══════════════════════════════════════════════════
+const WT=[0,1,18,150,1500,250000];   // value of a clean 5-window holding k same-color stones
+
+function evalPlace(r,c,color){
+  const opp = color==='b'?'w':'b';
+  let score=0;
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(const [dr,dc] of dirs){
+    for(let s=-4;s<=0;s++){            // each 5-cell window containing (r,c)
+      let cnt=0, ok=true;
+      for(let k=0;k<5;k++){
+        const rr=r+(s+k)*dr, cc=c+(s+k)*dc;
+        if(!inB(rr,cc)){ ok=false; break; }
+        const v=(rr===r&&cc===c)?color:board[rr][cc];
+        if(v===opp){ ok=false; break; }
+        if(v===color) cnt++;
+      }
+      if(ok&&cnt>0) score+=WT[cnt];
+    }
+  }
+  return score;
+}
+
+function candidates(){
+  const seen=new Set(), out=[]; let any=false;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    if(!board[r][c]) continue; any=true;
+    for(let dr=-2;dr<=2;dr++) for(let dc=-2;dc<=2;dc++){
+      const rr=r+dr, cc=c+dc, k=rr*N+cc;
+      if(inB(rr,cc)&&!board[rr][cc]&&!seen.has(k)){ seen.add(k); out.push([rr,cc]); }
+    }
+  }
+  if(!any) return [[7,7]];
+  return out;
+}
+
+function chooseAI(){
+  const cand=candidates();
+  const defW = difficulty==='hard'?1.0 : difficulty==='easy'?0.55 : 0.95;
+  const noise = difficulty==='hard'?0 : difficulty==='easy'?2600 : 220;
+  if(difficulty==='easy' && Math.random()<0.22) return cand[(Math.random()*cand.length)|0];
+  let best=[], bs=-1e18;
+  for(const [r,c] of cand){
+    const atk=evalPlace(r,c,AI_COLOR);
+    const def=evalPlace(r,c,HUMAN_COLOR);
+    const sc=atk + def*defW - (Math.abs(r-7)+Math.abs(c-7))*0.6 + Math.random()*noise;
+    if(sc>bs){ bs=sc; best=[[r,c]]; }
+    else if(sc>bs-1e-6) best.push([r,c]);
+  }
+  return best[(Math.random()*best.length)|0] || cand[0];
+}
+
+// ══════════════════════════════════════════════════
+// INPUT  (drag-to-aim ghost, place on release)
+// ══════════════════════════════════════════════════
+let usingTouch=false;
+
+function evtCell(e){
+  const rect=cv.getBoundingClientRect();
+  const t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;
+  const x=(t.clientX-rect.left)/rect.width*BS;
+  const y=(t.clientY-rect.top)/rect.height*BS;
+  const c=clamp(Math.round(x/cell)-1, 0, N-1);
+  const r=clamp(Math.round(y/cell)-1, 0, N-1);
+  return [r,c];
+}
+function aim(e){
+  if(!canPlay()) return;
+  const [r,c]=evtCell(e);
+  ghost = board[r][c] ? null : [r,c];
+  render();
+}
+function drop(e){
+  if(!canPlay()){ ghost=null; return; }
+  const [r,c]=evtCell(e);
+  ghost=null;
+  if(!board[r][c]) localMove(r,c);
+  else render();
+}
+
+cv.addEventListener('touchstart',e=>{ usingTouch=true; e.preventDefault(); aim(e); },{passive:false});
+cv.addEventListener('touchmove', e=>{ e.preventDefault(); aim(e); },{passive:false});
+cv.addEventListener('touchend',  e=>{ e.preventDefault(); drop(e); },{passive:false});
+cv.addEventListener('mousemove', e=>{ if(usingTouch) return; aim(e); });
+cv.addEventListener('mousedown', e=>{ if(usingTouch) return; drop(e); });
+cv.addEventListener('mouseleave',()=>{ if(ghost){ ghost=null; render(); } });
+
+// ══════════════════════════════════════════════════
+// HUD / OVERLAYS
+// ══════════════════════════════════════════════════
+function applyNames(){
+  // P0 = black, P1 = white. Map known names if online.
+  let nb='أسود', nw='أبيض';
+  if(IS_MP){
+    if(MY_IDX===0){ nb=MY_NAME||'أنت'; nw=OPP_NAME||'الخصم'; }
+    else          { nb=OPP_NAME||'الخصم'; nw=MY_NAME||'أنت'; }
+  } else if(soloMode==='ai'){ nb='أنت'; nw='الكمبيوتر'; }
+  document.getElementById('nameB').textContent=nb;
+  document.getElementById('nameW').textContent=nw;
+}
+
+function updateHUD(){
+  let cb=0, cw=0;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){ if(board[r][c]==='b')cb++; else if(board[r][c]==='w')cw++; }
+  document.getElementById('cntB').textContent=cb+' حجر';
+  document.getElementById('cntW').textContent=cw+' حجر';
+  document.getElementById('cardB').classList.toggle('active', !gameOver && turn==='b');
+  document.getElementById('cardW').classList.toggle('active', !gameOver && turn==='w');
+
+  const msg=document.getElementById('msg');
+  if(gameOver){ msg.textContent = winner==null ? 'تعادل' : (winner==='b'?'فاز الأسود':'فاز الأبيض'); return; }
+  if(!started){ msg.textContent='ابدأ اللعب'; return; }
+  if(IS_MP){
+    msg.innerHTML = turn===MY_COLOR ? 'دورك<span class="live"></span>' : 'انتظر دور صديقك…';
+  } else if(soloMode==='ai'){
+    msg.textContent = aiThinking ? 'الكمبيوتر يفكّر…' : 'دورك';
+  } else {
+    msg.textContent = turn==='b' ? 'دور الأسود' : 'دور الأبيض';
+  }
+}
+
+function onEnd(){
+  const won = winner;
+  let icon='🤝', title='تعادل!', sub='امتلأت الرقعة';
+  if(won){
+    const meWon = IS_MP ? (won===MY_COLOR)
+               : soloMode==='ai' ? (won===HUMAN_COLOR) : true;
+    icon = (IS_MP||soloMode==='ai') ? (meWon?'🏆':'😔') : '🏆';
+    title = won==='b' ? 'فاز الأسود!' : 'فاز الأبيض!';
+    if(IS_MP||soloMode==='ai') title = meWon ? 'لقد فزت! 🎉' : 'حظاً أوفر!';
+    sub='خمسة على التوالي';
+  }
+  setTimeout(()=>{
+    document.getElementById('end-icon').textContent=icon;
+    document.getElementById('end-title').textContent=title;
+    document.getElementById('end-sub').textContent=sub;
+    document.getElementById('end-ov').classList.remove('hidden');
+  }, 700);
+  if(IS_MP && typeof FlutterBridge!=='undefined') FlutterBridge.postMessage('gameOver');
+}
+
+document.getElementById('btn-restart').addEventListener('click',()=>{
+  document.getElementById('end-ov').classList.add('hidden');
+  resetGame(); started=true; updateHUD(); render();
+  if(IS_MP) pushState();
+});
+
+// ── Solo menu ──
+const menuOv=document.getElementById('menu-ov');
+function openMenu(){ menuOv.classList.remove('hidden'); }
+document.getElementById('menu-btn').addEventListener('click',openMenu);
+document.querySelectorAll('.mode').forEach(el=>{
+  el.addEventListener('click',()=>{
+    document.querySelectorAll('.mode').forEach(m=>m.classList.remove('on'));
+    el.classList.add('on');
+    soloMode=el.dataset.mode;
+    document.getElementById('diff-wrap').classList.toggle('show', soloMode==='ai');
+  });
+});
+document.querySelectorAll('.diff').forEach(el=>{
+  el.addEventListener('click',()=>{
+    document.querySelectorAll('.diff').forEach(d=>d.classList.remove('on'));
+    el.classList.add('on'); difficulty=el.dataset.diff;
+  });
+});
+document.getElementById('btn-start').addEventListener('click',()=>{
+  menuOv.classList.add('hidden');
+  document.getElementById('end-ov').classList.add('hidden');
+  started=true; resetGame(); applyNames(); updateHUD(); render();
+});
+
+// ══════════════════════════════════════════════════
+// FIREBASE MULTIPLAYER  (mirrors chess contract)
+// ══════════════════════════════════════════════════
+let _db=null, _roomRef=null, _connectedAt=0;
+
+async function initFirebase(){
+  if(!IS_MP) return;
+  try{
+    const app=firebase.initializeApp(_fbConfig);
+    const auth=firebase.auth(app);
+    try{ auth.setPersistence(firebase.auth.Auth.Persistence.NONE); }catch(_){}
+    // race anonymous sign-in against a timeout (LOCAL persistence can hang in Android WebView)
+    await Promise.race([
+      auth.signInAnonymously(),
+      new Promise(res=>setTimeout(res,4000))
+    ]);
+
+    _db=firebase.database(app);
+    _roomRef=_db.ref('rooms/'+ROOM_ID+'/gomoku');
+    _connectedAt=Date.now();
+
+    // remote moves
+    _roomRef.child('move').on('value',snap=>{
+      const mv=snap.val();
+      if(!mv || mv.from===MY_IDX) return;
+      if(!mv.ts || mv.ts<_connectedAt) return;
+      const color = mv.from===0 ? 'b' : 'w';
+      if(!gameOver && !board[mv.r][mv.c]) place(mv.r,mv.c,color);
+    });
+
+    // full-state reset (restart)
+    _roomRef.child('state').on('value',snap=>{
+      const st=snap.val();
+      if(!st || st.from===MY_IDX) return;
+      if(!st.ts || st.ts<_connectedAt) return;
+      applyState(st);
+    });
+
+    _roomRef.child('players/'+MY_IDX).set(true);
+    _roomRef.child('players/'+MY_IDX).onDisconnect().remove();
+
+    _roomRef.child('players').on('value',snap=>{
+      const pl=snap.val()||{};
+      if(Object.keys(pl).length>=2){
+        hideWait();
+        _roomRef.child('players').off('value');
+      } else {
+        document.getElementById('wait-title').textContent='بانتظار صديقك…';
+        document.getElementById('wait-msg').textContent='شارك الرابط أو ابدأ من المحادثة';
+      }
+    });
+  }catch(e){ console.error('Firebase error',e); hideWait(); }
+}
+
+function pushMove(r,c){
+  if(!_roomRef) return;
+  _roomRef.child('move').set({ r, c, from:MY_IDX, ts:Date.now() });
+}
+function pushState(){
+  if(!_roomRef) return;
+  _roomRef.child('state').set({
+    board: board.map(row=>row.map(v=>v||'')),
+    turn, moveCount, from:MY_IDX, ts:Date.now()
+  });
+}
+function applyState(st){
+  board = st.board.map(row=>row.map(v=>v||null));
+  turn = st.turn||'b';
+  moveCount = st.moveCount||0;
+  lastMove=null; winLine=null; gameOver=false; winner=null; anims.length=0;
+  document.getElementById('end-ov').classList.add('hidden');
+  updateHUD(); render();
+}
+function hideWait(){ document.getElementById('wait-ov').classList.add('hidden'); }
+
+document.getElementById('btn-cancel').addEventListener('click',()=>{
+  if(typeof FlutterBridge!=='undefined') FlutterBridge.postMessage('gameOver');
+  history.back();
+});
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+function init(){
+  resetGame();
+  window.addEventListener('resize',resize);
+  window.addEventListener('orientationchange',resize);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) render(); });
+  resize();
+
+  if(IS_MP){
+    started=true;
+    document.getElementById('menu-btn').style.display='none';
+    applyNames(); updateHUD();
+    document.getElementById('wait-ov').classList.remove('hidden');
+    initFirebase();
+  } else if(params.get('demo')==='1'){
+    // QA-only: jump into a populated mid-game (gated, harmless in production)
+    soloMode='hot'; started=true; document.getElementById('menu-btn').style.display='flex';
+    [['b',7,7],['w',7,8],['b',8,8],['w',6,7],['b',9,9],['w',8,7],['b',6,6],['w',9,7],['b',5,5]]
+      .forEach(([col,r,c])=>{ board[r][c]=col; });
+    moveCount=9; turn='w'; lastMove=[5,5]; applyNames(); updateHUD(); render();
+  } else {
+    document.getElementById('menu-btn').style.display='flex';
+    openMenu();          // pick mode/difficulty before play
+    applyNames(); updateHUD();
+  }
+}
+init();
+
+})();
+</script>
+</body>
+</html>
