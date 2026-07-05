@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1b1040">
+<title>🌀 سقوط الكرة 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#1b1040}
+body{touch-action:none;position:fixed;inset:0;font-family:'Cairo','Segoe UI',system-ui,sans-serif;color:#fff}
+canvas{display:block;width:100%;height:100%}
+#gameCanvas{position:fixed;inset:0}
+.vignette{position:fixed;inset:0;z-index:5;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 42%,transparent 55%,rgba(8,4,24,.5) 100%)}
+
+/* ── HUD ── */
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;
+  padding:calc(10px + env(safe-area-inset-top)) 12px 0;z-index:100;pointer-events:none}
+.hud-card{background:rgba(14,8,32,.72);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:5px 14px;text-align:center;min-width:78px}
+.hud-label{font-size:10px;color:rgba(255,255,255,.48);letter-spacing:.5px}
+.hud-value{font-size:20px;font-weight:800;color:#fff;line-height:1.25}
+.hud-value.gold{color:#ffcf3f}
+.combo-chip{font-size:12px;font-weight:800;color:#ff9d3d;height:16px;line-height:16px;opacity:0;transform:scale(.6);transition:opacity .15s,transform .2s cubic-bezier(.34,1.56,.64,1)}
+.combo-chip.show{opacity:1;transform:scale(1)}
+.level-badge{background:rgba(14,8,32,.72);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:5px 18px 8px;text-align:center;pointer-events:none;min-width:96px}
+.firebar{width:72px;height:5px;border-radius:99px;background:rgba(255,255,255,.14);margin:4px auto 0;overflow:hidden}
+#fireFill{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg,#ffd43b,#ff9d3d);transition:width .12s linear}
+#fireFill.lit{background:linear-gradient(90deg,#ff6b3d,#ff2e2e);box-shadow:0 0 8px rgba(255,110,40,.9)}
+
+/* ── hint toast ── */
+.hint{position:fixed;bottom:12%;left:50%;transform:translateX(-50%);z-index:120;background:rgba(14,8,32,.78);
+  border:1px solid rgba(255,255,255,.16);border-radius:99px;padding:9px 22px;font-size:14px;font-weight:700;
+  color:rgba(255,255,255,.85);pointer-events:none;opacity:0;transition:opacity .4s;white-space:nowrap}
+.hint.show{opacity:1;animation:hintFloat 1.6s ease-in-out infinite}
+@keyframes hintFloat{0%,100%{transform:translateX(calc(-50% - 14px))}50%{transform:translateX(calc(-50% + 14px))}}
+
+/* ── overlays ── */
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:500;
+  background:rgba(10,5,26,.62);opacity:0;pointer-events:none;transition:opacity .35s}
+.overlay.show{opacity:1;pointer-events:auto}
+.overlay-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.13);border-radius:24px;
+  padding:28px 24px;max-width:340px;width:calc(100% - 48px);text-align:center;backdrop-filter:blur(6px)}
+.overlay-title{font-size:clamp(26px,7.5vw,38px);font-weight:900;margin-bottom:4px;line-height:1.25}
+.overlay-title.gold{background:linear-gradient(135deg,#ffd33f,#ff8a3d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.overlay-title.red{color:#ff5d6b}
+.overlay-subtitle{font-size:clamp(13px,3.6vw,15px);color:rgba(255,255,255,.55);margin-bottom:18px;line-height:1.9}
+.stat-rows{display:flex;gap:8px;justify-content:center;margin-bottom:18px}
+.stat-box{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:8px 6px}
+.stat-box .hud-label{font-size:11px}
+.stat-box .hud-value{font-size:22px}
+.btn{border:none;border-radius:999px;padding:14px 34px;font-size:clamp(15px,4vw,18px);font-weight:800;font-family:inherit;cursor:pointer;
+  transition:transform .12s,box-shadow .12s;min-height:52px;width:100%;margin-top:8px}
+.btn:active{transform:translateY(2px)}
+.btn-gold{background:linear-gradient(135deg,#ffd33f,#f0a818);color:#241a00;box-shadow:0 5px 0 #b87f12}
+.btn-gold:active{box-shadow:0 2px 0 #b87f12}
+.btn-ghost{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.2);box-shadow:none}
+.instructions{font-size:12.5px;color:rgba(255,255,255,.42);margin-top:16px;line-height:2}
+.menu-ball{width:64px;height:64px;border-radius:50%;margin:0 auto 14px;
+  background:radial-gradient(circle at 33% 30%,#ff8fa8,#ff3d68 55%,#a3103a);
+  box-shadow:0 10px 28px rgba(255,61,104,.45),inset 0 -6px 12px rgba(0,0,0,.25);
+  animation:ballBob 1.5s ease-in-out infinite}
+@keyframes ballBob{0%,100%{transform:translateY(-7px)}50%{transform:translateY(7px)}}
+.best-line{font-size:14px;font-weight:700;color:#ffcf3f;margin-bottom:14px}
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+<div class="vignette"></div>
+
+<!-- HUD : score top-right (first child in RTL) / level center / depth left -->
+<div class="hud">
+  <div class="hud-card">
+    <div class="hud-label">النقاط</div>
+    <div class="hud-value gold" id="scoreV">0</div>
+    <div class="combo-chip" id="comboChip">×2</div>
+  </div>
+  <div class="level-badge">
+    <div class="hud-label">المستوى</div>
+    <div class="hud-value" id="levelV">1</div>
+    <div class="firebar"><div id="fireFill"></div></div>
+  </div>
+  <div class="hud-card">
+    <div class="hud-label">العمق</div>
+    <div class="hud-value" id="depthV">0 م</div>
+  </div>
+</div>
+
+<div class="hint" id="hint">⟵ اسحب لتدوير البرج ⟶</div>
+
+<!-- main menu -->
+<div class="overlay show" id="menuOverlay">
+  <div class="overlay-card">
+    <div class="menu-ball"></div>
+    <div class="overlay-title gold">سقوط الكرة</div>
+    <div class="overlay-subtitle">برج حلزوني لا نهائي — انزل إلى أعمق نقطة!</div>
+    <div class="best-line" id="bestLine" style="display:none">🏆 أفضل نتيجة: <span id="bestV">0</span></div>
+    <button class="btn btn-gold" id="btnStart">ابدأ</button>
+    <div class="instructions">اسحب يميناً ويساراً لتدوير البرج ووجّه الكرة نحو الفجوات<br>تجنّب الأجزاء السوداء 💀 — تابع السقوط لتشتعل الكرة 🔥</div>
+  </div>
+</div>
+
+<!-- level complete -->
+<div class="overlay" id="winOverlay">
+  <div class="overlay-card">
+    <div class="overlay-title gold">أحسنت! ⭐</div>
+    <div class="overlay-subtitle">وصلت إلى قاع البرج — المرحلة التالية أصعب!</div>
+    <div class="stat-rows">
+      <div class="stat-box"><div class="hud-label">النقاط</div><div class="hud-value gold" id="winScore">0</div></div>
+      <div class="stat-box"><div class="hud-label">العمق الكلي</div><div class="hud-value" id="winDepth">0 م</div></div>
+    </div>
+    <button class="btn btn-gold" id="btnNext">المستوى التالي</button>
+  </div>
+</div>
+
+<!-- game over -->
+<div class="overlay" id="overOverlay">
+  <div class="overlay-card">
+    <div class="overlay-title red">💥 انفجرت الكرة!</div>
+    <div class="overlay-subtitle">لمست جزءاً أسود — حاول توجيه الكرة نحو الفجوات</div>
+    <div class="stat-rows">
+      <div class="stat-box"><div class="hud-label">النتيجة النهائية</div><div class="hud-value gold" id="overScore">0</div></div>
+      <div class="stat-box"><div class="hud-label">الأفضل</div><div class="hud-value" id="overBest">0</div></div>
+    </div>
+    <button class="btn btn-gold" id="btnRetry">حاول مرة أخرى</button>
+    <button class="btn btn-ghost" id="btnHome">القائمة الرئيسية</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ═════════════════════════════ helpers & constants ═════════════════════════════ */
+var TAU=Math.PI*2, HALF_PI=Math.PI/2;
+var SPACING=4;          // vertical distance between rings
+var THICK=0.55;         // ring thickness
+var IN_R=1.02, OUT_R=3.4, COL_R=1.0;
+var BALL_R=0.42, BALL_Z=2.3;      // ball orbit: fixed at world angle +90° (z axis, camera side)
+var GRAV=42, BOUNCE_V=13;         // bounce height = v²/2g ≈ 2 units
+var FIRE_STREAK=5, FIRE_TIME=2.6; // rings passed in a row to ignite / fireball duration (s)
+var CAM_UP=9.5, FOV=62;
+var SEG_MARGIN=0.012;             // small angular shrink to avoid z-fighting between runs
+var GAP=0, SEG=1, BLACK=2;
+var PALETTE=[0xff4f7e,0xffb32e,0x38d9a9,0x4dabff,0xb06bff,0xff6b3d,0xffd43b,0x3ddc97,0xff5db1,0x43c8ff];
+
+function $(id){return document.getElementById(id);}
+function norm(a){return ((a%TAU)+TAU)%TAU;}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function hexRGB(h){return [((h>>16)&255)/255,((h>>8)&255)/255,(h&255)/255];}
+
+/* ═════════════════════════════ Scene Setup ═════════════════════════════ */
+var cv=$('gameCanvas');
+var renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x1b1040);
+scene.fog=new THREE.Fog(0x1b1040,24,60);
+
+var camera=new THREE.PerspectiveCamera(FOV,1,0.1,120);
+var camZ=14, camY=CAM_UP;
+
+scene.add(new THREE.HemisphereLight(0xbfd4ff,0x3a2a55,0.8));
+var dirLight=new THREE.DirectionalLight(0xffffff,0.85);
+dirLight.position.set(5,12,8);
+scene.add(dirLight);
+
+// tower root: rotating this group rotates every ring + the column
+var towerGroup=new THREE.Group();
+scene.add(towerGroup);
+
+// central column: unit cylinder scaled per level (side normals unaffected by Y scale)
+var column=new THREE.Mesh(
+  new THREE.CylinderGeometry(1,1,1,24,1),
+  new THREE.MeshStandardMaterial({color:0x3c3f77,roughness:0.5,metalness:0.15}));
+towerGroup.add(column);
+
+// finish platform at the bottom of the tower
+var base=new THREE.Mesh(
+  new THREE.CylinderGeometry(3.7,3.9,1.2,36),
+  new THREE.MeshStandardMaterial({color:0x3ddc97,roughness:0.35,metalness:0.1,emissive:0x0a3d26}));
+towerGroup.add(base);
+
+// glossy ball
+var ballMat=new THREE.MeshStandardMaterial({color:0xff3d68,roughness:0.18,metalness:0.25,emissive:0x330a14,emissiveIntensity:0.6});
+var ballMesh=new THREE.Mesh(new THREE.SphereGeometry(BALL_R,26,20),ballMat);
+scene.add(ballMesh);
+
+// fireball glow sprite + light (toggled during fireball mode)
+function makeGlowTexture(){
+  var c=document.createElement('canvas');c.width=c.height=128;
+  var g=c.getContext('2d'),gr=g.createRadialGradient(64,64,4,64,64,62);
+  gr.addColorStop(0,'rgba(255,220,140,1)');gr.addColorStop(0.35,'rgba(255,140,40,0.55)');gr.addColorStop(1,'rgba(255,80,20,0)');
+  g.fillStyle=gr;g.fillRect(0,0,128,128);
+  return new THREE.CanvasTexture(c);
+}
+var glow=new THREE.Sprite(new THREE.SpriteMaterial({map:makeGlowTexture(),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));
+glow.scale.setScalar(2.8);glow.visible=false;
+ballMesh.add(glow);
+var ballLight=new THREE.PointLight(0xff7722,0,9);
+ballMesh.add(ballLight);
+
+function resize(){
+  var w=cv.clientWidth||1,h=cv.clientHeight||1;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h;
+  // pull the camera back on narrow portrait screens so the full tower width stays visible
+  camZ=Math.max(12.6,4.45/(Math.tan(FOV*0.5*Math.PI/180)*camera.aspect));
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);
+window.addEventListener('orientationchange',function(){setTimeout(resize,250);});
+resize();
+
+/* ═════════════════════════════ Tower Generation ═════════════════════════════ */
+var rings=[], ringMeshes=new Map(), finishY=0;
+var geoCache={}, matCache={};
+var blackMat=new THREE.MeshStandardMaterial({color:0x16141f,roughness:0.35,metalness:0.35});
+
+function matFor(hex){
+  if(!matCache[hex])matCache[hex]=new THREE.MeshStandardMaterial({color:hex,roughness:0.4,metalness:0.05});
+  return matCache[hex];
+}
+// annulus-sector geometry spanning shape angles [0, arc]; cached by arc length.
+// after rotateX(+90°) the shape's XY angle φ maps to world angle atan2(z,x)=φ,
+// and the extrusion goes 0..-THICK in Y, so the TOP surface sits at local y=0.
+function arcGeo(arc){
+  var key=Math.round(arc*1000);
+  if(geoCache[key])return geoCache[key];
+  var s=new THREE.Shape();
+  s.absarc(0,0,OUT_R,0,arc,false);
+  s.absarc(0,0,IN_R,arc,0,true);
+  var g=new THREE.ExtrudeGeometry(s,{depth:THICK,bevelEnabled:false,curveSegments:Math.max(4,Math.ceil(arc/0.1))});
+  g.rotateX(Math.PI/2);
+  geoCache[key]=g;
+  return g;
+}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=(Math.random()*(i+1))|0,t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+// procedural level: difficulty grows with level number and with depth inside the level
+function genLevel(L){
+  var count=Math.min(40+L*4,68), out=[], colBase=(Math.random()*PALETTE.length)|0;
+  for(var i=0;i<count;i++){
+    var d=clamp((L-1)*0.12+(i/count)*0.55+0.08,0,1);          // 0..1 difficulty
+    var n=clamp(5+Math.floor(d*3.4+Math.random()*0.9),5,8);   // more slots => narrower gaps
+    var gaps=(Math.random()<(d<0.4?0.55:0.25)?2:1)+((d<0.2&&Math.random()<0.3)?1:0);
+    gaps=Math.min(gaps,n-2);
+    var blacks=0;
+    if(i>=3){ // grace: first rings of each level are hazard-free
+      if(Math.random()<clamp(0.25+d*0.75,0,0.85))blacks=1;
+      if(d>0.45&&Math.random()<d*0.5)blacks++;
+    }
+    blacks=Math.min(blacks,n-gaps-1); // always keep at least one colored segment (never fully blocked)
+    var idxs=shuffle(Array.apply(null,{length:n}).map(function(_,k){return k;}));
+    var slots=new Array(n).fill(SEG), k;
+    for(k=0;k<gaps;k++)slots[idxs[k]]=GAP;
+    for(k=0;k<blacks;k++)slots[idxs[gaps+k]]=BLACK;
+    out.push({topY:-i*SPACING,slots:slots,n:n,slotAng:TAU/n,off:Math.random()*TAU,
+              color:PALETTE[(colBase+i)%PALETTE.length],dead:false});
+  }
+  return out;
+}
+
+// build the meshes for one ring: contiguous same-type slots merge into a single arc mesh
+function buildRing(i){
+  var r=rings[i], g=new THREE.Group();
+  g.position.y=r.topY;
+  var start=r.slots.indexOf(GAP), j=0; // start scanning at a gap so runs never wrap
+  while(j<r.n){
+    var k=(start+j)%r.n, t=r.slots[k];
+    if(t===GAP){j++;continue;}
+    var len=1;
+    while(len<r.n-j&&r.slots[(k+len)%r.n]===t)len++;
+    var arc=len*r.slotAng-SEG_MARGIN*2;
+    var startAng=r.off+k*r.slotAng+SEG_MARGIN;
+    var m=new THREE.Mesh(arcGeo(arc),t===BLACK?blackMat:matFor(r.color));
+    m.rotation.y=-startAng;                    // rotation.y=β puts shape angle φ at tower angle φ-(-β)=φ+... (see lookup below)
+    m.userData.center=startAng+arc/2;          // tower-space center angle, used for debris direction
+    g.add(m);
+    j+=len;
+  }
+  towerGroup.add(g);
+  ringMeshes.set(i,g);
+}
+
+// keep only rings near the ball alive (±window) — old/far rings are removed, geometry stays cached
+function ensureWindow(){
+  var lo=Math.max(0,nextRing-2), hi=Math.min(rings.length-1,nextRing+11);
+  ringMeshes.forEach(function(g,i){
+    if(i<lo||i>hi){towerGroup.remove(g);ringMeshes.delete(i);}
+  });
+  for(var i=lo;i<=hi;i++)if(!rings[i].dead&&!ringMeshes.has(i))buildRing(i);
+}
+
+/* ═════════════════════════════ Ball Physics & Fall Logic ═════════════════════════════ */
+var state='menu';           // menu | play | win | over
+var ballY=3.2, vy=0, nextRing=0;
+var score=0, depth=0, level=1, streak=0;
+var fireball=false, fireTimer=0, squashT=0, shake=0;
+var best=0;
+try{best=parseInt(localStorage.getItem('ballfall3d_best')||'0',10)||0;}catch(e){}
+
+function maxFall(){
+  return (24+(level-1)*1.5)*(1+Math.min(streak,12)*0.05)*(fireball?1.3:1);
+}
+function setFire(on){
+  fireball=on;
+  glow.visible=on;
+  if(on){ballMat.color.setHex(0xff7a1a);ballMat.emissive.setHex(0xff4400);ballMat.emissiveIntensity=1.5;}
+  else{ballMat.color.setHex(0xff3d68);ballMat.emissive.setHex(0x330a14);ballMat.emissiveIntensity=0.6;}
+}
+function passRing(r,smashed){
+  streak++;depth++;
+  score+=Math.min(streak,10)+(smashed?5:0);
+  if(!fireball&&streak===FIRE_STREAK){ // ignite!
+    setFire(true);fireTimer=FIRE_TIME;shake=Math.max(shake,0.15);
+    tone(180,880,0.35,'sine',0.2);
+  }else if(fireball){
+    fireTimer=Math.min(FIRE_TIME,fireTimer+0.35); // each pass tops the timer up a bit
+  }
+  if(streak>=2){comboChip.textContent='×'+streak;comboChip.classList.add('show');}
+  tone(300+Math.min(streak,12)*45,300+Math.min(streak,12)*45,0.05,'sine',0.05);
+  updateHUD();
+}
+function doBounce(r){
+  vy=BOUNCE_V;ballY=r.topY+BALL_R;
+  streak=0;comboChip.classList.remove('show');
+  squashT=1;shake=Math.max(shake,0.12);
+  var c=hexRGB(r.color);
+  burst(0,r.topY+0.1,BALL_Z,14,4.5,c,true);
+  tone(260,180,0.09,'triangle',0.18);
+}
+function doPop(r){
+  state='over';
+  ballY=r.topY+BALL_R;
+  ballMesh.visible=false;glow.visible=false;
+  shake=0.5;comboChip.classList.remove('show');
+  burst(0,ballY,BALL_Z,46,9,[1,0.35,0.15],false);
+  burst(0,ballY,BALL_Z,20,5,[1,0.1,0.1],false);
+  tone(500,50,0.4,'sawtooth',0.3);
+  setTimeout(showOver,900);
+}
+function doWin(){
+  state='win';
+  vy=0;ballY=finishY+BALL_R;squashT=1;shake=0.25;
+  score+=50+level*10;updateHUD();
+  setFire(false);comboChip.classList.remove('show');
+  var i;
+  for(i=0;i<3;i++)(function(w){
+    setTimeout(function(){
+      burst((Math.random()-0.5)*2,finishY+0.5,BALL_Z+(Math.random()-0.5),34,7,hexRGB(PALETTE[(Math.random()*PALETTE.length)|0]),true);
+    },w*160);
+  })(i);
+  [523,659,784,1047].forEach(function(f,k){setTimeout(function(){tone(f,f,0.16,'triangle',0.16);},k*110);});
+  setTimeout(showWin,800);
+}
+// smash a whole ring during fireball mode: detach its meshes into world-space debris
+var debris=[];
+function smashRing(i){
+  var r=rings[i];r.dead=true;
+  var g=ringMeshes.get(i);
+  if(!g)return;
+  var kids=g.children.slice();
+  for(var k=0;k<kids.length;k++){
+    var m=kids[k];
+    var wp=new THREE.Vector3(),wq=new THREE.Quaternion();
+    m.getWorldPosition(wp);m.getWorldQuaternion(wq);
+    g.remove(m);scene.add(m);
+    m.position.copy(wp);m.quaternion.copy(wq);
+    var a=(m.userData.center||0)-towerRot; // world angle of segment center
+    debris.push({m:m,vx:Math.cos(a)*(5+Math.random()*4),vy:2+Math.random()*4,vz:Math.sin(a)*(5+Math.random()*4),
+                 rx:(Math.random()-0.5)*8,rz:(Math.random()-0.5)*8,life:0.9});
+  }
+  towerGroup.remove(g);ringMeshes.delete(i);
+  shake=Math.max(shake,0.2);
+  burst(0,r.topY,BALL_Z,12,6,[1,0.55,0.15],false);
+  tone(150,60,0.15,'square',0.22);
+}
+function updateDebris(dt){
+  for(var i=debris.length-1;i>=0;i--){
+    var d=debris[i];
+    d.life-=dt;
+    if(d.life<=0){scene.remove(d.m);debris.splice(i,1);continue;}
+    d.vy-=35*dt;
+    d.m.position.x+=d.vx*dt;d.m.position.y+=d.vy*dt;d.m.position.z+=d.vz*dt;
+    d.m.rotation.x+=d.rx*dt;d.m.rotation.z+=d.rz*dt;
+    d.m.scale.setScalar(Math.max(0.12,d.life/0.9));
+  }
+}
+// slot the ball is currently over, with a small grace margin at black-segment edges
+function resolveCrossings(){
+  var guard=0;
+  while(state==='play'&&guard++<8){
+    if(nextRing>=rings.length)return;
+    var r=rings[nextRing];
+    if(ballY-BALL_R>r.topY)return;      // hasn't reached the next ring yet
+    if(r.dead){nextRing++;continue;}
+    var rel=norm(HALF_PI+towerRot-r.off);
+    var idx=Math.floor(rel/r.slotAng);if(idx>=r.n)idx=r.n-1;
+    var t=r.slots[idx];
+    if(fireball){                       // fireball smashes through everything
+      if(t!==GAP)smashRing(nextRing);
+      passRing(r,t!==GAP);nextRing++;continue;
+    }
+    if(t===GAP){passRing(r,false);nextRing++;continue;}
+    if(t===BLACK){
+      var pin=rel-idx*r.slotAng, EDGE=0.055;
+      if(pin<EDGE||r.slotAng-pin<EDGE){ // grazing the edge: use the neighboring slot instead (generous)
+        var nb=r.slots[(pin<EDGE?idx-1+r.n:idx+1)%r.n];
+        if(nb===GAP){passRing(r,false);nextRing++;continue;}
+        if(nb!==BLACK){doBounce(r);return;}
+      }
+      doPop(r);return;
+    }
+    doBounce(r);return;
+  }
+}
+function physics(dt){
+  vy-=GRAV*dt;
+  var mf=maxFall();
+  if(vy<-mf)vy=-mf;
+  ballY+=vy*dt;
+  if(vy<0)resolveCrossings();
+  if(state==='play'&&nextRing>=rings.length&&ballY-BALL_R<=finishY)doWin();
+  if(fireball){fireTimer-=dt;if(fireTimer<=0)setFire(false);}
+}
+
+/* ═════════════════════════════ Input & Rotation ═════════════════════════════ */
+var towerRot=0, rotVel=0, dragging=false, dragId=null, lastX=0, moveAcc=0;
+cv.addEventListener('pointerdown',function(e){
+  initAudio();
+  if(dragId!==null)return;
+  dragId=e.pointerId;dragging=true;lastX=e.clientX;rotVel=0;moveAcc=0;
+  try{cv.setPointerCapture(dragId);}catch(_){}
+  hint.classList.remove('show');
+});
+cv.addEventListener('pointermove',function(e){
+  if(!dragging||e.pointerId!==dragId)return;
+  var dx=e.clientX-lastX;lastX=e.clientX;
+  var dR=dx*4.8/Math.max(320,cv.clientWidth); // full-width swipe ≈ 4.8 rad
+  towerRot+=dR;moveAcc+=dR;
+});
+function endDrag(e){if(e.pointerId===dragId){dragging=false;dragId=null;}}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',endDrag);
+document.addEventListener('contextmenu',function(e){e.preventDefault();});
+
+function updateRotation(dt){
+  if(dragging){
+    rotVel=clamp(rotVel*0.65+(moveAcc/Math.max(dt,0.001))*0.35,-9,9); // track swipe velocity for inertia
+    moveAcc=0;
+  }else{
+    if(state==='menu')towerRot+=dt*0.25; // idle spin behind the menu
+    towerRot+=rotVel*dt;
+    rotVel*=Math.exp(-5.5*dt);
+    if(Math.abs(rotVel)<0.02)rotVel=0;
+  }
+  towerGroup.rotation.y=towerRot;
+}
+
+/* ═════════════════════════════ Particles & Effects ═════════════════════════════ */
+var P_N=380, pCursor=0;
+var pGeo=new THREE.BufferGeometry();
+var pPos=new Float32Array(P_N*3), pCol=new Float32Array(P_N*3);
+for(var _i=0;_i<P_N;_i++)pPos[_i*3+1]=-9999;
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+pGeo.setAttribute('color',new THREE.BufferAttribute(pCol,3));
+var pDat=[];for(var _j=0;_j<P_N;_j++)pDat.push({vx:0,vy:0,vz:0,life:0,max:1,r:0,g:0,b:0,grav:12});
+var points=new THREE.Points(pGeo,new THREE.PointsMaterial({size:0.26,vertexColors:true,transparent:true,
+  blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));
+points.frustumCulled=false;
+scene.add(points);
+
+function spawnP(x,y,z,vx,vy2,vz,life,r,g,b,grav){
+  var i=pCursor;pCursor=(pCursor+1)%P_N;
+  var d=pDat[i];
+  d.vx=vx;d.vy=vy2;d.vz=vz;d.life=life;d.max=life;d.r=r;d.g=g;d.b=b;d.grav=(grav===undefined?12:grav);
+  pPos[i*3]=x;pPos[i*3+1]=y;pPos[i*3+2]=z;
+}
+// radial burst: up=true biases velocities upward (confetti), false = spherical (explosion)
+function burst(x,y,z,count,speed,rgb,up){
+  for(var i=0;i<count;i++){
+    var a=Math.random()*TAU,sp=speed*(0.4+Math.random()*0.6);
+    var vyp=up?speed*(0.5+Math.random()*0.8):(Math.random()-0.35)*speed;
+    var tint=0.75+Math.random()*0.25;
+    spawnP(x+(Math.random()-0.5)*0.3,y,z+(Math.random()-0.5)*0.3,
+           Math.cos(a)*sp,vyp,Math.sin(a)*sp,
+           0.5+Math.random()*0.4,rgb[0]*tint,rgb[1]*tint,rgb[2]*tint,14);
+  }
+}
+var trailAcc=0;
+function updateParticles(dt,t){
+  // fireball trail (and a faint white streak at high combos)
+  trailAcc+=dt;
+  while(trailAcc>0.016){
+    trailAcc-=0.016;
+    if(state==='play'&&fireball){
+      spawnP((Math.random()-0.5)*0.3,ballY+Math.random()*0.4,BALL_Z+(Math.random()-0.5)*0.3,
+             (Math.random()-0.5)*1.2,1.5+Math.random()*2,(Math.random()-0.5)*1.2,
+             0.35,1,0.5+Math.random()*0.3,0.1,-3);
+    }else if(state==='play'&&streak>=3&&vy<-18){
+      spawnP((Math.random()-0.5)*0.2,ballY+0.3,BALL_Z+(Math.random()-0.5)*0.2,
+             0,1,0,0.25,0.7,0.7,0.9,-2);
+    }
+  }
+  for(var i=0;i<P_N;i++){
+    var d=pDat[i];
+    if(d.life<=0)continue;
+    d.life-=dt;
+    if(d.life<=0){pPos[i*3+1]=-9999;continue;}
+    d.vy-=d.grav*dt;
+    pPos[i*3]+=d.vx*dt;pPos[i*3+1]+=d.vy*dt;pPos[i*3+2]+=d.vz*dt;
+    var f=d.life/d.max; // fade to black = invisible with additive blending
+    pCol[i*3]=d.r*f;pCol[i*3+1]=d.g*f;pCol[i*3+2]=d.b*f;
+  }
+  pGeo.attributes.position.needsUpdate=true;
+  pGeo.attributes.color.needsUpdate=true;
+  if(fireball)glow.scale.setScalar(2.6+Math.sin(t*14)*0.35);
+  ballLight.intensity+=((fireball?2.4:0)-ballLight.intensity)*Math.min(1,dt*8);
+}
+
+/* ── tiny WebAudio synth (init on first touch — WebView autoplay policy) ── */
+var AC=null;
+function initAudio(){
+  try{
+    if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+  }catch(e){}
+}
+function tone(f0,f1,dur,type,vol){
+  if(!AC)return;
+  try{
+    var t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();
+    o.type=type;
+    o.frequency.setValueAtTime(f0,t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(30,f1),t+dur);
+    g.gain.setValueAtTime(vol,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g);g.connect(AC.destination);
+    o.start(t);o.stop(t+dur+0.02);
+  }catch(e){}
+}
+
+/* ═════════════════════════════ UI ═════════════════════════════ */
+var comboChip=$('comboChip'),hint=$('hint'),fireFill=$('fireFill');
+function updateHUD(){
+  $('scoreV').textContent=score;
+  $('depthV').textContent=depth+' م';
+  $('levelV').textContent=level;
+}
+function updateFireBar(){
+  var pct=fireball?(fireTimer/FIRE_TIME):(streak/FIRE_STREAK);
+  fireFill.style.width=(clamp(pct,0,1)*100)+'%';
+  fireFill.classList.toggle('lit',fireball);
+}
+function loadLevel(){
+  rings=genLevel(level);
+  finishY=-rings.length*SPACING;
+  nextRing=0;
+  ringMeshes.forEach(function(g){towerGroup.remove(g);});
+  ringMeshes.clear();
+  for(var i=debris.length-1;i>=0;i--)scene.remove(debris[i].m);
+  debris.length=0;
+  var H=rings.length*SPACING+26;
+  column.scale.set(COL_R,H,COL_R);
+  column.position.y=8-H/2;
+  base.position.y=finishY-0.6;
+  ballY=3.2;vy=0;streak=0;squashT=0;
+  setFire(false);fireTimer=0;
+  ballMesh.visible=true;
+  towerRot=Math.random()*TAU;rotVel=0;
+  camY=ballY+CAM_UP;
+  ensureWindow();updateHUD();updateFireBar();
+}
+function showMenu(){
+  state='menu';level=1;score=0;depth=0;
+  loadLevel();
+  if(best>0){$('bestLine').style.display='block';$('bestV').textContent=best;}
+  $('overOverlay').classList.remove('show');
+  $('winOverlay').classList.remove('show');
+  $('menuOverlay').classList.add('show');
+}
+function startRun(){
+  score=0;depth=0;level=1;
+  loadLevel();
+  state='play';
+  $('menuOverlay').classList.remove('show');
+  $('overOverlay').classList.remove('show');
+  hint.classList.add('show');
+  setTimeout(function(){hint.classList.remove('show');},3500);
+}
+function showWin(){
+  $('winScore').textContent=score;
+  $('winDepth').textContent=depth+' م';
+  $('winOverlay').classList.add('show');
+}
+function showOver(){
+  if(score>best){
+    best=score;
+    try{localStorage.setItem('ballfall3d_best',''+best);}catch(e){}
+  }
+  $('overScore').textContent=score;
+  $('overBest').textContent=best;
+  $('overOverlay').classList.add('show');
+  try{if(window.FlutterBridge&&FlutterBridge.postMessage)FlutterBridge.postMessage('gameOver');}catch(e){}
+}
+$('btnStart').addEventListener('click',function(){initAudio();startRun();});
+$('btnRetry').addEventListener('click',function(){startRun();});
+$('btnHome').addEventListener('click',function(){showMenu();});
+$('btnNext').addEventListener('click',function(){
+  level++;
+  loadLevel();
+  state='play';
+  $('winOverlay').classList.remove('show');
+});
+
+/* ═════════════════════════════ main loop ═════════════════════════════ */
+var last=performance.now(),elapsed=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  var dt=Math.min((now-last)/1000,0.05);last=now;
+  update(dt);
+  renderer.render(scene,camera);
+}
+function update(dt){
+  elapsed+=dt;
+  updateRotation(dt);
+  if(state==='play'){
+    physics(dt);
+    ensureWindow();
+    updateFireBar();
+  }else if(state==='menu'){
+    ballY=3.2+Math.sin(elapsed*2.2)*0.35; // idle bob above the tower
+  }
+  // ball visuals: squash on bounce, slight stretch at high fall speed
+  squashT=Math.max(0,squashT-dt*6);
+  var sy=1-0.42*squashT,sxz=1+0.28*squashT;
+  if(vy<-16&&state==='play'){
+    var st=Math.min(0.25,(-vy-16)*0.006);
+    sy+=st;sxz-=st*0.4;
+  }
+  ballMesh.scale.set(sxz,sy,sxz);
+  ballMesh.position.set(0,ballY,BALL_Z);
+  // follow camera: fast when descending, gentle when the ball bounces up
+  var target=ballY+CAM_UP;
+  camY+=(target-camY)*Math.min(1,dt*(target<camY?10:2.6));
+  shake=Math.max(0,shake-dt*1.8);
+  var shx=(Math.random()*2-1)*shake*0.5,shy=(Math.random()*2-1)*shake*0.5;
+  camera.position.set(shx,camY+shy,camZ);
+  camera.lookAt(0,camY-11.8,0);
+  updateParticles(dt,elapsed);
+  updateDebris(dt);
+}
+showMenu();
+updateHUD();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
