@@ -66,7 +66,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#15140f;font-family:
 #shopTimer{font-size:14px;color:#a9a695;margin-bottom:6px}
 #shopCoins{color:#ffd76a;font-weight:900;font-size:20px;margin-bottom:4px}
 /* ---------- Stage (auto-rotates 90° when the phone is held in portrait) ---------- */
-#stage{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);overflow:hidden}
+#stage{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);overflow:hidden;will-change:transform}
 </style>
 </head>
 <body>
@@ -211,13 +211,17 @@ try{ screen.orientation.lock('landscape').catch(()=>{}); }catch(e){}
 /* ============================================================
    SCENE SETUP
    ============================================================ */
-const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, powerPreference:'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 1.5));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, stencil:false, powerPreference:'high-performance' });
+// adaptive render resolution: start modest, step down/up from measured frame time
+const SCALE_MAX = Math.min(window.devicePixelRatio||1, 1.35);
+let renderScale = Math.min(SCALE_MAX, 1.15);
+function applyScale(){ renderer.setPixelRatio(renderScale); resize(); }
+renderer.setPixelRatio(renderScale);
 const scene = new THREE.Scene();
 const SKY = 0xb8a98c;
 scene.background = new THREE.Color(SKY);
 scene.fog = new THREE.Fog(SKY, 24, 70);
-const camera = new THREE.PerspectiveCamera(70, 2, 0.1, 120);
+const camera = new THREE.PerspectiveCamera(70, 2, 0.1, 90);
 scene.add(camera);
 
 scene.add(new THREE.AmbientLight(0xcfc4ae, 0.75));
@@ -288,19 +292,48 @@ const matBarrel = new THREE.MeshLambertMaterial({ map: texBarrel });
 const matMetal  = new THREE.MeshLambertMaterial({ map: texMetal });
 const unitBox = new THREE.BoxGeometry(1,1,1);
 
+/* all static map geometry is merged into ONE mesh per material —
+   few draw calls, critical for mid-range WebView GPUs */
+const batches = new Map();
+function batchGeo(mat, geo){ if(!batches.has(mat)) batches.set(mat, []); batches.get(mat).push(geo); }
 function addBox(cx, cz, w, d, h, mat, yBase){
   const y0 = yBase||0;
-  const m = new THREE.Mesh(unitBox, mat);
-  m.scale.set(w, h, d); m.position.set(cx, y0 + h/2, cz);
-  scene.add(m);
+  const g = new THREE.BoxGeometry(w, h, d);
+  g.translate(cx, y0 + h/2, cz);
+  batchGeo(mat, g);
   obstacles.push({ x1:cx-w/2, z1:cz-d/2, x2:cx+w/2, z2:cz+d/2, y1:y0, y2:y0+h });
+}
+function mergeGeos(list){
+  const pos=[], norm=[], uv=[], idx=[]; let off=0;
+  for(const g of list){
+    const p = g.attributes.position;
+    pos.push(...p.array); norm.push(...g.attributes.normal.array); uv.push(...g.attributes.uv.array);
+    const ia = g.index.array;
+    for(let i=0;i<ia.length;i++) idx.push(ia[i]+off);
+    off += p.count;
+  }
+  const m = new THREE.BufferGeometry();
+  m.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  m.setAttribute('normal',   new THREE.Float32BufferAttribute(norm,3));
+  m.setAttribute('uv',       new THREE.Float32BufferAttribute(uv,2));
+  m.setIndex(idx);
   return m;
+}
+function flushBatches(){
+  for(const [mat, list] of batches){
+    const mesh = new THREE.Mesh(mergeGeos(list), mat);
+    mesh.matrixAutoUpdate = false; mesh.updateMatrix();
+    scene.add(mesh);
+  }
+  batches.clear();
 }
 
 // ground
 {
   const g = new THREE.Mesh(new THREE.PlaneGeometry(MAP_HALF*2+8, MAP_HALF*2+8), new THREE.MeshLambertMaterial({ map: texGround }));
-  g.rotation.x = -Math.PI/2; scene.add(g);
+  g.rotation.x = -Math.PI/2;
+  g.matrixAutoUpdate = false; g.updateMatrix();
+  scene.add(g);
 }
 // boundary walls (solid ring)
 addBox(0, -MAP_HALF-1, MAP_HALF*2+4, 2, WALL_H, matWall);
@@ -330,8 +363,9 @@ addBox(-6, 20, 3, 2, 1, matWall);                    // rubble slabs
 addBox(24, 6, 2, 3, 1, matWall);
 // barrels (cylinders — visual + round-ish AABB)
 [[-16,-4],[4,7],[13,3],[-20,18],[17,-14]].forEach(([x,z])=>{
-  const b = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,1.3,10), matBarrel);
-  b.position.set(x,0.65,z); scene.add(b);
+  const g = new THREE.CylinderGeometry(0.5,0.5,1.3,10);
+  g.translate(x,0.65,z);
+  batchGeo(matBarrel, g);
   obstacles.push({ x1:x-0.5, z1:z-0.5, x2:x+0.5, z2:z+0.5, y1:0, y2:1.3 });
 });
 
@@ -341,13 +375,13 @@ const RAMP = { x1:16, z1:-6.4, x2:22, z2:-3.6, h:2.2 };   // rises west→east
 addBox((PLAT.x1+PLAT.x2)/2, (PLAT.z1+PLAT.z2)/2, PLAT.x2-PLAT.x1, PLAT.z2-PLAT.z1, PLAT.h, matMetal);
 {
   const rw = RAMP.x2-RAMP.x1, rd = RAMP.z2-RAMP.z1;
-  const r = new THREE.Mesh(unitBox, matMetal);
   const slope = Math.hypot(rw, RAMP.h);
-  r.scale.set(slope, 0.3, rd);
-  r.position.set((RAMP.x1+RAMP.x2)/2, RAMP.h/2-0.15, (RAMP.z1+RAMP.z2)/2);
-  r.rotation.z = -Math.atan2(RAMP.h, rw);
-  scene.add(r);
+  const g = new THREE.BoxGeometry(slope, 0.3, rd);
+  g.rotateZ(-Math.atan2(RAMP.h, rw));
+  g.translate((RAMP.x1+RAMP.x2)/2, RAMP.h/2-0.15, (RAMP.z1+RAMP.z2)/2);
+  batchGeo(matMetal, g);
 }
+flushBatches();   // bake all static map geometry (1 mesh per material)
 const RAMP_BASE = { x: RAMP.x1+5, z: (RAMP.z1+RAMP.z2)/2 };  // AI waypoint: upper ramp (zombies climb, then chase)
 
 // walkable ground height (0 everywhere except platform / ramp)
@@ -489,8 +523,8 @@ function updatePlayer(dt){
   if(keys.KeyD||keys.ArrowRight) mx += 1;
   const l = Math.hypot(mx,my); if(l > 1){ mx/=l; my/=l; }
   const s = Math.sin(player.yaw), c = Math.cos(player.yaw);
-  const vx = (mx*c - my*s) * player.speed * dt;
-  const vz = (-my*c - mx*s) * player.speed * dt;
+  const vx = (mx*c + my*s) * player.speed * dt;   // joystick up = camera forward
+  const vz = (my*c - mx*s) * player.speed * dt;
   const p = collide(player.x+vx, player.z+vz, 0.38, player.y);
   player.x = p.x; player.z = p.z;
   const gh = groundHeightAt(player.x, player.z);
@@ -514,22 +548,65 @@ const WEAPONS = {
 let owned = ['pistol'], curW = 'pistol';
 let ammo = 12, reloading = false, reloadEnd = 0, nextShot = 0;
 
-// gun viewmodel (boxes attached to camera)
+// gun viewmodels — chunky voxel guns, two-tone bodies + glowing sights
 const gunGrp = new THREE.Group();
 camera.add(gunGrp);
-const gunMats = { pistol: new THREE.MeshLambertMaterial({color:0x4a4a52}), shotgun: new THREE.MeshLambertMaterial({color:0x6e4a2f}), smg: new THREE.MeshLambertMaterial({color:0x3a3f45}) };
+const GM = {
+  dark:  new THREE.MeshLambertMaterial({ color:0x23252b }),
+  steel: new THREE.MeshLambertMaterial({ color:0x596069 }),
+  body:  new THREE.MeshLambertMaterial({ color:0x3b3e46 }),
+  wood:  new THREE.MeshLambertMaterial({ color:0x6e4a2a }),
+  grip:  new THREE.MeshLambertMaterial({ color:0x2e2622 }),
+  glow:  new THREE.MeshBasicMaterial({ color:0x9fff60 }),   // tritium sights
+  red:   new THREE.MeshBasicMaterial({ color:0xff3524 }),
+  gold:  new THREE.MeshLambertMaterial({ color:0xc8a24a })
+};
 const gunModels = {};
-function buildGun(key, bodyL, bodyH, barrelL){
-  const g = new THREE.Group(), m = gunMats[key];
-  const body = new THREE.Mesh(unitBox, m); body.scale.set(0.09, bodyH, bodyL); g.add(body);
-  const barrel = new THREE.Mesh(unitBox, new THREE.MeshLambertMaterial({color:0x26262c}));
-  barrel.scale.set(0.05, 0.05, barrelL); barrel.position.set(0, bodyH*0.28, -(bodyL/2+barrelL/2)); g.add(barrel);
-  const grip = new THREE.Mesh(unitBox, m); grip.scale.set(0.08, 0.16, 0.07); grip.position.set(0,-bodyH/2-0.06, bodyL*0.28); g.add(grip);
-  g.visible = false; gunGrp.add(g); gunModels[key] = g;
+function part(g, mat, sx,sy,sz, x,y,z, rx){
+  const m = new THREE.Mesh(unitBox, mat);
+  m.scale.set(sx,sy,sz); m.position.set(x,y,z);
+  if(rx) m.rotation.x = rx;
+  g.add(m); return m;
 }
-buildGun('pistol', 0.22, 0.12, 0.10);
-buildGun('shotgun',0.42, 0.11, 0.22);
-buildGun('smg',    0.30, 0.13, 0.14);
+function newGun(key){ const g = new THREE.Group(); g.visible = false; gunGrp.add(g); gunModels[key] = g; return g; }
+{ // pistol — compact two-tone sidearm with gold accent line
+  const g = newGun('pistol');
+  part(g, GM.steel, 0.085,0.075,0.30,  0, 0.045,-0.02);        // slide
+  part(g, GM.dark,  0.09, 0.078,0.09,  0, 0.045, 0.10);        // slide serrations
+  part(g, GM.body,  0.08, 0.055,0.26,  0,-0.005, 0.00);        // frame
+  part(g, GM.dark,  0.032,0.032,0.06,  0, 0.05, -0.20);        // muzzle
+  part(g, GM.grip,  0.078,0.17, 0.095, 0,-0.115, 0.075, 0.18); // grip
+  part(g, GM.dark,  0.022,0.02, 0.10,  0,-0.055, 0.00);        // trigger guard
+  part(g, GM.glow,  0.014,0.022,0.014, 0, 0.094,-0.155);       // front sight
+  part(g, GM.dark,  0.05, 0.02, 0.014, 0, 0.092, 0.115);       // rear sight
+  part(g, GM.gold,  0.086,0.012,0.30,  0, 0.085,-0.02);        // top accent
+}
+{ // shotgun — wooden pump-action with shell carrier
+  const g = newGun('shotgun');
+  part(g, GM.dark,  0.045,0.045,0.52,  0, 0.055,-0.30);        // barrel
+  part(g, GM.steel, 0.04, 0.04, 0.44,  0, 0.00, -0.26);        // mag tube
+  part(g, GM.body,  0.095,0.115,0.24,  0, 0.015, 0.02);        // receiver
+  part(g, GM.wood,  0.08, 0.065,0.16,  0,-0.005,-0.30);        // pump grip
+  part(g, GM.wood,  0.075,0.10, 0.24,  0,-0.045, 0.225,-0.14); // stock
+  part(g, GM.red,   0.014,0.04, 0.022, 0.056, 0.02,-0.02);     // shells on receiver
+  part(g, GM.red,   0.014,0.04, 0.022, 0.056, 0.02, 0.03);
+  part(g, GM.red,   0.014,0.04, 0.022, 0.056, 0.02, 0.08);
+  part(g, GM.glow,  0.016,0.016,0.016, 0, 0.09, -0.55);        // bead sight
+  part(g, GM.dark,  0.022,0.02, 0.10,  0,-0.05,  0.06);        // trigger guard
+}
+{ // smg — suppressed, red-dot sight, long magazine
+  const g = newGun('smg');
+  part(g, GM.body,  0.082,0.095,0.34,  0, 0.005,-0.02);        // body
+  part(g, GM.dark,  0.052,0.052,0.18,  0, 0.03, -0.31);        // suppressor
+  part(g, GM.steel, 0.036,0.036,0.09,  0, 0.03, -0.21);        // barrel
+  part(g, GM.dark,  0.058,0.21, 0.085, 0,-0.145,-0.045, 0.12); // magazine
+  part(g, GM.grip,  0.062,0.135,0.085, 0,-0.105, 0.105, 0.1);  // grip
+  part(g, GM.steel, 0.03, 0.05, 0.15,  0, 0.02,  0.21);        // stock
+  part(g, GM.dark,  0.042,0.022,0.28,  0, 0.072,-0.03);        // top rail
+  part(g, GM.dark,  0.05, 0.055,0.06,  0, 0.112, 0.045);       // red-dot housing
+  part(g, GM.red,   0.016,0.018,0.012, 0, 0.115, 0.012);       // red dot
+  part(g, GM.gold,  0.084,0.012,0.10,  0,-0.048,-0.14);        // accent
+}
 let recoil = 0;
 function poseGun(dt){
   recoil = Math.max(0, recoil - dt*6);
@@ -1023,11 +1100,19 @@ $('resumeBtn').addEventListener('click', ()=>{
    MAIN LOOP
    ============================================================ */
 let lastT = performance.now();
+let perfAcc = 0, perfN = 0;
 function loop(now){
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, (now - lastT)/1000);
   lastT = now;
   if(gameState === STATE.PLAY){
+    // adaptive resolution: sample avg frame time, trade pixels for fps
+    perfAcc += dt; perfN++;
+    if(perfN >= 90){
+      const avg = perfAcc/perfN; perfAcc = 0; perfN = 0;
+      if(avg > 0.037 && renderScale > 0.75){ renderScale = Math.max(0.75, renderScale - 0.15); applyScale(); }
+      else if(avg < 0.02 && renderScale < SCALE_MAX){ renderScale = Math.min(SCALE_MAX, renderScale + 0.1); applyScale(); }
+    }
     updatePlayer(dt);
     updateZombies(dt);
     updatePickups(dt, now);
