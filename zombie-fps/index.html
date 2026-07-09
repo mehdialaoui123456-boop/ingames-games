@@ -65,13 +65,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#15140f;font-family:
 .card button:disabled{background:rgba(255,255,255,.15);color:#777}
 #shopTimer{font-size:14px;color:#a9a695;margin-bottom:6px}
 #shopCoins{color:#ffd76a;font-weight:900;font-size:20px;margin-bottom:4px}
-/* ---------- Rotate prompt ---------- */
-#rotateOverlay{z-index:200;background:#15140f;font-size:20px;font-weight:700}
-#rotateOverlay .ph{font-size:52px;margin-bottom:14px;animation:spinP 1.6s ease-in-out infinite}
-@keyframes spinP{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(90deg)}}
+/* ---------- Stage (auto-rotates 90° when the phone is held in portrait) ---------- */
+#stage{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);overflow:hidden}
 </style>
 </head>
 <body>
+<div id="stage">
 <canvas id="gl"></canvas>
 
 <div id="hud" class="hidden">
@@ -128,10 +127,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:#15140f;font-family:
   <button id="exit2Btn" class="btn danger">الخروج</button>
 </div>
 
-<div id="rotateOverlay" class="overlay hidden">
-  <div class="ph">📱</div>
-  <div>الرجاء تدوير الجهاز</div>
-  <div class="sub">هذه اللعبة تعمل بالوضع الأفقي</div>
 </div>
 
 <script>
@@ -147,7 +142,6 @@ const EYE_H = 1.62;
 const MAX_ACTIVE = 14;          // simultaneous zombies cap (WebView perf)
 const STATE = { MENU:0, PLAY:1, SHOP:2, PAUSE:3, OVER:4 };
 let gameState = STATE.MENU;
-let rotateBlocked = false;      // portrait orientation pause
 
 const player = {
   x:0, z:8, y:0, yaw:Math.PI, pitch:0,
@@ -191,13 +185,26 @@ const sfx = {
 };
 
 /* ============================================================
-   ORIENTATION LOCK (landscape-only, rotate prompt on portrait)
+   ORIENTATION LOCK (always landscape: in portrait the whole
+   stage is CSS-rotated 90° and touch coords are remapped)
    ============================================================ */
-function checkOrientation(){
-  const portrait = window.innerHeight > window.innerWidth;
-  rotateBlocked = portrait;
-  $('rotateOverlay').classList.toggle('hidden', !portrait);
+const stage = $('stage');
+let portraitMode = false, stageW = 0, stageH = 0;
+function layout(){
+  const vw = window.innerWidth, vh = window.innerHeight;
+  portraitMode = vh > vw;
+  stageW = portraitMode ? vh : vw;
+  stageH = portraitMode ? vw : vh;
+  stage.style.width  = stageW + 'px';
+  stage.style.height = stageH + 'px';
+  stage.style.transform = 'translate(-50%,-50%)' + (portraitMode ? ' rotate(90deg)' : '');
   resize();
+}
+/* physical touch point -> rotated stage coordinates */
+function toStage(cx, cy){
+  if(!portraitMode) return { x:cx, y:cy };
+  return { x: cy - window.innerHeight/2 + stageW/2,
+           y: window.innerWidth/2 - cx + stageH/2 };
 }
 try{ screen.orientation.lock('landscape').catch(()=>{}); }catch(e){}
 
@@ -225,8 +232,8 @@ function resize(){
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
-window.addEventListener('resize', checkOrientation);
-window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 120));
+window.addEventListener('resize', layout);
+window.addEventListener('orientationchange', () => setTimeout(layout, 120));
 
 /* ============================================================
    PROCEDURAL VOXEL TEXTURES (canvas-drawn, pixel-art)
@@ -412,31 +419,33 @@ function onTouchStart(e){
     const onFire = t.target && t.target.closest && t.target.closest('#fireBtn');
     if(t.target && t.target.closest && t.target.closest('.tap') && !onFire) continue; // pause btn / weapon btns
     if(onFire){ input.firing = true; }
-    if(!onFire && t.clientX < window.innerWidth*0.42 && moveTouch === null){
-      moveTouch = { id:t.identifier, x:t.clientX, y:t.clientY };
+    const p = toStage(t.clientX, t.clientY);
+    if(!onFire && p.x < stageW*0.42 && moveTouch === null){
+      moveTouch = { id:t.identifier, x:p.x, y:p.y };
       const j = $('joy');
       j.style.display = 'block';
-      j.style.left = (t.clientX-55)+'px'; j.style.top = (t.clientY-55)+'px';
+      j.style.left = (p.x-55)+'px'; j.style.top = (p.y-55)+'px';
       $('joyStick').style.transform = 'translate(-50%,-50%)';
     } else if(lookTouch === null){
-      lookTouch = { id:t.identifier, x:t.clientX, y:t.clientY, fire:!!onFire };
+      lookTouch = { id:t.identifier, x:p.x, y:p.y, fire:!!onFire };
     }
     e.preventDefault();
   }
 }
 function onTouchMove(e){
   for(const t of e.changedTouches){
+    const p = toStage(t.clientX, t.clientY);
     if(moveTouch && t.identifier === moveTouch.id){
-      let dx = t.clientX - moveTouch.x, dy = t.clientY - moveTouch.y;
+      let dx = p.x - moveTouch.x, dy = p.y - moveTouch.y;
       const d = Math.hypot(dx,dy);
       if(d > JOY_R){ dx = dx/d*JOY_R; dy = dy/d*JOY_R; }
       $('joyStick').style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
       input.mvX = dx/JOY_R; input.mvY = dy/JOY_R;
     } else if(lookTouch && t.identifier === lookTouch.id){
-      player.yaw   -= (t.clientX - lookTouch.x) * LOOK_SENS;
-      player.pitch -= (t.clientY - lookTouch.y) * LOOK_SENS;
+      player.yaw   -= (p.x - lookTouch.x) * LOOK_SENS;
+      player.pitch -= (p.y - lookTouch.y) * LOOK_SENS;
       player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch));
-      lookTouch.x = t.clientX; lookTouch.y = t.clientY;
+      lookTouch.x = p.x; lookTouch.y = p.y;
     }
   }
   e.preventDefault();
@@ -1018,7 +1027,6 @@ function loop(now){
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, (now - lastT)/1000);
   lastT = now;
-  if(rotateBlocked) return;                      // portrait: rotate prompt is up, freeze
   if(gameState === STATE.PLAY){
     updatePlayer(dt);
     updateZombies(dt);
@@ -1058,7 +1066,7 @@ function loop(now){
 
 /* boot */
 buildWeaponRow(); updateAmmoUI(); updateHUD();
-checkOrientation();
+layout();
 requestAnimationFrame(loop);
 </script>
 </body>
