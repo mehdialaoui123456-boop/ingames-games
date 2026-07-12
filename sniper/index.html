@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>طلقة القنّاص</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+/* ==================== BASE ==================== */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-family:'Cairo',sans-serif;user-select:none;
+ -webkit-user-select:none;-webkit-touch-callout:none;background:#0a1428;touch-action:none;color:#eaf2ff}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hidden{display:none!important}
+button{font-family:'Cairo',sans-serif;border:none;cursor:pointer;touch-action:manipulation}
+
+/* ==================== SCOPE OVERLAY ==================== */
+#scope{position:fixed;inset:0;z-index:4;pointer-events:none}
+/* circle centered exactly on the camera aim point (screen center);
+   all reticle elements live INSIDE it so they share the same center */
+#scopeMask{position:absolute;left:50%;top:50%;width:min(94vw,58vh);height:min(94vw,58vh);
+ transform:translate(-50%,-50%);border-radius:50%;
+ box-shadow:0 0 0 200vmax rgba(4,10,24,.97),
+  inset 0 0 0 3px rgba(24,119,242,.55),
+  inset 0 0 26px 10px rgba(4,10,24,.95),
+  inset 0 0 90px 30px rgba(4,10,24,.35)}
+.xline{position:absolute;background:rgba(122,177,255,.8)}
+#xh{left:2%;right:2%;top:50%;height:1.5px;transform:translateY(-50%)}
+#xv{top:2%;bottom:2%;left:50%;width:1.5px;transform:translateX(-50%)}
+/* heavy duplex posts from the edges */
+.post{position:absolute;background:rgba(122,177,255,.95);border-radius:2px}
+.post.l{left:2%;top:50%;width:20%;height:4px;transform:translateY(-50%)}
+.post.r{right:2%;top:50%;width:20%;height:4px;transform:translateY(-50%)}
+.post.t{top:2%;left:50%;height:20%;width:4px;transform:translateX(-50%)}
+.post.b{bottom:2%;left:50%;height:20%;width:4px;transform:translateX(-50%)}
+/* mil ticks along the hairlines */
+.tick{position:absolute;background:rgba(122,177,255,.9)}
+.tick.h{width:2px;height:10px;top:50%;transform:translate(-50%,-50%)}
+.tick.v{width:10px;height:2px;left:50%;transform:translate(-50%,-50%)}
+#xdot{position:absolute;left:50%;top:50%;width:5px;height:5px;border-radius:50%;
+ background:#1877F2;transform:translate(-50%,-50%);box-shadow:0 0 6px 1px rgba(24,119,242,.9)}
+#marker{position:fixed;z-index:5;width:17px;height:17px;border-radius:50%;pointer-events:none;
+ border:2px solid rgba(120,190,255,.95);box-shadow:0 0 8px 2px rgba(24,119,242,.55),inset 0 0 4px rgba(24,119,242,.6);
+ transform:translate(-50%,-50%)}
+
+/* ==================== HUD ==================== */
+#hud{position:fixed;top:0;left:0;right:0;z-index:6;pointer-events:none;
+ padding:calc(10px + env(safe-area-inset-top)) 12px 0;
+ display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.chip{background:rgba(8,18,40,.78);border:1px solid rgba(90,140,220,.35);border-radius:999px;
+ padding:3px 14px;font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px;color:#cfe2ff}
+.chip b{font-weight:900;font-size:17px;color:#fff}
+#windChip .arr{font-size:19px;font-weight:900;color:#7ec8ff}
+#exitBtn{position:fixed;top:calc(10px + env(safe-area-inset-top));right:12px;z-index:7;
+ width:38px;height:38px;border-radius:50%;background:rgba(8,18,40,.8);color:#cfe2ff;
+ border:1px solid rgba(90,140,220,.4);font-size:17px;font-weight:900;line-height:1}
+
+/* ==================== FIRE BUTTON ==================== */
+#fireBtn{position:fixed;z-index:7;left:50%;transform:translateX(-50%);
+ bottom:calc(4vh + env(safe-area-inset-bottom));
+ width:88px;height:88px;border-radius:50%;color:#fff;
+ background:radial-gradient(circle at 34% 28%,#4d9bff,#1877F2 55%,#0d54b8);
+ box-shadow:0 6px 20px rgba(13,84,184,.55),inset 0 -4px 10px rgba(0,20,60,.4),inset 0 2px 6px rgba(255,255,255,.35);
+ display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+#fireBtn:active{transform:translateX(-50%) scale(.93)}
+#fireBtn span{font-weight:900;font-size:15px;line-height:1}
+#fireBtn svg{display:block}
+
+/* ==================== CINEMATIC BARS + FLASH ==================== */
+.bar{position:fixed;left:0;right:0;height:0;background:#000;z-index:8;transition:height .35s ease}
+#barTop{top:0}#barBot{bottom:0}
+body.cine .bar{height:11vh}
+#whiteFlash{position:fixed;inset:0;z-index:9;pointer-events:none;opacity:0;
+ background:radial-gradient(circle,rgba(255,255,255,.95) 0%,rgba(190,220,255,.7) 45%,rgba(120,170,255,0) 78%);
+ transition:opacity .45s ease}
+#whiteFlash.go{opacity:.9;transition:opacity .04s ease}
+
+/* ==================== TOAST ==================== */
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16vh + env(safe-area-inset-bottom));
+ z-index:10;background:rgba(8,18,40,.92);border:1px solid rgba(90,140,220,.45);color:#eaf2ff;
+ padding:8px 18px;border-radius:14px;font-weight:700;font-size:14.5px;max-width:86vw;text-align:center;
+ opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.show{opacity:1}
+
+/* ==================== SCREENS ==================== */
+.screen{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;
+ justify-content:center;padding:24px;animation:fadeIn .35s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+#menu,#select{background:radial-gradient(120% 90% at 50% 0%,#16294f 0%,#0a1428 60%,#060c1c 100%)}
+.btn{border-radius:16px;font-weight:900;color:#fff;padding:13px 20px;font-size:19px;
+ background:linear-gradient(180deg,#3b8df5,#1877F2 55%,#0f5ec4);
+ box-shadow:0 5px 16px rgba(13,84,184,.5),inset 0 2px 4px rgba(255,255,255,.3)}
+.btn:active{transform:scale(.96)}
+.btn.ghost{background:rgba(20,38,72,.9);box-shadow:none;border:1px solid rgba(90,140,220,.4);color:#cfe2ff}
+
+/* ---- main menu ---- */
+#emblem{position:relative;width:190px;height:190px;margin-bottom:18px}
+#emblem .ring{position:absolute;border-radius:50%;border:2px solid rgba(24,119,242,.55)}
+#emblem .r1{inset:0;animation:spin 24s linear infinite}
+#emblem .r2{inset:22px;border-color:rgba(122,177,255,.4)}
+#emblem .r3{inset:52px;border-color:rgba(24,119,242,.8);box-shadow:0 0 24px rgba(24,119,242,.35)}
+#emblem .lineH,#emblem .lineV{position:absolute;background:rgba(122,177,255,.7)}
+#emblem .lineH{left:-8px;right:-8px;top:50%;height:2px;transform:translateY(-50%)}
+#emblem .lineV{top:-8px;bottom:-8px;left:50%;width:2px;transform:translateX(-50%)}
+#emblem .dot{position:absolute;left:50%;top:50%;width:9px;height:9px;border-radius:50%;
+ background:#1877F2;transform:translate(-50%,-50%);box-shadow:0 0 14px 3px rgba(24,119,242,.9)}
+#emblem .ring.r1::before{content:'';position:absolute;top:-4px;left:50%;width:7px;height:7px;
+ border-radius:50%;background:#7ec8ff;transform:translateX(-50%)}
+@keyframes spin{to{transform:rotate(360deg)}}
+#menu h1{font-size:44px;font-weight:900;letter-spacing:.5px;
+ background:linear-gradient(180deg,#fff,#8fc1ff);-webkit-background-clip:text;background-clip:text;color:transparent;
+ text-shadow:0 6px 30px rgba(24,119,242,.3)}
+#menu .sub{color:#8fb0e0;font-weight:700;margin:2px 0 30px;font-size:16px}
+#menu .btn{width:min(70vw,260px);font-size:22px;padding:14px}
+#menuStars{margin-top:22px;color:#ffc24b;font-weight:900;font-size:18px}
+#menuStars span{color:#9db8e0;font-weight:700;font-size:15px}
+
+/* ---- level select ---- */
+#select{justify-content:flex-start;padding-top:calc(18px + env(safe-area-inset-top))}
+#selHead{width:min(92vw,430px);display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+#selHead h2{font-size:26px;font-weight:900}
+#selBack{background:rgba(20,38,72,.9);border:1px solid rgba(90,140,220,.4);color:#cfe2ff;
+ border-radius:12px;padding:7px 16px;font-weight:900;font-size:15px}
+#selStars{color:#ffc24b;font-weight:900;font-size:16px}
+#grid{width:min(92vw,430px);display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+ overflow-y:auto;padding-bottom:24px}
+.tile{aspect-ratio:1;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ gap:2px;background:linear-gradient(180deg,#1f3a6e,#152a52);
+ border:1px solid rgba(90,140,220,.4);color:#fff}
+.tile .num{font-size:26px;font-weight:900;line-height:1.1}
+.tile .tstars{font-size:12px;color:#ffc24b;letter-spacing:1px}
+.tile.locked{background:#101b33;color:#44557a;border-color:rgba(70,95,140,.25)}
+.tile.locked .num{font-size:15px}
+.tile:active:not(.locked){transform:scale(.94)}
+
+/* ---- result overlay ---- */
+#result{background:rgba(5,10,24,.55);z-index:25}
+#resCard{width:min(86vw,340px);background:linear-gradient(180deg,#152a52,#0d1c3a);
+ border:1px solid rgba(90,140,220,.5);border-radius:22px;padding:26px 22px 20px;text-align:center;
+ box-shadow:0 12px 44px rgba(0,0,0,.55),0 0 0 4px rgba(24,119,242,.12)}
+#resTitle{font-size:30px;font-weight:900}
+#resSub{color:#9db8e0;font-weight:700;font-size:15px;margin-top:2px}
+#resStars{display:flex;justify-content:center;gap:10px;margin:16px 0 6px;font-size:44px;line-height:1}
+#resStars .st{color:#2a3d66;transform:scale(0);transition:transform .35s cubic-bezier(.34,1.56,.64,1)}
+#resStars .st.on{color:#ffc24b;text-shadow:0 0 18px rgba(255,194,75,.5)}
+#resStars .st.pop{transform:scale(1)}
+#resScore{font-size:20px;font-weight:900;color:#7ec8ff;margin-bottom:18px}
+#resScore span{color:#9db8e0;font-weight:700;font-size:15px}
+#resBtns{display:flex;flex-direction:column;gap:9px}
+#resBtns .btn{width:100%;font-size:17px;padding:11px}
+</style>
+</head>
+<body>
+
+<canvas id="gl"></canvas>
+
+<!-- ==================== SCOPE OVERLAY ==================== -->
+<div id="scope" class="hidden">
+  <div id="scopeMask">
+    <div id="xh" class="xline"></div>
+    <div id="xv" class="xline"></div>
+    <div class="post l"></div><div class="post r"></div>
+    <div class="post t"></div><div class="post b"></div>
+    <div class="tick h" style="left:30%"></div><div class="tick h" style="left:40%"></div>
+    <div class="tick h" style="left:60%"></div><div class="tick h" style="left:70%"></div>
+    <div class="tick v" style="top:30%"></div><div class="tick v" style="top:40%"></div>
+    <div class="tick v" style="top:60%"></div><div class="tick v" style="top:70%"></div>
+    <div id="xdot"></div>
+  </div>
+</div>
+<div id="marker" class="hidden"></div>
+
+<!-- ==================== HUD ==================== -->
+<div id="hud" class="hidden">
+  <div class="chip">المرحلة <b id="hudLvl">1</b></div>
+  <div class="chip">المسافة <b id="hudDist">40</b> م</div>
+  <div class="chip hidden" id="windChip">الرياح <span class="arr" id="windArrow">→</span> <b id="hudWind">3</b> م/ث</div>
+  <div class="chip">الطلقات <b id="hudAmmo">1</b></div>
+</div>
+<button id="exitBtn" class="hidden">✕</button>
+
+<button id="fireBtn" class="hidden">
+  <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+    <circle cx="12" cy="12" r="6.5"/>
+    <path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>
+  </svg>
+  <span>إطلاق</span>
+</button>
+
+<!-- ==================== CINEMATIC ==================== -->
+<div class="bar" id="barTop"></div>
+<div class="bar" id="barBot"></div>
+<div id="whiteFlash"></div>
+<div id="toast"></div>
+
+<!-- ==================== MAIN MENU ==================== -->
+<div id="menu" class="screen">
+  <div id="emblem">
+    <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+    <div class="lineH"></div><div class="lineV"></div><div class="dot"></div>
+  </div>
+  <h1>طلقة القنّاص</h1>
+  <div class="sub">تصويب دقيق • رصاصة واحدة • هدف واحد</div>
+  <button class="btn" id="startBtn">ابدأ</button>
+  <div id="menuStars">★ 0 <span>/ 54</span></div>
+</div>
+
+<!-- ==================== LEVEL SELECT ==================== -->
+<div id="select" class="screen hidden">
+  <div id="selHead">
+    <h2>المراحل</h2>
+    <div id="selStars">★ 0</div>
+    <button id="selBack">رجوع</button>
+  </div>
+  <div id="grid"></div>
+</div>
+
+<!-- ==================== RESULT OVERLAY ==================== -->
+<div id="result" class="screen hidden">
+  <div id="resCard">
+    <div id="resTitle">أحسنت!</div>
+    <div id="resSub"></div>
+    <div id="resStars"><span class="st">★</span><span class="st">★</span><span class="st">★</span></div>
+    <div id="resScore"><span>النقاط</span> <b id="resScoreNum">0</b></div>
+    <div id="resBtns">
+      <button class="btn" id="btnNext">المرحلة التالية</button>
+      <button class="btn ghost" id="btnRetry">إعادة المحاولة</button>
+      <button class="btn ghost" id="btnLevels">قائمة المراحل</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ============================================================
+   1) CONFIG & LEVEL DATA
+   ============================================================ */
+const BULLET_SPEED = 400;   // m/s (scene units = meters)
+const GRAV        = 5.5;    // gamified gravity for bullet drop
+const WIND_FACT   = 0.5;    // wind drift factor
+const ZONE_Y      = 1.2;    // height of the scoring plate on the dummy
+const EYE_H       = 1.6;    // shooter eye height
+const SAVE_KEY    = 'sniper_shot_save_v1';
+
+// env: backdrop type | dist: meters | zone: plate radius (m)
+// wind: m/s signed (+ = drifts to screen-right) | move: {a:amplitude m, s:speed}
+const LEVELS = [
+  {env:'desert',  dist:40,  zone:0.34, wind:0,    move:0},
+  {env:'forest',  dist:55,  zone:0.32, wind:0,    move:0},
+  {env:'rooftop', dist:70,  zone:0.30, wind:0,    move:0},
+  {env:'alley',   dist:60,  zone:0.28, wind:0,    move:0},
+  {env:'desert',  dist:90,  zone:0.28, wind:2,    move:0},
+  {env:'forest',  dist:100, zone:0.26, wind:-2.5, move:0},
+  {env:'rooftop', dist:120, zone:0.24, wind:3,    move:0},
+  {env:'alley',   dist:90,  zone:0.26, wind:0,    move:{a:0.8,s:0.9}},
+  {env:'desert',  dist:130, zone:0.24, wind:-3,   move:0},
+  {env:'forest',  dist:140, zone:0.22, wind:0,    move:{a:0.9,s:1.05}},
+  {env:'rooftop', dist:160, zone:0.22, wind:4,    move:0},
+  {env:'alley',   dist:120, zone:0.20, wind:2,    move:{a:1.0,s:1.2}},
+  {env:'desert',  dist:180, zone:0.20, wind:-5,   move:0},
+  {env:'forest',  dist:190, zone:0.19, wind:0,    move:{a:1.1,s:1.3}},
+  {env:'rooftop', dist:210, zone:0.18, wind:5,    move:{a:0.8,s:1.0}},
+  {env:'alley',   dist:170, zone:0.17, wind:-4,   move:{a:1.2,s:1.35}},
+  {env:'desert',  dist:250, zone:0.16, wind:6,    move:0},
+  {env:'rooftop', dist:300, zone:0.15, wind:-6,   move:{a:1.0,s:1.1}},
+];
+
+const PAL = {
+  desert : {sky:0xaed9f7, fog:0xe0c99c, hemiS:0xcfe8ff, hemiG:0xcaa96f, sun:0xffe8bc, sunI:1.0,  ground:0xd9b878},
+  forest : {sky:0x9fc8ee, fog:0xbcd6c9, hemiS:0xd6ebff, hemiG:0x4f7a45, sun:0xfff2d0, sunI:0.95, ground:0x5e8f4e},
+  rooftop: {sky:0x32406e, fog:0x54507e, hemiS:0x6c7bbf, hemiG:0x2c2a3d, sun:0xffb36b, sunI:0.85, ground:0x3c4254},
+  alley  : {sky:0x7f93b8, fog:0x8a92a8, hemiS:0xaebbd8, hemiG:0x4d4a48, sun:0xffe0b0, sunI:0.8,  ground:0x565b64},
+};
+
+/* ============================================================
+   2) RENDERER / SCENE SETUP  (WebView sizing pattern)
+   ============================================================ */
+const canvas   = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+let dprCap = Math.min(window.devicePixelRatio || 1, 2);
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(10, 1, 0.1, 2500);
+camera.rotation.order = 'YXZ';
+
+function applySize(){
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setPixelRatio(dprCap);
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  cacheScopeRect();
+}
+window.addEventListener('resize', applySize);
+window.addEventListener('orientationchange', () => setTimeout(applySize, 300));
+
+// lights (rebuilt colors per level)
+const hemi = new THREE.HemisphereLight(0xffffff, 0x666666, 0.9);
+const sun  = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.position.set(-60, 90, 40);
+scene.add(hemi, sun);
+
+let worldGroup = null;   // per-level environment
+let dummy      = null;   // target group
+let dummyParts = [];     // meshes for shatter
+let lvl = null, lvlIndex = 0;
+
+/* ============================================================
+   3) SHARED GEOMETRY / MATERIALS / TEXTURES  (reused everywhere)
+   ============================================================ */
+const G = {
+  box  : new THREE.BoxGeometry(1,1,1),
+  cyl  : new THREE.CylinderGeometry(1,1,1,10),
+  cone : new THREE.ConeGeometry(1,1,9),
+  sph  : new THREE.SphereGeometry(1,10,8),
+  plane: new THREE.PlaneGeometry(1,1),
+  rock : new THREE.DodecahedronGeometry(1,0),
+};
+const matCache = {};
+function M(c){ if(!matCache[c]) matCache[c] = new THREE.MeshLambertMaterial({color:c}); return matCache[c]; }
+
+function add(parent, geo, color, x,y,z, sx,sy,sz, ry){
+  const m = new THREE.Mesh(geo, M(color));
+  m.position.set(x,y,z); m.scale.set(sx,sy,sz);
+  if(ry) m.rotation.y = ry;
+  parent.add(m);
+  return m;
+}
+
+// soft radial dot texture (particles, flashes, blob shadow)
+function makeSoftTex(){
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(32,32,2, 32,32,30);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(0.55,'rgba(255,255,255,.55)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0,0,64,64);
+  return new THREE.CanvasTexture(c);
+}
+const softTex = makeSoftTex();
+
+// bullseye plate texture (navy backing + blue/white rings)
+function makePlateTex(){
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d'), cx = 128;
+  function disc(r, col){ x.fillStyle = col; x.beginPath(); x.arc(cx,cx,r,0,7); x.fill(); }
+  disc(126,'#0e1b38'); disc(112,'#f2f6ff'); disc(88,'#0e1b38');
+  disc(74,'#4b9bff'); disc(52,'#0e1b38'); disc(40,'#f2f6ff'); disc(18,'#1877F2');
+  return new THREE.CanvasTexture(c);
+}
+const plateTex = makePlateTex();
+const plateMat = new THREE.MeshBasicMaterial({map:plateTex, transparent:true});
+const shadowMat = new THREE.SpriteMaterial({map:softTex, color:0x000000, opacity:0.35, depthWrite:false});
+
+/* ============================================================
+   4) ENVIRONMENT BUILDERS  (low-poly, corridor kept clear)
+   ============================================================ */
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+function groundPlane(g, color, y, size){
+  const m = new THREE.Mesh(G.plane, M(color));
+  m.rotation.x = -Math.PI/2; m.position.y = y; m.scale.set(size,size,1);
+  g.add(m);
+  return m;
+}
+
+function buildDesert(g, dist){
+  groundPlane(g, PAL.desert.ground, 0, dist*4+400);
+  for(let i=0;i<10;i++){ // dunes far off-corridor
+    const s = rnd(12,26);
+    add(g, G.sph, pick([0xd3b171,0xcaa763,0xdfc084]), pick([-1,1])*rnd(20,90), -s*0.72, -rnd(20,dist+120), s, s*0.35, s*0.7);
+  }
+  for(let i=0;i<14;i++){ // rocks
+    const s = rnd(0.5,2.2);
+    add(g, G.rock, pick([0xa08b62,0x8f7c58]), pick([-1,1])*rnd(7,45), s*0.4, -rnd(10,dist+60), s, s*0.7, s);
+  }
+  for(let i=0;i<10;i++){ // cacti
+    const x = pick([-1,1])*rnd(6,38), z = -rnd(12,dist+50), h = rnd(1.4,2.6);
+    add(g, G.cyl, 0x4c7a3d, x, h/2, z, 0.16, h, 0.16);
+    add(g, G.cyl, 0x4c7a3d, x+0.32, h*0.62, z, 0.1, h*0.45, 0.1);
+    add(g, G.cyl, 0x4c7a3d, x-0.3, h*0.5, z, 0.1, h*0.35, 0.1);
+  }
+}
+
+function buildForest(g, dist){
+  groundPlane(g, PAL.forest.ground, 0, dist*4+400);
+  for(let i=0;i<46;i++){ // pines around the firing corridor
+    const behind = Math.random() < 0.3;
+    const x = behind ? rnd(-40,40) : pick([-1,1])*rnd(6,40);
+    const z = behind ? -rnd(dist+8, dist+60) : -rnd(8, dist+40);
+    const h = rnd(2.4,5);
+    const green = pick([0x2f5d33,0x3a6f3c,0x28522c]);
+    add(g, G.cyl, 0x6b4a2e, x, h*0.2, z, 0.16, h*0.4, 0.16);
+    add(g, G.cone, green, x, h*0.55, z, h*0.36, h*0.62, h*0.36);
+    add(g, G.cone, green, x, h*0.92, z, h*0.26, h*0.48, h*0.26);
+  }
+  for(let i=0;i<12;i++){ // bushes
+    const s = rnd(0.5,1.2);
+    add(g, G.sph, 0x3d6b3a, pick([-1,1])*rnd(5,30), s*0.5, -rnd(6,dist+30), s, s*0.7, s);
+  }
+  for(let i=0;i<8;i++){
+    const s = rnd(0.4,1.1);
+    add(g, G.rock, 0x7d8577, pick([-1,1])*rnd(6,26), s*0.35, -rnd(10,dist+30), s, s*0.6, s);
+  }
+}
+
+function buildRooftop(g, dist){
+  groundPlane(g, 0x23262f, -13, dist*4+500);            // street far below
+  add(g, G.box, 0x4a5064, 0, -0.65, -7, 20, 1.3, 30);    // shooter roof (top y=0)
+  add(g, G.box, 0x454b5e, 0, -6.5, -dist-2, 30, 13, 40); // target roof (top y=0)
+  // parapet lips on shooter roof
+  add(g, G.box, 0x585f76, 0, 0.28, -21.8, 20, 0.56, 0.4);
+  add(g, G.box, 0x585f76, -9.8, 0.28, -7, 0.4, 0.56, 30);
+  add(g, G.box, 0x585f76, 9.8, 0.28, -7, 0.4, 0.56, 30);
+  // AC units + hatches on both roofs, off the sightline
+  for(let i=0;i<3;i++){
+    add(g, G.box, 0x6d7590, pick([-1,1])*rnd(4,8), 0.45, -rnd(2,16), rnd(1,1.8), 0.9, rnd(1,1.6));
+    add(g, G.box, 0x6d7590, pick([-1,1])*rnd(4,11), 0.5, -dist-rnd(2,14), rnd(1.2,2), 1, rnd(1.2,2));
+  }
+  add(g, G.cyl, 0x8a90a8, -7, 1.6, -dist-8, 0.06, 3.2, 0.06); // antenna
+  // mid-gap buildings (tops kept below the sightline)
+  for(let i=0;i<9;i++){
+    const h = rnd(4,10);
+    add(g, G.box, pick([0x353b4e,0x3d4459,0x2e3345]), pick([-1,1])*rnd(6,40), -13+h/2, -rnd(26,dist-16), rnd(6,14), h, rnd(6,14));
+  }
+  // far skyline behind target
+  for(let i=0;i<10;i++){
+    const h = rnd(14,34);
+    add(g, G.box, pick([0x2a3050,0x232a48,0x323a60]), rnd(-70,70), -13+h/2, -dist-rnd(30,110), rnd(8,18), h, rnd(8,18));
+  }
+}
+
+function buildAlley(g, dist){
+  groundPlane(g, PAL.alley.ground, 0, dist*4+300);
+  const L = dist + 30;
+  add(g, G.box, 0x8a6f5a, -7.5, 5, -L/2+6, 1.5, 10, L);  // walls
+  add(g, G.box, 0x74655e, 7.5, 5, -L/2+6, 1.5, 10, L);
+  add(g, G.box, 0x5d5348, -6.7, 2.6, -L/2+6, 0.15, 0.3, L); // trim lines
+  add(g, G.box, 0x5d5348, 6.7, 2.6, -L/2+6, 0.15, 0.3, L);
+  add(g, G.box, 0x6b6158, 0, 5, -(dist+16), 16, 10, 1);   // end wall
+  for(let i=0;i<8;i++){ // crates
+    const s = rnd(0.6,1.1), x = pick([-1,1])*rnd(5.2,6.4), z = -rnd(6,dist-6);
+    add(g, G.box, pick([0x9c7b4c,0x86693f,0xa8905e]), x, s/2, z, s, s, s, rnd(0,0.6));
+    if(Math.random()<0.5) add(g, G.box, 0x86693f, x, s+0.35, z, 0.7, 0.7, 0.7, rnd(0,0.6));
+  }
+  add(g, G.box, 0x3d6b4d, 5.6, 0.7, -rnd(10,20), 2, 1.4, 1.1); // dumpster
+}
+
+const BUILDERS = {desert:buildDesert, forest:buildForest, rooftop:buildRooftop, alley:buildAlley};
+
+/* ============================================================
+   5) TARGET DUMMY  (stylized mannequin + scoring plate)
+   ============================================================ */
+function buildDummy(zoneR){
+  const g = new THREE.Group();
+  const parts = [];
+  function part(geo, color, x,y,z, sx,sy,sz){
+    const m = add(g, geo, color, x,y,z, sx,sy,sz);
+    parts.push(m);
+    return m;
+  }
+  part(G.cyl, 0x39404f, 0, 0.04, 0, 0.45, 0.08, 0.45);        // base
+  part(G.box, 0xc4a879, -0.11, 0.47, 0, 0.16, 0.78, 0.2);     // legs
+  part(G.box, 0xc4a879,  0.11, 0.47, 0, 0.16, 0.78, 0.2);
+  part(G.box, 0xd9c29a, 0, 0.9, 0, 0.46, 0.16, 0.24);         // hips
+  part(G.box, 0xd9c29a, 0, 1.2, 0, 0.5, 0.55, 0.26);          // torso
+  const armL = part(G.box, 0xc4a879, -0.34, 1.18, 0, 0.12, 0.5, 0.18);
+  const armR = part(G.box, 0xc4a879,  0.34, 1.18, 0, 0.12, 0.5, 0.18);
+  armL.rotation.z = 0.12; armR.rotation.z = -0.12;
+  part(G.cyl, 0xc4a879, 0, 1.51, 0, 0.06, 0.09, 0.06);        // neck
+  part(G.sph, 0xe6d3ae, 0, 1.65, 0, 0.15, 0.16, 0.15);        // head
+  const plate = new THREE.Mesh(G.plane, plateMat);            // scoring plate
+  plate.position.set(0, ZONE_Y, 0.145);
+  plate.scale.set(zoneR*2/0.984, zoneR*2/0.984, 1);
+  g.add(plate); parts.push(plate);
+  const sh = new THREE.Sprite(shadowMat);                     // blob shadow
+  sh.scale.set(1.5, 0.75, 1); sh.position.y = 0.02;
+  g.add(sh);
+  dummyParts = parts;
+  return g;
+}
+
+/* ============================================================
+   6) SCOPE & AIMING (INPUT)
+   ============================================================ */
+let state = 'menu';   // menu | select | aim | bulletcam | result
+let yaw=0, pitch=0, yawT=0, pitchT=0, yaw0=0, pitch0=0;
+let worldT = 0;       // world animation clock (slowed during bullet-cam)
+let ammo = 1;
+
+const scopeEl = document.getElementById('scope');
+const maskEl  = document.getElementById('scopeMask');
+const markerEl= document.getElementById('marker');
+let scopeRect = {cx:0, cy:0, r:100};
+function cacheScopeRect(){
+  const b = maskEl.getBoundingClientRect();
+  scopeRect = {cx:b.left+b.width/2, cy:b.top+b.height/2, r:b.width/2};
+}
+
+let dragId = null, lastX=0, lastY=0;
+canvas.addEventListener('pointerdown', e => {
+  if(state!=='aim' || dragId!==null) return;
+  dragId = e.pointerId; lastX = e.clientX; lastY = e.clientY;
+  try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+});
+canvas.addEventListener('pointermove', e => {
+  if(e.pointerId!==dragId || state!=='aim') return;
+  const dx = e.clientX-lastX, dy = e.clientY-lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  const k = camera.fov * 0.00009;              // sensitivity scales with zoom
+  yawT   -= dx*k;
+  pitchT -= dy*k;
+  yawT   = THREE.MathUtils.clamp(yawT,   yaw0-0.3,  yaw0+0.3);
+  pitchT = THREE.MathUtils.clamp(pitchT, pitch0-0.22, pitch0+0.22);
+});
+function endDrag(e){ if(e.pointerId===dragId) dragId = null; }
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
+function updateAim(dt){
+  const s = Math.min(1, dt*10);
+  yaw   += (yawT-yaw)*s;
+  pitch += (pitchT-pitch)*s;
+  // breathing sway — part of the skill layer
+  const swayY = Math.sin(worldT*0.8)*0.0021 + Math.sin(worldT*1.7)*0.0008;
+  const swayX = Math.sin(worldT*1.23)*0.0016;
+  camera.rotation.set(pitch+swayX, yaw+swayY, 0);
+}
+
+/* ============================================================
+   7) BALLISTICS  (drop + wind drift, shared by marker & shot)
+   ============================================================ */
+const _dir = new THREE.Vector3();
+function ballistics(dist){
+  const t = dist / BULLET_SPEED;
+  return { drop: 0.5*GRAV*t*t, drift: (lvl ? lvl.wind : 0) * t * WIND_FACT };
+}
+
+// Where will the bullet actually land on the target's front plane?
+function computeImpact(){
+  camera.getWorldDirection(_dir);
+  if(_dir.z > -0.02) return {valid:false};
+  const planeZ = dummy.position.z + 0.15;
+  const s = (planeZ - camera.position.z) / _dir.z;
+  if(s <= 0 || s > 2200) return {valid:false};
+  const p = _dir.clone().multiplyScalar(s).add(camera.position);
+  const b = ballistics(s);
+  p.y -= b.drop; p.x += b.drift;
+  return {valid:true, point:p, dist:s};
+}
+
+function judge(p){
+  const zx = dummy.position.x, R = lvl.zone;
+  const d = Math.hypot(p.x-zx, p.y-ZONE_Y);
+  if(d <= R*0.35) return {hit:true, stars:3, score:100, zone:true};
+  if(d <= R*0.7)  return {hit:true, stars:2, score:70,  zone:true};
+  if(d <= R)      return {hit:true, stars:1, score:40,  zone:true};
+  const lx = p.x-zx, ly = p.y;   // body silhouette (partial credit)
+  const body = (Math.abs(lx)<0.26 && ly>0.05 && ly<1.48) ||
+               (Math.abs(lx)<0.43 && ly>0.9  && ly<1.45) ||
+               (Math.abs(lx)<0.16 && ly>1.48 && ly<1.82);
+  if(body) return {hit:true, stars:1, score:20, zone:false};
+  return {hit:false, stars:0, score:0, zone:false};
+}
+
+/* ============================================================
+   8) BULLET-CAM SEQUENCE  (scripted slow-motion camera path)
+   ============================================================ */
+let seq = null;
+const bullet = (() => {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(G.cyl, new THREE.MeshBasicMaterial({color:0xd8942f}));
+  body.scale.set(0.026, 0.13, 0.026);
+  const tip = new THREE.Mesh(G.cone, new THREE.MeshBasicMaterial({color:0xb06f1e}));
+  tip.scale.set(0.026, 0.06, 0.026); tip.position.y = 0.095;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({map:softTex, color:0xffd9a0, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0.85}));
+  glow.scale.set(0.5,0.5,1);
+  g.add(body, tip, glow);
+  g.scale.set(3,3,3);            // cinematic exaggeration
+  g.visible = false;
+  scene.add(g);
+  return g;
+})();
+
+function bulletProgress(u){       // fast launch → slow-mo crawl → final snap
+  if(u < 0.2)  return u/0.2*0.55;
+  if(u < 0.82) return 0.55 + (u-0.2)/0.62*0.35;
+  return 0.9 + (u-0.82)/0.18*0.1;
+}
+const easeIO = u => u*u*(3-2*u);
+
+const _a=new THREE.Vector3(), _b=new THREE.Vector3(), _c=new THREE.Vector3();
+const _end=new THREE.Vector3(), _bp=new THREE.Vector3(), _tan=new THREE.Vector3();
+const _right=new THREE.Vector3(), _up=new THREE.Vector3(0,1,0), _cp=new THREE.Vector3();
+const Y_AXIS = new THREE.Vector3(0,1,0);
+
+function fireShot(){
+  if(state!=='aim' || ammo<=0) return;
+  ammo = 0; document.getElementById('hudAmmo').textContent = '0';
+  SFX.shot();
+  camera.getWorldDirection(_dir);
+  const imp = computeImpact();
+  let point, verdict;
+  if(imp.valid){
+    point = imp.point; verdict = judge(point);
+  }else{  // aimed at the sky — guaranteed miss dropping far downrange
+    point = camera.position.clone().addScaledVector(_dir, Math.min(lvl.dist,120));
+    verdict = {hit:false, stars:0, score:0, zone:false};
+  }
+  // miss lands as a dust puff on the ground / near wall
+  if(!verdict.hit){
+    const k = THREE.MathUtils.clamp(point.y*4, 2, 60);
+    point = point.clone().addScaledVector(_dir, k);
+    point.y = 0.03;
+    point.z = Math.max(point.z, dummy.position.z - 13);
+  }
+  const muzzle = camera.position.clone().addScaledVector(_dir, 1.1);
+  muzzle.y -= 0.08;
+  seq = {
+    u:0, dur:2.05, verdict,
+    muzzle,
+    attach: verdict.hit,
+    endLocal: verdict.hit ? point.clone().sub(dummy.position) : null,
+    endWorld: point.clone(),
+    side: Math.random()<0.5 ? -1 : 1,
+    arc: Math.max(0.4, ballistics(lvl.dist).drop*0.5),
+    impacted:false, hold:0, frozen:false,
+    camPos: new THREE.Vector3(), shake:0,
+  };
+  state = 'bulletcam';
+  setAimUI(false);
+  document.body.classList.add('cine');
+  flashWhite();
+  spawnFlash(muzzle, 0xffe2b0, 1.6, 0.22);
+  camera.fov = 55; camera.updateProjectionMatrix();
+  const low = Math.min(dprCap, 1.35);            // guarantee smooth fly-through
+  if(low < dprCap){ renderer.setPixelRatio(low); renderer.setSize(canvas.clientWidth, canvas.clientHeight, false); }
+  bullet.visible = true;
+  SFX.whoosh();
+}
+
+function seqEnd(){
+  if(seq){ seq = null; }
+  bullet.visible = false;
+  document.body.classList.remove('cine');
+  applySize();   // restore pixel ratio
+}
+
+function updateSeq(dt){
+  if(!seq) return;
+  seq.u += dt/seq.dur;
+  const u = Math.min(seq.u, 1);
+  const p = bulletProgress(u);
+
+  // bezier path muzzle → (possibly swaying) end point
+  if(seq.attach) _end.copy(dummy.position).add(seq.endLocal);
+  else _end.copy(seq.endWorld);
+  _a.copy(seq.muzzle);
+  _c.copy(_end);
+  _b.copy(_a).add(_c).multiplyScalar(0.5); _b.y += seq.arc;
+  const q = 1-p;
+  _bp.set(0,0,0).addScaledVector(_a,q*q).addScaledVector(_b,2*q*p).addScaledVector(_c,p*p);
+  _tan.set(0,0,0).addScaledVector(_b.clone().sub(_a),2*q).addScaledVector(_c.clone().sub(_b),2*p).normalize();
+  bullet.position.copy(_bp);
+  bullet.quaternion.setFromUnitVectors(Y_AXIS, _tan);
+  bullet.rotateY(worldT*20);
+  if(!seq.impacted) spawnTrail(_bp);
+
+  // cinematic camera: swings from behind the bullet out to its side
+  if(!seq.frozen){
+    _dir.copy(_end).sub(seq.muzzle).normalize();
+    _right.crossVectors(_dir, _up).normalize();
+    const back = THREE.MathUtils.lerp(3.0, 1.4, p);
+    const side = THREE.MathUtils.lerp(0.35, 2.1, easeIO(p)) * seq.side;
+    const lift = THREE.MathUtils.lerp(0.4, 0.15, p);
+    _cp.copy(_bp).addScaledVector(_dir,-back).addScaledVector(_right,side).addScaledVector(_up,lift);
+    camera.position.copy(_cp);
+    camera.lookAt(_bp.x+_dir.x*3, _bp.y+_dir.y*3, _bp.z+_dir.z*3);
+    if(p > 0.93){ seq.frozen = true; seq.camPos.copy(_cp); }
+  }else{
+    camera.position.copy(seq.camPos);
+    if(seq.shake > 0){
+      camera.position.x += (Math.random()-0.5)*seq.shake;
+      camera.position.y += (Math.random()-0.5)*seq.shake;
+      seq.shake *= Math.pow(0.001, dt);   // fast decay
+    }
+    camera.lookAt(_end);
+  }
+
+  // impact
+  if(seq.u >= 1 && !seq.impacted){
+    seq.impacted = true;
+    bullet.visible = false;
+    seq.shake = seq.verdict.hit ? 0.28 : 0.12;
+    if(seq.verdict.hit){
+      SFX.hit();
+      flashWhite();
+      spawnFlash(_end, 0xffffff, 3.2, 0.3);
+      spawnFlash(_end, 0x6fb3ff, 5.5, 0.55);
+      spawnSparks(_end, _tan);
+      shatterDummy(_end, _tan);
+    }else{
+      SFX.miss();
+      spawnDust(_end);
+    }
+  }
+  if(seq.impacted){
+    seq.hold += dt;
+    if(seq.hold > 1.45){
+      const v = seq.verdict;
+      seqEnd();
+      showResult(v);
+    }
+  }
+}
+
+/* ============================================================
+   9) EFFECTS  (trail, flashes, sparks, dust, dummy shatter)
+   ============================================================ */
+const fx = [];        // sprite particles {spr,vel,life,max,grow,grav,baseOp}
+const debris = [];    // shatter meshes {mesh,vel,angV}
+const trailPool = [];
+let trailIdx = 0;
+for(let i=0;i<70;i++){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map:softTex, color:0xbfd9ff, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:0}));
+  s.visible = false; scene.add(s); trailPool.push(s);
+}
+
+function spawnTrail(pos){
+  const s = trailPool[trailIdx = (trailIdx+1)%trailPool.length];
+  s.visible = true;
+  s.position.copy(pos);
+  s.scale.set(0.4,0.4,1);
+  fx.push({spr:s, vel:null, life:0.5, max:0.5, grow:-0.55, grav:0, baseOp:0.8, pooled:true});
+}
+function spawnFlash(pos, color, size, dur){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map:softTex, color, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
+  s.position.copy(pos); s.scale.set(size*0.3, size*0.3, 1);
+  scene.add(s);
+  fx.push({spr:s, vel:null, life:dur, max:dur, grow:size*2.4, grav:0, baseOp:1});
+}
+function spawnSparks(pos, dir){
+  for(let i=0;i<16;i++){
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({map:softTex, color:Math.random()<0.5?0xcfe4ff:0x8fc1ff, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
+    s.position.copy(pos); s.scale.set(0.22,0.22,1);
+    scene.add(s);
+    const v = new THREE.Vector3(rnd(-1,1), rnd(-0.4,1.2), rnd(-1,1)).normalize().multiplyScalar(rnd(2,7)).addScaledVector(dir, 2);
+    fx.push({spr:s, vel:v, life:rnd(0.35,0.7), max:0.7, grow:0.1, grav:6, baseOp:1});
+  }
+}
+function spawnDust(pos){
+  for(let i=0;i<10;i++){
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({map:softTex, color:0x9a8f80, depthWrite:false, transparent:true}));
+    s.position.set(pos.x+rnd(-0.3,0.3), pos.y+rnd(0,0.25), pos.z+rnd(-0.3,0.3));
+    s.scale.set(0.5,0.5,1);
+    scene.add(s);
+    fx.push({spr:s, vel:new THREE.Vector3(rnd(-0.8,0.8), rnd(0.6,1.6), rnd(-0.8,0.8)), life:rnd(0.8,1.3), max:1.3, grow:1.6, grav:0.4, baseOp:0.75});
+  }
+}
+
+// break the dummy into flying low-poly pieces + extra shards
+function shatterDummy(impact, dir){
+  for(const m of dummyParts){
+    m.getWorldPosition(_a);
+    const v = _a.clone().sub(impact).normalize().multiplyScalar(rnd(2,5)).addScaledVector(dir, 4.5);
+    v.y += rnd(0.5,2);
+    scene.attach(m);   // detach from group, keep world transform
+    debris.push({mesh:m, vel:v, angV:new THREE.Vector3(rnd(-6,6), rnd(-6,6), rnd(-6,6))});
+  }
+  for(let i=0;i<16;i++){  // extra shards at impact point
+    const s = rnd(0.04,0.11);
+    const m = new THREE.Mesh(G.box, M(pick([0xd9c29a, 0xc4a879, 0x0e1b38, 0x4b9bff])));
+    m.position.copy(impact); m.scale.set(s,s,s);
+    scene.add(m);
+    debris.push({mesh:m, vel:new THREE.Vector3(rnd(-3,3), rnd(0,4), rnd(-2,2)).addScaledVector(dir, rnd(3,6)),
+                 angV:new THREE.Vector3(rnd(-9,9), rnd(-9,9), rnd(-9,9))});
+  }
+  dummyParts = [];
+}
+
+function updateFX(dt){
+  for(let i=fx.length-1; i>=0; i--){
+    const p = fx[i];
+    p.life -= dt;
+    if(p.life <= 0){
+      if(p.pooled){ p.spr.visible = false; p.spr.material.opacity = 0; }
+      else{ scene.remove(p.spr); p.spr.material.dispose(); }
+      fx.splice(i,1); continue;
+    }
+    const t = p.life/p.max;
+    p.spr.material.opacity = p.baseOp * t;
+    p.spr.scale.x = Math.max(0.02, p.spr.scale.x + p.grow*dt);
+    p.spr.scale.y = p.spr.scale.x;
+    if(p.vel){
+      p.vel.y -= p.grav*dt;
+      p.spr.position.addScaledVector(p.vel, dt);
+    }
+  }
+  for(const d of debris){
+    d.vel.y -= 9.8*dt;
+    d.mesh.position.addScaledVector(d.vel, dt);
+    d.mesh.rotation.x += d.angV.x*dt;
+    d.mesh.rotation.y += d.angV.y*dt;
+    d.mesh.rotation.z += d.angV.z*dt;
+    if(d.mesh.position.y < 0.06 && d.vel.y < 0){
+      d.mesh.position.y = 0.06;
+      d.vel.y *= -0.35; d.vel.x *= 0.7; d.vel.z *= 0.7;
+      d.angV.multiplyScalar(0.7);
+    }
+  }
+}
+function clearFX(){
+  for(const p of fx){
+    if(p.pooled){ p.spr.visible=false; p.spr.material.opacity=0; }
+    else{ scene.remove(p.spr); p.spr.material.dispose(); }
+  }
+  fx.length = 0;
+  for(const d of debris) scene.remove(d.mesh);
+  debris.length = 0;
+}
+
+function flashWhite(){
+  const f = document.getElementById('whiteFlash');
+  f.classList.add('go');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>f.classList.remove('go')));
+}
+
+/* ============================================================
+   10) SCORING & PROGRESSION  (localStorage)
+   ============================================================ */
+let save = {u:1, st:{}, sc:{}};
+try{
+  const raw = localStorage.getItem(SAVE_KEY);
+  if(raw) save = JSON.parse(raw);
+}catch(_){}
+function persist(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(_){} }
+function totalStars(){ return Object.values(save.st).reduce((a,b)=>a+b, 0); }
+
+function recordResult(v){
+  if(!v.hit) return;
+  save.st[lvlIndex] = Math.max(save.st[lvlIndex]||0, v.stars);
+  save.sc[lvlIndex] = Math.max(save.sc[lvlIndex]||0, v.score);
+  save.u = Math.max(save.u, Math.min(lvlIndex+2, LEVELS.length));
+  persist();
+}
+
+/* ============================================================
+   11) UI / SCREENS
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const screens = ['menu','select','result'];
+function showScreen(name){
+  for(const s of screens) $(s).classList.toggle('hidden', s!==name);
+}
+function setAimUI(on){
+  $('scope').classList.toggle('hidden', !on);
+  $('hud').classList.toggle('hidden', !on);
+  $('fireBtn').classList.toggle('hidden', !on);
+  $('exitBtn').classList.toggle('hidden', !on);
+  if(!on) markerEl.classList.add('hidden');
+}
+
+let toastTimer = null;
+function showToast(msg, dur){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), dur||2800);
+}
+
+function refreshMenuStars(){
+  $('menuStars').firstChild.textContent = '★ ' + totalStars() + ' ';
+  $('selStars').textContent = '★ ' + totalStars();
+}
+
+function buildGrid(){
+  const grid = $('grid');
+  grid.innerHTML = '';
+  LEVELS.forEach((L, i) => {
+    const b = document.createElement('button');
+    const locked = i+1 > save.u;
+    b.className = 'tile' + (locked ? ' locked' : '');
+    if(locked){
+      b.innerHTML = '<span class="num">🔒</span>';
+    }else{
+      const st = save.st[i]||0;
+      b.innerHTML = '<span class="num">'+(i+1)+'</span><span class="tstars">'+'★'.repeat(st)+'☆'.repeat(3-st)+'</span>';
+    }
+    b.addEventListener('click', () => {
+      if(locked){ SFX.click(); showToast('أكمل المراحل السابقة أولاً 🔒'); return; }
+      SFX.click();
+      startLevel(i);
+    });
+    grid.appendChild(b);
+  });
+}
+
+const shownHints = {};
+function levelHints(){
+  if(lvlIndex===0 && !shownHints.basic){
+    shownHints.basic = true;
+    showToast('اسحب الشاشة للتصويب ثم اضغط زر الإطلاق', 3500);
+    setTimeout(()=>{ if(state==='aim') showToast('الدائرة الزرقاء تُظهر مكان سقوط الرصاصة بفعل الجاذبية', 3800); }, 3900);
+  }else if(lvl.wind!==0 && !shownHints.wind){
+    shownHints.wind = true;
+    showToast('انتبه للرياح! عوّض تصويبك عكس اتجاهها 💨', 3500);
+  }else if(lvl.move && !shownHints.move){
+    shownHints.move = true;
+    showToast('الهدف يتحرك! اختر لحظة الإطلاق المناسبة', 3500);
+  }
+}
+
+function showResult(v){
+  recordResult(v);
+  state = 'result';
+  const last = lvlIndex === LEVELS.length-1;
+  let title, sub;
+  if(!v.hit){ title = 'أخطأت الهدف!'; sub = 'محاولة أخرى — راقب الجاذبية والرياح'; }
+  else if(!v.zone){ title = 'جيد!'; sub = 'أصبت الهدف خارج المنطقة المحددة'; }
+  else if(v.stars===3){ title = 'أحسنت! 🎯'; sub = 'إصابة في قلب الهدف!'; }
+  else if(v.stars===2){ title = 'أحسنت!'; sub = 'إصابة دقيقة جدًا!'; }
+  else{ title = 'أحسنت!'; sub = 'أصبت منطقة الهدف'; }
+  if(v.hit && last) sub = 'أنهيت جميع المراحل! 🏆';
+  $('resTitle').textContent = title;
+  $('resSub').textContent = sub;
+  $('btnNext').classList.toggle('hidden', !v.hit || last);
+  $('btnRetry').textContent = v.hit ? 'إعادة المحاولة' : 'محاولة أخرى';
+  showScreen('result');
+  refreshMenuStars();
+  // stars pop-in
+  const sts = $('resStars').children;
+  for(let i=0;i<3;i++){
+    sts[i].classList.remove('on','pop');
+    if(i < v.stars){
+      setTimeout(()=>{ sts[i].classList.add('on','pop'); SFX.star(i); }, 350+i*280);
+    }else{
+      setTimeout(()=>sts[i].classList.add('pop'), 250);
+    }
+  }
+  if(!v.hit) setTimeout(()=>SFX.fail(), 300);
+  // score count-up
+  const el = $('resScoreNum');
+  let cur = 0;
+  el.textContent = '0';
+  const step = () => {
+    cur = Math.min(v.score, cur + Math.max(1, v.score/30));
+    el.textContent = Math.round(cur);
+    if(cur < v.score) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+$('startBtn').addEventListener('click', ()=>{ SFX.ensure(); SFX.click(); buildGrid(); refreshMenuStars(); showScreen('select'); state='select'; });
+$('selBack').addEventListener('click', ()=>{ SFX.click(); showScreen('menu'); state='menu'; });
+$('btnNext').addEventListener('click', ()=>{ SFX.click(); startLevel(lvlIndex+1); });
+$('btnRetry').addEventListener('click', ()=>{ SFX.click(); startLevel(lvlIndex); });
+$('btnLevels').addEventListener('click', ()=>{ SFX.click(); buildGrid(); refreshMenuStars(); showScreen('select'); state='select'; });
+$('exitBtn').addEventListener('click', ()=>{
+  SFX.click(); seqEnd(); setAimUI(false);
+  buildGrid(); refreshMenuStars(); showScreen('select'); state='select';
+});
+$('fireBtn').addEventListener('click', ()=>{ SFX.ensure(); fireShot(); });
+
+/* ============================================================
+   12) AUDIO  (tiny synthesized SFX, no assets)
+   ============================================================ */
+const SFX = {
+  ctx:null,
+  ensure(){
+    if(!this.ctx){
+      try{ this.ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch(_){}
+    }
+    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+  },
+  tone(f0, f1, dur, type, vol, delay){
+    if(!this.ctx) return;
+    try{
+      const t0 = this.ctx.currentTime + (delay||0);
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f0, t0);
+      o.frequency.exponentialRampToValueAtTime(Math.max(f1,1), t0+dur);
+      g.gain.setValueAtTime(vol, t0);
+      g.gain.exponentialRampToValueAtTime(0.001, t0+dur);
+      o.connect(g).connect(this.ctx.destination);
+      o.start(t0); o.stop(t0+dur+0.02);
+    }catch(_){}
+  },
+  noise(dur, vol, freq, delay){
+    if(!this.ctx) return;
+    try{
+      const t0 = this.ctx.currentTime + (delay||0);
+      const n = Math.floor(this.ctx.sampleRate*dur);
+      const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1-i/n);
+      const src = this.ctx.createBufferSource(); src.buffer = buf;
+      const f = this.ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=freq; f.Q.value=0.7;
+      const g = this.ctx.createGain(); g.gain.value = vol;
+      src.connect(f).connect(g).connect(this.ctx.destination);
+      src.start(t0);
+    }catch(_){}
+  },
+  shot(){ this.noise(0.22,0.5,900); this.tone(150,45,0.28,'sine',0.55); },
+  whoosh(){ this.tone(480,65,1.5,'sine',0.1,0.15); this.noise(1.3,0.05,320,0.15); },
+  hit(){ this.noise(0.3,0.5,1600); this.tone(230,40,0.42,'sine',0.6); this.tone(1250,880,0.13,'triangle',0.18); },
+  miss(){ this.noise(0.28,0.32,480); this.tone(120,48,0.3,'sine',0.4); },
+  star(i){ this.tone(620+i*220, 620+i*220, 0.22, 'sine', 0.22); },
+  fail(){ this.tone(210,85,0.5,'sawtooth',0.16); },
+  click(){ this.tone(880,640,0.07,'sine',0.14); },
+};
+
+/* ============================================================
+   LEVEL LOADING
+   ============================================================ */
+function startLevel(i){
+  lvlIndex = i;
+  lvl = LEVELS[i];
+  seqEnd();
+  clearFX();
+
+  // rebuild environment (geometries/materials are shared & cached)
+  if(worldGroup) scene.remove(worldGroup);
+  worldGroup = new THREE.Group();
+  const pal = PAL[lvl.env];
+  scene.background = new THREE.Color(pal.sky);
+  scene.fog = new THREE.Fog(pal.fog, lvl.dist*0.5, lvl.dist*2.2 + 140);
+  hemi.color.set(pal.hemiS); hemi.groundColor.set(pal.hemiG);
+  sun.color.set(pal.sun); sun.intensity = pal.sunI;
+  BUILDERS[lvl.env](worldGroup, lvl.dist);
+  scene.add(worldGroup);
+
+  // target dummy
+  dummy = buildDummy(lvl.zone);
+  dummy.position.set(0, 0, -lvl.dist);
+  dummy.userData.baseX = 0;
+  worldGroup.add(dummy);
+
+  // camera / aim state — start slightly off-target so the player adjusts
+  camera.position.set(0, EYE_H, 0);
+  camera.fov = THREE.MathUtils.clamp(430/lvl.dist, 4, 12);
+  camera.updateProjectionMatrix();
+  const off = 3.5/lvl.dist;
+  yaw0 = 0; pitch0 = Math.atan2(ZONE_Y-EYE_H, lvl.dist);
+  yawT = yaw = yaw0 + rnd(-off, off);
+  pitchT = pitch = pitch0 + rnd(-off*0.6, off*0.6);
+  camera.rotation.set(pitch, yaw, 0);
+
+  // HUD
+  $('hudLvl').textContent = i+1;
+  $('hudDist').textContent = lvl.dist;
+  $('hudAmmo').textContent = '1';
+  ammo = 1;
+  const wc = $('windChip');
+  wc.classList.toggle('hidden', lvl.wind===0);
+  if(lvl.wind!==0){
+    $('windArrow').textContent = lvl.wind>0 ? '→' : '←';
+    $('hudWind').textContent = Math.abs(lvl.wind);
+  }
+
+  showScreen('none');
+  setAimUI(true);
+  state = 'aim';
+  cacheScopeRect();
+  levelHints();
+}
+
+/* ============================================================
+   13) MAIN LOOP
+   ============================================================ */
+const _proj = new THREE.Vector3();
+function updateMarker(){
+  if(state!=='aim'){ markerEl.classList.add('hidden'); return; }
+  const imp = computeImpact();
+  if(!imp.valid){ markerEl.classList.add('hidden'); return; }
+  _proj.copy(imp.point).project(camera);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const x = ( _proj.x*0.5+0.5)*w;
+  const y = (-_proj.y*0.5+0.5)*h;
+  const dx = x-scopeRect.cx, dy = y-scopeRect.cy;
+  if(_proj.z > 1 || Math.hypot(dx,dy) > scopeRect.r-12){
+    markerEl.classList.add('hidden'); return;
+  }
+  markerEl.classList.remove('hidden');
+  markerEl.style.left = x+'px';
+  markerEl.style.top  = y+'px';
+}
+
+// adaptive resolution: back off pixel ratio if frames run long
+let perfAcc = 0, perfN = 0;
+function perfWatch(dt){
+  perfAcc += dt; perfN++;
+  if(perfAcc > 2){
+    if(perfN/perfAcc < 40 && dprCap > 1){   // < ~40fps average
+      dprCap = Math.max(1, dprCap - 0.25);
+      applySize();
+    }
+    perfAcc = 0; perfN = 0;
+  }
+}
+
+let lastT = performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt = (now - lastT)/1000;
+  lastT = now;
+  if(dt > 0.05) dt = 0.05;
+
+  // world clock — slow motion during the bullet-cam
+  const ts = (state==='bulletcam') ? (seq && seq.impacted ? 0.3 : 0.12) : 1;
+  worldT += dt*ts;
+
+  // target sway (moving levels)
+  if(dummy && lvl && lvl.move && dummyParts.length){
+    dummy.position.x = dummy.userData.baseX + Math.sin(worldT*lvl.move.s)*lvl.move.a;
+  }
+
+  if(state==='aim') updateAim(dt);
+  if(state==='bulletcam') updateSeq(dt);
+  updateFX(dt*Math.max(ts,0.3));
+  updateMarker();
+  if(state==='aim' || state==='bulletcam') perfWatch(dt);
+
+  renderer.render(scene, camera);
+}
+
+/* ---- boot ---- */
+applySize();
+refreshMenuStars();
+showScreen('menu');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
