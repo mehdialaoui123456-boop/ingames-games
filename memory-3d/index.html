@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0F1626" />
+<title>لعبة الذاكرة 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --brand:#1877F2; --navy:#0F1626; --navy2:#162038;
+    --ink:#EAF1FF; --dim:#8FA3C8; --good:#2fd27a; --bad:#ff5a6e;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  html,body{width:100%;height:100%;overflow:hidden;position:fixed;inset:0;
+    background:linear-gradient(180deg,#0F1626 0%,#162038 60%,#101a30 100%);
+    font-family:'Cairo',system-ui,sans-serif;color:var(--ink);
+    overscroll-behavior:none;touch-action:none;-webkit-text-size-adjust:100%;}
+
+  /* ambient glow blobs behind the 3D canvas */
+  .blob{position:fixed;border-radius:50%;filter:blur(70px);opacity:.22;pointer-events:none;z-index:0;}
+  #blob1{width:46vmax;height:46vmax;background:#1877F2;top:-18vmax;right:-12vmax;animation:drift1 16s ease-in-out infinite alternate;}
+  #blob2{width:38vmax;height:38vmax;background:#3b5bd9;bottom:-16vmax;left:-10vmax;animation:drift2 20s ease-in-out infinite alternate;}
+  @keyframes drift1{from{transform:translate(0,0)}to{transform:translate(-6vmax,5vmax)}}
+  @keyframes drift2{from{transform:translate(0,0)}to{transform:translate(5vmax,-4vmax)}}
+
+  #scene{position:fixed;inset:0;display:block;touch-action:none;z-index:1;}
+
+  /* numbers always western + LTR inside RTL text */
+  .num{direction:ltr;unicode-bidi:embed;font-variant-numeric:tabular-nums;}
+
+  /* ---------- HUD ---------- */
+  #hud{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;
+    justify-content:space-between;gap:8px;padding:10px 12px;z-index:5;
+    font-weight:800;transition:opacity .25s;opacity:0;pointer-events:none;}
+  #hud.show{opacity:1;}
+  .chip{background:rgba(15,22,38,.74);border:1px solid rgba(24,119,242,.4);
+    border-radius:14px;padding:5px 12px;display:flex;align-items:center;gap:7px;
+    box-shadow:0 4px 16px rgba(0,0,0,.35);backdrop-filter:blur(4px);font-size:14px;}
+  .chip .lbl{color:var(--dim);font-size:12px;font-weight:700;}
+  .chip .val{color:var(--ink);font-size:16px;font-weight:900;}
+  #timeChip.warn .val{color:var(--bad);animation:pulse .6s infinite;}
+  @keyframes pulse{50%{opacity:.35}}
+  #scoreChip .val.bump{animation:bump .3s ease;}
+  @keyframes bump{40%{transform:scale(1.35);color:var(--brand);}}
+  .iconbtn{pointer-events:auto;width:40px;height:40px;border-radius:13px;
+    border:1px solid rgba(24,119,242,.4);background:rgba(15,22,38,.74);
+    box-shadow:0 4px 16px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;
+    font-size:18px;color:var(--ink);cursor:pointer;transition:transform .12s;}
+  .iconbtn:active{transform:scale(.88);}
+
+  /* ---------- overlay screens ---------- */
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:16px;text-align:center;padding:24px;z-index:10;
+    background:radial-gradient(120% 90% at 50% 0%,rgba(24,119,242,.14),rgba(10,15,28,.88));
+    backdrop-filter:blur(3px);}
+  .screen.show{display:flex;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .panel{background:linear-gradient(180deg,rgba(24,34,60,.97),rgba(15,22,38,.97));
+    border:1px solid rgba(24,119,242,.35);border-radius:24px;padding:26px 22px;
+    box-shadow:0 18px 60px rgba(0,0,0,.55);max-width:380px;width:92%;
+    display:flex;flex-direction:column;align-items:center;gap:13px;}
+  .gtitle{font-size:32px;font-weight:900;line-height:1.15;
+    background:linear-gradient(180deg,#fff,#9cc4ff);-webkit-background-clip:text;
+    background-clip:text;-webkit-text-fill-color:transparent;}
+  .sub{font-size:14px;font-weight:700;color:var(--dim);}
+  .btn{pointer-events:auto;border:none;border-radius:16px;padding:13px 22px;font-family:inherit;
+    font-weight:900;font-size:16px;color:#fff;cursor:pointer;width:100%;
+    background:linear-gradient(180deg,#3b8ef7,#1467d8);
+    box-shadow:0 5px 0 #0e4ba3,0 10px 18px rgba(24,119,242,.35);
+    transition:transform .1s,box-shadow .1s;display:flex;flex-direction:column;gap:2px;align-items:center;}
+  .btn:active{transform:translateY(4px);box-shadow:0 1px 0 #0e4ba3,0 4px 10px rgba(24,119,242,.3);}
+  .btn small{font-size:12px;font-weight:700;opacity:.85;}
+  .btn.green{background:linear-gradient(180deg,#43dd8b,#1fa961);box-shadow:0 5px 0 #147a45,0 10px 18px rgba(40,180,120,.3);}
+  .btn.green:active{box-shadow:0 1px 0 #147a45,0 4px 10px rgba(40,180,120,.3);}
+  .btn.red{background:linear-gradient(180deg,#ff7a5c,#e04a33);box-shadow:0 5px 0 #a3301f,0 10px 18px rgba(220,80,50,.3);}
+  .btn.red:active{box-shadow:0 1px 0 #a3301f,0 4px 10px rgba(220,80,50,.3);}
+  .btn.gray{background:linear-gradient(180deg,#3a4a6b,#28344e);box-shadow:0 5px 0 #1a2338,0 10px 18px rgba(0,0,0,.3);color:#c7d5ef;}
+  .btn.gray:active{box-shadow:0 1px 0 #1a2338,0 4px 10px rgba(0,0,0,.3);}
+  .btnCol{display:flex;flex-direction:column;gap:11px;width:100%;margin-top:4px;}
+
+  .logo{width:74px;height:74px;border-radius:20px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,#1877F2,#0d3f8f);font-size:38px;font-weight:900;color:#fff;
+    box-shadow:0 10px 30px rgba(24,119,242,.45),inset 0 2px 0 rgba(255,255,255,.25);}
+
+  /* result stats */
+  .stats{width:100%;display:flex;flex-direction:column;gap:7px;margin-top:2px;}
+  .stat{display:flex;justify-content:space-between;align-items:center;
+    background:rgba(24,119,242,.10);border:1px solid rgba(24,119,242,.22);
+    border-radius:12px;padding:8px 14px;font-size:14px;font-weight:800;}
+  .stat .k{color:var(--dim);}
+  .stat .v{color:var(--ink);font-size:16px;font-weight:900;}
+  #recordBadge{display:none;background:linear-gradient(180deg,#ffd34d,#f0a815);color:#4a3200;
+    font-size:13px;font-weight:900;padding:5px 16px;border-radius:999px;
+    box-shadow:0 4px 14px rgba(255,200,60,.4);}
+  #recordBadge.show{display:block;animation:bump .5s ease;}
+  #resultTitle.win{background:linear-gradient(180deg,#8effc1,#2fd27a);-webkit-background-clip:text;
+    background-clip:text;-webkit-text-fill-color:transparent;}
+  #resultTitle.lose{background:linear-gradient(180deg,#ffb1a3,#ff5a6e);-webkit-background-clip:text;
+    background-clip:text;-webkit-text-fill-color:transparent;}
+</style>
+</head>
+<body>
+<div class="blob" id="blob1"></div>
+<div class="blob" id="blob2"></div>
+<canvas id="scene"></canvas>
+
+<!-- ============================ HUD (RTL: time right, score left) ============================ -->
+<div id="hud">
+  <div class="chip" id="timeChip"><span class="lbl">الوقت</span><span class="val num" id="timeVal">00:00</span></div>
+  <div class="chip" id="pairsChip"><span class="lbl">الأزواج</span><span class="val num" id="pairsVal">0/8</span></div>
+  <div class="chip" id="scoreChip"><span class="lbl">النقاط</span><span class="val num" id="scoreVal">0</span></div>
+  <button class="iconbtn" id="btnPause">⏸</button>
+</div>
+
+<!-- ============================ Start / difficulty screen ============================ -->
+<div class="screen show" id="startScreen">
+  <div class="panel">
+    <div class="logo">؟</div>
+    <div class="gtitle">لعبة الذاكرة</div>
+    <div class="sub">اقلب البطاقات واعثر على الأزواج المتطابقة قبل انتهاء الوقت</div>
+    <div class="btnCol">
+      <button class="btn green" id="btnEasy">سهل<small class="num" id="bestEasy">4×4 · 8 أزواج · 60 ثانية</small></button>
+      <button class="btn" id="btnMed">متوسط<small class="num" id="bestMed">6×4 · 12 زوجاً · 90 ثانية</small></button>
+      <button class="btn red" id="btnHard">صعب<small class="num" id="bestHard">6×6 · 18 زوجاً · 120 ثانية</small></button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ Pause menu ============================ -->
+<div class="screen" id="pauseScreen">
+  <div class="panel">
+    <div class="gtitle">إيقاف مؤقت</div>
+    <div class="btnCol">
+      <button class="btn green" id="btnResume">استئناف</button>
+      <button class="btn" id="btnRestart">إعادة</button>
+      <button class="btn gray" id="btnExit">الخروج</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ Result overlay ============================ -->
+<div class="screen" id="resultScreen">
+  <div class="panel">
+    <div class="gtitle" id="resultTitle">أحسنت!</div>
+    <div id="recordBadge">🏆 رقم قياسي جديد!</div>
+    <div class="stats">
+      <div class="stat"><span class="k">الأزواج</span><span class="v num" id="rPairs">0/8</span></div>
+      <div class="stat"><span class="k">النقاط</span><span class="v num" id="rScore">0</span></div>
+      <div class="stat"><span class="k">الوقت المستغرق</span><span class="v num" id="rTime">00:00</span></div>
+      <div class="stat"><span class="k">أفضل نقاط</span><span class="v num" id="rBest">0</span></div>
+    </div>
+    <div class="btnCol">
+      <button class="btn green" id="btnAgain">العب مجدداً</button>
+      <button class="btn" id="btnMenu">تغيير الصعوبة</button>
+      <button class="btn gray" id="btnExit2">الخروج</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================================
+   لعبة الذاكرة 3D — InGames
+   3D pair-matching memory game. Three.js r128, single-player, Arabic RTL UI.
+   Sections: Helpers & Audio / Scene Setup / Card Textures / Card Logic /
+             Timer & Scoring / UI / Input Handling / Main Loop
+   ===================================================================================== */
+
+/* ─────────────────────────── Helpers & Audio ─────────────────────────── */
+const $i = id => document.getElementById(id);
+const BRAND = 0x1877F2;
+const easeInOut = k => k < .5 ? 2*k*k : 1 - Math.pow(-2*k + 2, 2) / 2;
+const easeOutCubic = k => 1 - Math.pow(1 - k, 3);
+const mmss = s => { s = Math.max(0, Math.round(s));
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); };
+
+// localStorage may be blocked in some WebViews → fall back to in-memory
+const _mem = {};
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return _mem[k] !== undefined ? _mem[k] : null; } },
+  set(k,v){ try { localStorage.setItem(k, v); } catch(e){ _mem[k] = String(v); } }
+};
+
+// tiny WebAudio beeps (created lazily on first user gesture)
+let AC = null;
+function ac(){
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur, type, vol, delay, slide){
+  const a = AC; if (!a) return;
+  const t0 = a.currentTime + (delay || 0);
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t0);
+  if (slide) o.frequency.exponentialRampToValueAtTime(slide, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol || .12, t0 + .012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + dur + .02);
+}
+function sfx(name){
+  if (!ac()) return;
+  if (name === 'flip')  tone(520, .08, 'triangle', .10, 0, 720);
+  if (name === 'match'){ tone(660, .1, 'sine', .14); tone(880, .16, 'sine', .14, .09); }
+  if (name === 'fail')  tone(220, .18, 'sawtooth', .06, 0, 150);
+  if (name === 'win') { [523,659,784,1047].forEach((f,i)=>tone(f,.18,'sine',.14,i*.11)); }
+  if (name === 'lose'){ tone(392,.22,'sine',.12); tone(311,.3,'sine',.12,.18); }
+}
+document.addEventListener('touchstart', () => ac(), { once:true, passive:true });
+document.addEventListener('mousedown',  () => ac(), { once:true });
+
+function exitGame(){
+  try { if (window.FlutterBridge && FlutterBridge.postMessage) FlutterBridge.postMessage('gameOver'); } catch(e){}
+  try { history.back(); } catch(e){}
+}
+
+/* ─────────────────────────── Scene Setup ─────────────────────────── */
+const cv = $i('scene');
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+const CAM_DIR = new THREE.Vector3(0, 1.5, 0.95).normalize();  // slight top-down tilt
+
+scene.add(new THREE.HemisphereLight(0x9db8ff, 0x0c1226, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+sun.position.set(3.5, 9, 4.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 30;
+sun.shadow.radius = 3;
+scene.add(sun); scene.add(sun.target);
+
+// ground that only shows the cards' soft drop shadows
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(60, 60),
+  new THREE.ShadowMaterial({ opacity: 0.32 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.08;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// faint floating dust particles for ambiance
+const dust = (() => {
+  const N = 60, pos = new Float32Array(N * 3), seed = [];
+  for (let i = 0; i < N; i++){
+    pos[i*3]   = (Math.random()-.5) * 14;
+    pos[i*3+1] = Math.random() * 4.5 - .5;
+    pos[i*3+2] = (Math.random()-.5) * 14;
+    seed.push(Math.random() * Math.PI * 2);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ map: makeDotTexture(), color: 0x4a90ff, size: .09,
+    transparent: true, opacity: .4, depthWrite: false, blending: THREE.AdditiveBlending });
+  const p = new THREE.Points(g, m);
+  p.userData = { pos, seed };
+  scene.add(p);
+  return p;
+})();
+
+const boardGroup = new THREE.Group();   // holds all cards + persistent glows for one round
+scene.add(boardGroup);
+
+function makeDotTexture(){
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.4,'rgba(255,255,255,.5)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0,0,64,64);
+  const t = new THREE.CanvasTexture(c); return t;
+}
+
+/* ─────────────────────────── Card Textures (procedural, no assets) ─────────────────────────── */
+function rr(x, cx, cy, w, h, r){   // rounded-rect path helper
+  x.beginPath();
+  x.moveTo(cx+r, cy);
+  x.arcTo(cx+w, cy,   cx+w, cy+h, r);
+  x.arcTo(cx+w, cy+h, cx,   cy+h, r);
+  x.arcTo(cx,   cy+h, cx,   cy,   r);
+  x.arcTo(cx,   cy,   cx+w, cy,   r);
+  x.closePath();
+}
+function poly(x, pts){ x.beginPath(); pts.forEach((p,i)=> i ? x.lineTo(p[0],p[1]) : x.moveTo(p[0],p[1])); x.closePath(); }
+function starPath(x, n, ro, ri, rot){
+  x.beginPath();
+  for (let i = 0; i < n*2; i++){
+    const a = rot + i * Math.PI / n, r = (i % 2) ? ri : ro;
+    i ? x.lineTo(Math.cos(a)*r, Math.sin(a)*r) : x.moveTo(Math.cos(a)*r, Math.sin(a)*r);
+  }
+  x.closePath();
+}
+function ngon(x, n, r, rot){
+  x.beginPath();
+  for (let i = 0; i < n; i++){
+    const a = rot + i * 2 * Math.PI / n;
+    i ? x.lineTo(Math.cos(a)*r, Math.sin(a)*r) : x.moveTo(Math.cos(a)*r, Math.sin(a)*r);
+  }
+  x.closePath();
+}
+
+// 18 distinct icons — each draws centered at (0,0) within radius ~95 on a 256px canvas
+const ICONS = [
+  { color:'#FFC93C', draw(x){ starPath(x,5,95,40,-Math.PI/2); x.fill(); } },                    // star
+  { color:'#FF5A79', draw(x){ x.beginPath(); x.moveTo(0,78);
+      x.bezierCurveTo(-115,-8,-60,-98,0,-36); x.bezierCurveTo(60,-98,115,-8,0,78); x.fill(); } }, // heart
+  { color:'#2BD9C8', draw(x){ poly(x,[[0,-92],[68,0],[0,92],[-68,0]]); x.fill(); } },           // diamond
+  { color:'#4FA9FF', draw(x){ x.beginPath(); x.arc(0,0,78,0,7); x.fill(); } },                  // circle
+  { color:'#9B6BFF', draw(x){ poly(x,[[0,-86],[88,66],[-88,66]]); x.fill(); } },                // triangle
+  { color:'#C7D2FF', draw(x){ x.beginPath(); x.arc(0,0,82,0,7); x.fill();
+      x.globalCompositeOperation='destination-out';
+      x.beginPath(); x.arc(42,-18,72,0,7); x.fill();
+      x.globalCompositeOperation='source-over'; } },                                            // crescent moon
+  { color:'#58D66D', draw(x){ x.beginPath(); x.moveTo(0,-90);
+      x.quadraticCurveTo(92,-24,0,90); x.quadraticCurveTo(-92,-24,0,-90); x.fill();
+      x.strokeStyle='rgba(0,60,20,.35)'; x.lineWidth=8; x.lineCap='round';
+      x.beginPath(); x.moveTo(0,-62); x.lineTo(0,66); x.stroke(); } },                          // leaf
+  { color:'#FF9838', draw(x){ poly(x,[[20,-95],[-55,10],[-10,10],[-20,95],[55,-14],[10,-14]]); x.fill(); } }, // bolt
+  { color:'#FFB300', draw(x){ x.beginPath(); x.arc(0,0,46,0,7); x.fill();
+      x.strokeStyle=x.fillStyle; x.lineWidth=17; x.lineCap='round';
+      for (let i=0;i<8;i++){ const a=i*Math.PI/4;
+        x.beginPath(); x.moveTo(Math.cos(a)*64,Math.sin(a)*64);
+        x.lineTo(Math.cos(a)*90,Math.sin(a)*90); x.stroke(); } } },                             // sun
+  { color:'#38BDF8', draw(x){ x.beginPath(); x.moveTo(0,-88);
+      x.quadraticCurveTo(58,-6,58,36); x.arc(0,36,58,0,Math.PI);
+      x.quadraticCurveTo(-58,-6,0,-88); x.fill(); } },                                          // water drop
+  { color:'#F472B6', draw(x){ for (let i=0;i<6;i++){ const a=i*Math.PI/3;
+        x.beginPath(); x.arc(Math.cos(a)*50,Math.sin(a)*50,37,0,7); x.fill(); }
+      x.fillStyle='#FFD54F'; x.beginPath(); x.arc(0,0,32,0,7); x.fill(); } },                   // flower
+  { color:'#A3E635', draw(x){ ngon(x,6,86,-Math.PI/2); x.fill(); } },                           // hexagon
+  { color:'#F87171', draw(x){ rr(x,-30,-90,60,180,24); x.fill(); rr(x,-90,-30,180,60,24); x.fill(); } }, // plus
+  { color:'#22D3EE', draw(x){ x.strokeStyle=x.fillStyle; x.lineWidth=34;
+      x.beginPath(); x.arc(0,0,62,0,7); x.stroke(); } },                                        // ring
+  { color:'#C084FC', draw(x){ rr(x,-74,-74,148,148,30); x.fill(); } },                          // rounded square
+  { color:'#FBBF24', draw(x){ poly(x,[[-82,38],[-82,-32],[-40,4],[0,-58],[40,4],[82,-32],[82,38]]); x.fill();
+      rr(x,-82,48,164,30,10); x.fill();
+      [[-82,-46],[0,-72],[82,-46]].forEach(p=>{ x.beginPath(); x.arc(p[0],p[1],12,0,7); x.fill(); }); } }, // crown
+  { color:'#E2E8F0', draw(x){ starPath(x,4,95,24,-Math.PI/2); x.fill(); } },                    // sparkle
+  { color:'#34D399', draw(x){ [[0,-52],[-40,16],[40,16]].forEach(p=>{
+        x.beginPath(); x.arc(p[0],p[1],38,0,7); x.fill(); });
+      x.strokeStyle=x.fillStyle; x.lineWidth=16; x.lineCap='round';
+      x.beginPath(); x.moveTo(2,30); x.quadraticCurveTo(8,64,24,90); x.stroke(); } },           // clover
+];
+
+function iconSprite(icon){        // icon drawn alone on a transparent 256px canvas
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.translate(128, 128); x.scale(.92, .92);
+  x.fillStyle = icon.color;
+  icon.draw(x);
+  return c;
+}
+
+function makeFaceTexture(icon){   // light card face + colored icon (rounded, transparent corners)
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  rr(x, 7, 7, 242, 242, 30);
+  const g = x.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dde7f8');
+  x.fillStyle = g; x.fill();
+  x.strokeStyle = 'rgba(24,119,242,.30)'; x.lineWidth = 6;
+  rr(x, 10, 10, 236, 236, 27); x.stroke();
+  x.shadowColor = 'rgba(20,40,90,.30)'; x.shadowBlur = 10; x.shadowOffsetY = 6;
+  x.drawImage(iconSprite(icon), 44, 44, 168, 168);
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  return t;
+}
+
+function makeBackTexture(){       // brand-blue pattern on dark navy
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  rr(x, 7, 7, 242, 242, 30);
+  const g = x.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, '#18305e'); g.addColorStop(1, '#0F1626');
+  x.fillStyle = g; x.fill();
+  x.save(); rr(x, 7, 7, 242, 242, 30); x.clip();      // diamond lattice pattern
+  x.strokeStyle = 'rgba(24,119,242,.20)'; x.lineWidth = 3;
+  for (let d = -256; d < 512; d += 34){
+    x.beginPath(); x.moveTo(d, 0); x.lineTo(d + 256, 256); x.stroke();
+    x.beginPath(); x.moveTo(d + 256, 0); x.lineTo(d, 256); x.stroke();
+  }
+  x.restore();
+  x.strokeStyle = '#1877F2'; x.lineWidth = 6;
+  rr(x, 11, 11, 234, 234, 26); x.stroke();
+  x.strokeStyle = 'rgba(24,119,242,.45)'; x.lineWidth = 2;
+  rr(x, 22, 22, 212, 212, 20); x.stroke();
+  const rg = x.createRadialGradient(128, 128, 6, 128, 128, 76);   // center glow + "?"
+  rg.addColorStop(0, 'rgba(24,119,242,.95)'); rg.addColorStop(1, 'rgba(24,119,242,0)');
+  x.fillStyle = rg; x.beginPath(); x.arc(128, 128, 76, 0, 7); x.fill();
+  x.fillStyle = '#fff';
+  x.font = '900 96px Cairo, Arial, sans-serif';
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.shadowColor = 'rgba(0,0,0,.5)'; x.shadowBlur = 8; x.shadowOffsetY = 4;
+  x.fillText('?', 128, 136);
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  return t;
+}
+
+function makeGlowTexture(){       // radial brand-blue glow for match effects
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(64,64,4,64,64,64);
+  g.addColorStop(0,'rgba(120,190,255,.95)'); g.addColorStop(.45,'rgba(24,119,242,.5)');
+  g.addColorStop(1,'rgba(24,119,242,0)');
+  x.fillStyle = g; x.fillRect(0,0,128,128);
+  return new THREE.CanvasTexture(c);
+}
+
+/* ── shared geometries / materials (built once, reused by every card) ── */
+const CARD = 1, GAP = 0.16, THICK = 0.09, BEVEL = 0.018;
+
+const bodyGeo = (() => {          // rounded, beveled card body — ONE geometry for all cards
+  const w = .94, r = .13, s = new THREE.Shape();
+  s.moveTo(-w/2 + r, -w/2);
+  s.absarc( w/2 - r, -w/2 + r, r, -Math.PI/2, 0);
+  s.absarc( w/2 - r,  w/2 - r, r, 0, Math.PI/2);
+  s.absarc(-w/2 + r,  w/2 - r, r, Math.PI/2, Math.PI);
+  s.absarc(-w/2 + r, -w/2 + r, r, Math.PI, Math.PI*1.5);
+  const g = new THREE.ExtrudeGeometry(s, { depth: THICK, bevelEnabled: true,
+    bevelThickness: BEVEL, bevelSize: BEVEL, bevelSegments: 2, curveSegments: 5 });
+  g.center();
+  return g;
+})();
+const planeGeo = new THREE.PlaneGeometry(.9, .9);      // face / back artwork
+const glowGeo  = new THREE.PlaneGeometry(1.5, 1.5);    // match glow quads
+
+const bodyMat  = new THREE.MeshLambertMaterial({ color: 0x142850 });
+const backMat  = new THREE.MeshBasicMaterial({ map: makeBackTexture(), transparent: true });
+const glowTex  = makeGlowTexture();
+const underMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: .26,
+  depthWrite: false, blending: THREE.AdditiveBlending });
+const faceMats = ICONS.map(ic => new THREE.MeshBasicMaterial({ map: makeFaceTexture(ic), transparent: true }));
+
+/* ─────────────────────────── Card Logic ─────────────────────────── */
+const DIFF = {
+  easy:   { pairs: 8,  time: 60,  grid: [4, 4] },
+  medium: { pairs: 12, time: 90,  grid: [6, 4] },   // longest side follows orientation
+  hard:   { pairs: 18, time: 120, grid: [6, 6] },
+};
+
+let state = 'menu';               // menu | deal | play | over
+let paused = false;
+let diffKey = 'easy';
+let cards = [], pickables = [];
+let firstCard = null, checking = false, firstTapTime = 0;
+let matchedPairs = 0, totalPairs = 8, score = 0;
+let cols = 4, rows = 4;
+
+// game-clock (seconds, frozen while paused) + scheduled callbacks + tweens
+let gameTime = 0, playStart = 0, duration = 60;
+const afters = [], gtweens = [];
+const after  = (d, fn) => afters.push({ at: gameTime + d, fn });
+const gtween = (dur, upd, done, ease) => gtweens.push({ t0: gameTime, dur, upd, done, ease });
+
+function layoutDims(){
+  const portrait = cv.clientHeight >= cv.clientWidth;
+  const [a, b] = DIFF[diffKey].grid;                  // a >= b
+  cols = portrait ? b : a;
+  rows = portrait ? a : b;
+}
+const slotX = i => ((i % cols) - (cols - 1) / 2) * (CARD + GAP);
+const slotZ = i => (Math.floor(i / cols) - (rows - 1) / 2) * (CARD + GAP);
+
+function shuffle(a){
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildBoard(){
+  // clear previous round
+  while (boardGroup.children.length) boardGroup.remove(boardGroup.children[0]);
+  cards = []; pickables = [];
+  firstCard = null; checking = false;
+  matchedPairs = 0; score = 0;
+  afters.length = 0; gtweens.length = 0;
+  gameTime = 0;
+
+  const cfg = DIFF[diffKey];
+  totalPairs = cfg.pairs; duration = cfg.time;
+  layoutDims();
+
+  // pick icons for this round, two cards each, shuffled positions
+  const iconIdx = shuffle(ICONS.map((_, i) => i)).slice(0, totalPairs);
+  const deck = shuffle(iconIdx.concat(iconIdx).slice());
+
+  deck.forEach((icon, i) => {
+    const card = new THREE.Group();
+    const flipper = new THREE.Group();
+
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.castShadow = true;
+    const face = new THREE.Mesh(planeGeo, faceMats[icon]);
+    face.position.z = THICK / 2 + BEVEL + .002;
+    const back = new THREE.Mesh(planeGeo, backMat);
+    back.rotation.y = Math.PI;
+    back.position.z = -(THICK / 2 + BEVEL + .002);
+
+    flipper.add(body, face, back);
+    flipper.rotation.y = Math.PI;                      // start face-down
+    card.add(flipper);
+    card.rotation.x = -Math.PI / 2;                    // lie flat on the table
+    card.position.set(slotX(i), 7, slotZ(i));          // dealt in from above
+
+    card.userData = { icon, slot: i, flipper, faceUp: false, matched: false, anim: false };
+    body.userData.card = card;
+    boardGroup.add(card);
+    cards.push(card);
+    pickables.push(body);
+  });
+
+  fitCamera();
+
+  // deal animation: staggered drop
+  state = 'deal';
+  cards.forEach((card, i) => {
+    after(0.05 + i * 0.03, () => {
+      gtween(0.45, k => { card.position.y = 7 * (1 - k); }, () => { card.position.y = 0; }, easeOutCubic);
+    });
+  });
+  after(0.05 + cards.length * 0.03 + 0.55, () => {
+    state = 'play';
+    playStart = gameTime;
+  });
+  updateHUD();
+}
+
+function flipCard(card, faceUp, done){
+  const u = card.userData;
+  u.anim = true;
+  const from = u.flipper.rotation.y, to = faceUp ? 0 : Math.PI;
+  gtween(0.36, k => {
+    u.flipper.rotation.y = from + (to - from) * k;
+    // hop: card local +z points world-up once the card lies flat (rotation.x = -PI/2)
+    u.flipper.position.z = Math.sin(k * Math.PI) * 0.5;
+  }, () => {
+    u.flipper.rotation.y = to;
+    u.flipper.position.z = 0;
+    u.anim = false;
+    if (done) done();
+  }, easeInOut);
+}
+
+function tapCard(card){
+  const u = card.userData;
+  if (state !== 'play' || paused || checking || u.matched || u.faceUp || u.anim) return;
+
+  u.faceUp = true;
+  sfx('flip');
+  flipCard(card, true);
+
+  if (!firstCard){
+    firstCard = card;
+    firstTapTime = gameTime;
+  } else {
+    const a = firstCard, b = card;
+    const fast = (gameTime - firstTapTime) <= 2;      // speed bonus window
+    firstCard = null;
+    checking = true;
+    after(0.42, () => resolvePair(a, b, fast));       // let the flip finish first
+  }
+}
+
+function resolvePair(a, b, fast){
+  if (a.userData.icon === b.userData.icon){
+    a.userData.matched = b.userData.matched = true;
+    matchedPairs++;
+    addScore(10 + (fast ? 5 : 0));
+    sfx('match');
+    matchFx(a); matchFx(b);
+    checking = false;
+    updateHUD();
+    if (matchedPairs === totalPairs) after(0.75, () => gameOver(true));
+  } else {
+    sfx('fail');
+    after(0.7, () => {
+      a.userData.faceUp = b.userData.faceUp = false;
+      flipCard(a, false);
+      flipCard(b, false, () => { checking = false; });
+    });
+  }
+}
+
+function matchFx(card){
+  // pop scale: quick grow then settle slightly smaller
+  gtween(0.5, k => {
+    const s = k < 0.35 ? 1 + 0.18 * (k / 0.35) : 1.18 - 0.24 * ((k - 0.35) / 0.65);
+    card.scale.setScalar(s);
+  }, () => card.scale.setScalar(0.94), easeInOut);
+
+  // brand-blue glow pulse expanding under the card
+  const pulse = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ map: glowTex,
+    transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending }));
+  pulse.rotation.x = -Math.PI / 2;
+  pulse.position.set(card.position.x, .03, card.position.z);
+  boardGroup.add(pulse);
+  gtween(0.55, k => {
+    pulse.scale.setScalar(1 + k * 1.2);
+    pulse.material.opacity = .9 * (1 - k);
+  }, () => { boardGroup.remove(pulse); pulse.material.dispose(); });
+
+  // persistent soft under-glow marking the matched card
+  const under = new THREE.Mesh(glowGeo, underMat);
+  under.rotation.x = -Math.PI / 2;
+  under.position.set(card.position.x, .02, card.position.z);
+  boardGroup.add(under);
+
+  burst(card.position.x, card.position.z);
+}
+
+function burst(x, z){             // small particle explosion
+  const N = 14;
+  const pos = new Float32Array(N * 3), vel = [];
+  for (let i = 0; i < N; i++){
+    pos[i*3] = x; pos[i*3+1] = .15; pos[i*3+2] = z;
+    const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 1.6;
+    vel.push([Math.cos(a) * sp, 1.6 + Math.random() * 2, Math.sin(a) * sp]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ map: glowTex, color: 0x6fb3ff, size: .24,
+    transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending });
+  const p = new THREE.Points(g, m);
+  boardGroup.add(p);            // lives in boardGroup so a restart sweeps it away
+  const attr = g.attributes.position;
+  gtween(0.65, k => {
+    const t = k * .65;
+    for (let i = 0; i < N; i++){
+      attr.array[i*3]   = x + vel[i][0] * t;
+      attr.array[i*3+1] = .15 + vel[i][1] * t - 4.5 * t * t;
+      attr.array[i*3+2] = z + vel[i][2] * t;
+    }
+    attr.needsUpdate = true;
+    m.opacity = 1 - k;
+  }, () => { boardGroup.remove(p); g.dispose(); m.dispose(); });
+}
+
+/* ─────────────────────────── Timer & Scoring ─────────────────────────── */
+function timeLeft(){
+  if (state === 'deal') return duration;
+  return Math.max(0, duration - (gameTime - playStart));
+}
+function addScore(n){
+  score += n;
+  const el = $i('scoreVal');
+  el.textContent = String(score);
+  el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+}
+function bestKey(kind){ return 'mem3d_' + kind + '_' + diffKey; }
+
+function gameOver(won){
+  if (state === 'over') return;
+  state = 'over';
+  sfx(won ? 'win' : 'lose');
+
+  const taken = Math.min(duration, gameTime - playStart);
+  const prevBest = parseInt(store.get(bestKey('score')) || '0', 10);
+  const record = score > prevBest;
+  if (record) store.set(bestKey('score'), String(score));
+  if (won){
+    const bt = parseInt(store.get(bestKey('time')) || '99999', 10);
+    if (Math.round(taken) < bt) store.set(bestKey('time'), String(Math.round(taken)));
+  }
+
+  const t = $i('resultTitle');
+  t.textContent = won ? 'أحسنت!' : 'انتهى الوقت';
+  t.className = 'gtitle ' + (won ? 'win' : 'lose');
+  $i('recordBadge').classList.toggle('show', record && score > 0);
+  $i('rPairs').textContent = matchedPairs + '/' + totalPairs;
+  $i('rScore').textContent = String(score);
+  $i('rTime').textContent = mmss(taken);
+  $i('rBest').textContent = String(Math.max(score, prevBest));
+
+  try { if (window.FlutterBridge && FlutterBridge.postMessage) FlutterBridge.postMessage('gameOver'); } catch(e){}
+  setTimeout(() => $i('resultScreen').classList.add('show'), 550);
+}
+
+/* ─────────────────────────── UI ─────────────────────────── */
+function updateHUD(){
+  $i('pairsVal').textContent = matchedPairs + '/' + totalPairs;
+  $i('scoreVal').textContent = String(score);
+}
+function updateTimerHUD(){
+  const left = timeLeft();
+  $i('timeVal').textContent = mmss(Math.ceil(left));
+  $i('timeChip').classList.toggle('warn', state === 'play' && left <= 10);
+}
+function showBests(){
+  [['easy','bestEasy','4×4 · 8 أزواج · 60 ثانية'],
+   ['medium','bestMed','6×4 · 12 زوجاً · 90 ثانية'],
+   ['hard','bestHard','6×6 · 18 زوجاً · 120 ثانية']].forEach(([k, id, base]) => {
+    const b = store.get('mem3d_score_' + k);
+    $i(id).textContent = b ? base + ' · أفضل: ' + b : base;
+  });
+}
+function startGame(k){
+  diffKey = k;
+  $i('startScreen').classList.remove('show');
+  $i('resultScreen').classList.remove('show');
+  $i('pauseScreen').classList.remove('show');
+  $i('hud').classList.add('show');
+  paused = false;
+  buildBoard();
+}
+function openPause(){
+  if (state !== 'play' && state !== 'deal') return;
+  paused = true;
+  $i('pauseScreen').classList.add('show');
+}
+function closePause(){
+  paused = false;
+  $i('pauseScreen').classList.remove('show');
+}
+function toMenu(){
+  state = 'menu';
+  $i('resultScreen').classList.remove('show');
+  $i('pauseScreen').classList.remove('show');
+  $i('hud').classList.remove('show');
+  showBests();
+  $i('startScreen').classList.add('show');
+}
+
+/* ─────────────────────────── Input Handling ─────────────────────────── */
+const ray = new THREE.Raycaster(), pointer = new THREE.Vector2();
+let lastTouchTs = 0;
+
+function handleTap(cx, cy){
+  if (state !== 'play' || paused || checking) return;
+  const r = cv.getBoundingClientRect();
+  pointer.x =  ((cx - r.left) / r.width)  * 2 - 1;
+  pointer.y = -((cy - r.top)  / r.height) * 2 + 1;
+  ray.setFromCamera(pointer, camera);
+  const hits = ray.intersectObjects(pickables, false);
+  if (hits.length) tapCard(hits[0].object.userData.card);
+}
+cv.addEventListener('touchstart', e => {
+  lastTouchTs = Date.now();
+  if (e.touches.length === 1) handleTap(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+cv.addEventListener('mousedown', e => {
+  if (Date.now() - lastTouchTs > 500) handleTap(e.clientX, e.clientY);
+});
+
+// buttons: touchend for instant WebView response + click fallback for desktop
+function tapBtn(el, fn){
+  let t = 0;
+  el.addEventListener('touchend', e => { e.preventDefault(); t = Date.now(); fn(); }, { passive: false });
+  el.addEventListener('click', () => { if (Date.now() - t > 400) fn(); });
+}
+tapBtn($i('btnEasy'),   () => startGame('easy'));
+tapBtn($i('btnMed'),    () => startGame('medium'));
+tapBtn($i('btnHard'),   () => startGame('hard'));
+tapBtn($i('btnPause'),  openPause);
+tapBtn($i('btnResume'), closePause);
+tapBtn($i('btnRestart'),() => startGame(diffKey));
+tapBtn($i('btnAgain'),  () => startGame(diffKey));
+tapBtn($i('btnMenu'),   toMenu);
+tapBtn($i('btnExit'),   exitGame);
+tapBtn($i('btnExit2'),  exitGame);
+
+document.addEventListener('visibilitychange', () => { if (document.hidden) openPause(); });
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ── camera framing: fit the whole grid, leaving room for the HUD ── */
+function fitCamera(){
+  const W = cols * CARD + (cols - 1) * GAP;
+  const H = rows * CARD + (rows - 1) * GAP;
+  camera.aspect = cv.clientWidth / Math.max(1, cv.clientHeight);
+  camera.updateProjectionMatrix();
+
+  let d = Math.max(W, H) * 1.4 + 3;
+  const corners = [[-W/2, 0, -H/2], [W/2, 0, -H/2], [-W/2, 0, H/2], [W/2, 0, H/2]];
+  for (let it = 0; it < 4; it++){
+    camera.position.copy(CAM_DIR).multiplyScalar(d);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    let need = 0;
+    corners.forEach(c => {
+      const v = new THREE.Vector3(c[0], c[1], c[2]).project(camera);
+      need = Math.max(need, Math.abs(v.x) / .92, v.y > 0 ? v.y / .76 : -v.y / .92);
+    });
+    d *= Math.max(need, .25);
+  }
+  camera.position.copy(CAM_DIR).multiplyScalar(d);
+  camera.lookAt(0, 0, 0);
+
+  const half = Math.max(W, H) / 2 + 1.5;              // keep shadow frustum snug
+  const sc = sun.shadow.camera;
+  sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half;
+  sc.updateProjectionMatrix();
+}
+
+function onResize(){
+  renderer.setSize(cv.clientWidth, cv.clientHeight, false);
+  if (state !== 'menu'){
+    const oldCols = cols;
+    layoutDims();
+    if (cols !== oldCols){                             // orientation flipped → re-seat cards
+      cards.forEach(card => {
+        const i = card.userData.slot;
+        card.position.x = slotX(i);
+        card.position.z = slotZ(i);
+      });
+    }
+  } else layoutDims();
+  fitCamera();
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
+
+/* ─────────────────────────── Main Loop ─────────────────────────── */
+let lastNow = performance.now() / 1000;
+function frame(){
+  requestAnimationFrame(frame);
+  const now = performance.now() / 1000;
+  const dt = Math.min(now - lastNow, .05);
+  lastNow = now;
+
+  if (state !== 'menu' && !paused){
+    gameTime += dt;
+
+    for (let i = afters.length - 1; i >= 0; i--){       // due scheduled callbacks
+      if (gameTime >= afters[i].at){
+        const fn = afters[i].fn;
+        afters.splice(i, 1);
+        fn();
+      }
+    }
+    for (let i = gtweens.length - 1; i >= 0; i--){      // active tweens
+      const tw = gtweens[i];
+      const k = Math.min(1, (gameTime - tw.t0) / tw.dur);
+      tw.upd(tw.ease ? tw.ease(k) : k);
+      if (k >= 1){
+        gtweens.splice(i, 1);
+        if (tw.done) tw.done();
+      }
+    }
+    if (state === 'play' || state === 'deal') updateTimerHUD();
+    if (state === 'play' && timeLeft() <= 0) gameOver(false);
+  }
+
+  // ambient dust drifts on wall-clock time (keeps moving even when paused)
+  const { pos, seed } = dust.userData;
+  for (let i = 0; i < seed.length; i++){
+    pos[i*3+1] += Math.sin(now * .5 + seed[i]) * .0016;
+    pos[i*3]   += Math.cos(now * .3 + seed[i]) * .0011;
+  }
+  dust.geometry.attributes.position.needsUpdate = true;
+
+  renderer.render(scene, camera);
+}
+
+/* ── init ── */
+layoutDims();
+onResize();
+showBests();
+frame();
+
+// redraw the card back once Cairo is loaded so the "?" uses the brand font
+try {
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {
+    const old = backMat.map;
+    backMat.map = makeBackTexture();
+    backMat.needsUpdate = true;
+    if (old) old.dispose();
+  });
+} catch(e){}
+</script>
+</body>
+</html>

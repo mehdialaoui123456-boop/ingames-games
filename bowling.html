@@ -19,9 +19,8 @@
   /* HUD */
   #hud { position:absolute; top:0; left:0; right:0; padding:12px 14px;
          display:flex; justify-content:space-between; align-items:center; z-index:10; pointer-events:none; }
-  .pill { background:rgba(0,0,0,0.55); color:#fff; padding:7px 15px; border-radius:999px;
-          font-size:16px; font-weight:800; display:flex; align-items:center; gap:6px;
-          backdrop-filter:blur(6px); }
+  .pill { background:rgba(8,12,22,0.72); color:#fff; padding:7px 15px; border-radius:999px;
+          font-size:16px; font-weight:800; display:flex; align-items:center; gap:6px; }
   .pill small { font-weight:600; opacity:.7; font-size:12px; }
   #total .v { color:#FFD93D; font-size:19px; }
 
@@ -29,8 +28,8 @@
   #board { position:absolute; bottom:0; left:0; right:0; z-index:10; display:flex;
            justify-content:center; padding:8px 6px calc(8px + env(safe-area-inset-bottom));
            pointer-events:none; }
-  #board .row { display:flex; gap:2px; background:rgba(0,0,0,0.45); padding:3px;
-                border-radius:10px; backdrop-filter:blur(6px); }
+  #board .row { display:flex; gap:2px; background:rgba(8,12,22,0.66); padding:3px;
+                border-radius:10px; }
   .frame { width:30px; border-radius:6px; overflow:hidden; background:rgba(255,255,255,0.06); }
   .frame.tenth { width:42px; }
   .frame.cur { box-shadow:0 0 0 2px #4fc3f7 inset; }
@@ -41,23 +40,38 @@
   .frame .cum { height:16px; display:flex; align-items:center; justify-content:center;
                 font-size:11px; font-weight:800; color:#FFD93D; }
 
-  /* Hint / power */
+  /* Hint / power / spin */
   #hint { position:absolute; left:0; right:0; bottom:64px; text-align:center; z-index:9;
           font-size:14px; font-weight:700; color:#bcd; opacity:.9; pointer-events:none;
           text-shadow:0 2px 8px rgba(0,0,0,.6); transition:opacity .3s; }
-  #power { position:absolute; left:50%; transform:translateX(-50%); bottom:90px; width:160px;
-           height:9px; border-radius:6px; background:rgba(255,255,255,0.15); z-index:9;
+  #power { position:absolute; left:50%; transform:translateX(-50%); bottom:92px; width:170px;
+           height:10px; border-radius:6px; background:rgba(255,255,255,0.15); z-index:9;
            overflow:hidden; opacity:0; transition:opacity .15s; pointer-events:none; }
   #power i { display:block; height:100%; width:0%;
              background:linear-gradient(90deg,#4fc3f7,#FFD93D,#ff5252); }
+  #spin { position:absolute; left:50%; transform:translateX(-50%); bottom:108px; z-index:9;
+          font-size:22px; font-weight:900; color:#4fc3f7; opacity:0; pointer-events:none;
+          text-shadow:0 2px 8px rgba(0,0,0,.7); transition:opacity .12s; }
+
+  /* Floating pin count */
+  #float { position:absolute; left:0; right:0; top:42%; text-align:center; z-index:48;
+           font-size:30px; font-weight:900; color:#9fe3ff; pointer-events:none; opacity:0;
+           text-shadow:0 4px 14px rgba(0,0,0,.6); }
+  #float.show { animation:floatUp 1s ease-out forwards; }
+  @keyframes floatUp {
+    0% { opacity:0; transform:translateY(16px) scale(.7); }
+    20% { opacity:1; transform:translateY(0) scale(1.05); }
+    100% { opacity:0; transform:translateY(-44px) scale(1); }
+  }
 
   /* Overlays */
-  .overlay { position:absolute; inset:0; background:rgba(10,15,26,0.9);
+  .overlay { position:absolute; inset:0; background:rgba(8,12,22,0.93);
              display:flex; flex-direction:column; justify-content:center; align-items:center;
-             z-index:100; text-align:center; padding:26px; backdrop-filter:blur(5px); }
+             z-index:100; text-align:center; padding:26px; }
   .overlay h1 { font-size:34px; margin-bottom:10px; }
-  .overlay .big { font-size:62px; font-weight:900; margin:4px 0 18px; color:#FFD93D;
+  .overlay .big { font-size:62px; font-weight:900; margin:4px 0 6px; color:#FFD93D;
                   text-shadow:0 4px 14px rgba(0,0,0,.5); }
+  .overlay .stars { font-size:34px; letter-spacing:6px; margin-bottom:14px; color:#FFD93D; }
   .overlay p { font-size:15px; margin-bottom:22px; opacity:.85; line-height:1.7; max-width:300px; }
   .btn { background:linear-gradient(135deg,#4fc3f7,#2196f3); color:#06121f; border:none;
          font-family:inherit; font-size:19px; font-weight:900; padding:15px 42px;
@@ -66,11 +80,12 @@
   .hidden { display:none !important; }
 
   /* Roll banner (strike/spare) */
-  #banner { position:absolute; left:0; right:0; top:34%; text-align:center; z-index:50;
-            font-size:54px; font-weight:900; letter-spacing:2px; pointer-events:none;
+  #banner { position:absolute; left:0; right:0; top:32%; text-align:center; z-index:50;
+            font-size:50px; font-weight:900; letter-spacing:2px; pointer-events:none;
             opacity:0; transform:scale(.6); transition:all .35s cubic-bezier(.2,1.4,.5,1);
             text-shadow:0 6px 20px rgba(0,0,0,.6); }
   #banner.show { opacity:1; transform:scale(1); }
+  #banner small { display:block; font-size:18px; letter-spacing:6px; opacity:.85; }
 </style>
 </head>
 <body>
@@ -83,15 +98,17 @@
   </div>
 
   <div id="banner"></div>
+  <div id="float"></div>
+  <div id="spin">↺</div>
   <div id="power"><i></i></div>
-  <div id="hint">اسحب لأعلى لرمي الكرة<br><small>اتجاه السحب = الزاوية · سرعته = القوة</small></div>
+  <div id="hint">اسحب الكرة يميناً ويساراً لتحديد الموقع<br><small>ثم مرّر بسرعة للأعلى للرمي · انحرف بإصبعك في النهاية لإضافة لفّة</small></div>
 
   <div id="board"><div class="row" id="boardRow"></div></div>
 
   <div class="overlay" id="startOv">
     <h1>🎳 البولينج</h1>
-    <p>مرّر إصبعك للأعلى على الشاشة لرمي الكرة.<br>
-       اتجاه السحب يحدّد الزاوية، وطوله يحدّد القوة.<br>
+    <p>اسحب الكرة جانبياً لتحديد موقعها، ثم مرّر إصبعك بسرعة للأعلى لرميها.<br>
+       انحرف بإصبعك في نهاية الرمية لتدوير الكرة (هوك)!<br>
        أسقط كل الدبابيس واحصل على أعلى نتيجة!</p>
     <button class="btn" id="startBtn">ابدأ اللعب</button>
   </div>
@@ -99,6 +116,7 @@
   <div class="overlay hidden" id="endOv">
     <h1>انتهت المباراة!</h1>
     <div class="big" id="finalScore">0</div>
+    <div class="stars" id="finalStars"></div>
     <p id="finalMsg"></p>
     <button class="btn" id="againBtn">العب مرة أخرى</button>
   </div>
@@ -116,28 +134,58 @@ import * as CANNON from 'cannon-es';
 (function(){
 "use strict";
 
+function $i(id){return document.getElementById(id);}
+
 // ── AUDIO ──────────────────────────────────────────────────────────────────
-var AC=null;
-function initAudio(){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}}
+var AC=null, rollGain=null, rollFilter=null;
+function initAudio(){
+  try{
+    if(!AC){
+      AC=new(window.AudioContext||window.webkitAudioContext)();
+      // looped brown-noise bed for the ball rolling on wood
+      var len=AC.sampleRate, buf=AC.createBuffer(1,len,AC.sampleRate), d=buf.getChannelData(0), v=0;
+      for(var i=0;i<len;i++){ v=(v+ (Math.random()*2-1)*0.04)*0.985; d[i]=v*3.2; }
+      var src=AC.createBufferSource(); src.buffer=buf; src.loop=true;
+      rollFilter=AC.createBiquadFilter(); rollFilter.type='lowpass'; rollFilter.frequency.value=180;
+      rollGain=AC.createGain(); rollGain.gain.value=0;
+      src.connect(rollFilter); rollFilter.connect(rollGain); rollGain.connect(AC.destination);
+      src.start();
+    }
+    if(AC.state==='suspended')AC.resume();
+  }catch(e){}
+}
+function noiseBurst(t,dur,freq,vol){
+  var len=Math.floor(AC.sampleRate*dur), buf=AC.createBuffer(1,len,AC.sampleRate), d=buf.getChannelData(0);
+  for(var i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+  var s=AC.createBufferSource(); s.buffer=buf;
+  var f=AC.createBiquadFilter(); f.type='bandpass'; f.frequency.value=freq; f.Q.value=0.8;
+  var g=AC.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  s.connect(f); f.connect(g); g.connect(AC.destination); s.start(t);
+}
 function beep(type,vol){
   if(!AC)return; vol=vol||1;
   try{
     var t=AC.currentTime;
-    if(type==='roll'){ // low rumble of ball on lane
-      var o=AC.createOscillator(),g=AC.createGain();
-      o.type='sawtooth';o.frequency.setValueAtTime(70,t);
-      g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.12*vol,t+.1);
-      g.gain.exponentialRampToValueAtTime(.001,t+1.6);
-      o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+1.7);return;
-    }
-    if(type==='pin'){ // wood clack
+    if(type==='pin'){ // wood clack: pitched knock + noise crack
       var o2=AC.createOscillator(),g2=AC.createGain();
-      o2.type='triangle';o2.frequency.setValueAtTime(420+Math.random()*260,t);
-      o2.frequency.exponentialRampToValueAtTime(140,t+.09);
-      g2.gain.setValueAtTime(.0001,t);g2.gain.exponentialRampToValueAtTime(.22*vol,t+.005);
-      g2.gain.exponentialRampToValueAtTime(.001,t+.13);
-      o2.connect(g2);g2.connect(AC.destination);o2.start(t);o2.stop(t+.14);return;
+      o2.type='triangle';o2.frequency.setValueAtTime(380+Math.random()*320,t);
+      o2.frequency.exponentialRampToValueAtTime(120,t+.08);
+      g2.gain.setValueAtTime(.0001,t);g2.gain.exponentialRampToValueAtTime(.26*vol,t+.004);
+      g2.gain.exponentialRampToValueAtTime(.001,t+.12);
+      o2.connect(g2);g2.connect(AC.destination);o2.start(t);o2.stop(t+.13);
+      noiseBurst(t,.06,1800,.10*vol);
+      return;
     }
+    if(type==='gutter'){
+      var og=AC.createOscillator(),gg=AC.createGain();
+      og.type='sawtooth';og.frequency.setValueAtTime(120,t);
+      og.frequency.exponentialRampToValueAtTime(50,t+.4);
+      gg.gain.setValueAtTime(.0001,t);gg.gain.exponentialRampToValueAtTime(.14*vol,t+.03);
+      gg.gain.exponentialRampToValueAtTime(.001,t+.45);
+      og.connect(gg);gg.connect(AC.destination);og.start(t);og.stop(t+.5);
+      return;
+    }
+    if(type==='strike'||type==='win') noiseBurst(t,.35,900,.22);
     var notes = type==='strike'?[523,659,784,1047,1319]
               : type==='spare'?[523,659,784,1047]
               : type==='win'?[523,659,784,1047,1319,1568]
@@ -151,61 +199,61 @@ function beep(type,vol){
     });
   }catch(e){}
 }
-
-function $i(id){return document.getElementById(id);}
+function vibrate(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
 
 // ── DIMENSIONS (meters) ─────────────────────────────────────────────────────
 var LANE_W   = 1.06;
-var LANE_LEN = 22.8;        // extends back into the approach so floor sits under the camera
+var LANE_LEN = 22.8;
 var FOUL_Z   =  8.4;        // ball start
 var PIN_APEX_Z = -7.0;      // nearest pin
-var ROW_DZ   = -0.30;       // depth between pin rows
-var PIN_DX   = 0.305;       // lateral spacing
+var ROW_DZ   = -0.30;
+var PIN_DX   = 0.305;
 var BALL_R   = 0.108;
 var GUTTER_W = 0.16;
 var WORLD_UP = new THREE.Vector3(0,1,0);
 
 // ── THREE SETUP ─────────────────────────────────────────────────────────────
 var canvas=$i('scene');
-var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+var DPR=Math.min(window.devicePixelRatio||1, 1.75);
+var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(DPR);
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputEncoding=THREE.sRGBEncoding;
 
 var scene=new THREE.Scene();
 scene.background=new THREE.Color(0x0a0f1a);
-scene.fog=new THREE.Fog(0x0a0f1a, 14, 30);
+scene.fog=new THREE.Fog(0x0a0f1a, 16, 34);
 
 var camera=new THREE.PerspectiveCamera(58, innerWidth/innerHeight, 0.1, 100);
-var camDefault={pos:new THREE.Vector3(0,1.55,10.6), look:new THREE.Vector3(0,0.35,0)};
-camera.position.copy(camDefault.pos);
+camera.position.set(0,1.55,FOUL_Z+2.4);
 
 // lights
-var hemi=new THREE.HemisphereLight(0xbfd8ff, 0x202838, 0.85); scene.add(hemi);
-var key=new THREE.DirectionalLight(0xffffff, 1.05);
+var hemi=new THREE.HemisphereLight(0xbfd8ff, 0x202838, 0.8); scene.add(hemi);
+var key=new THREE.DirectionalLight(0xffffff, 1.0);
 key.position.set(2.5, 9, 9); key.castShadow=true;
-key.shadow.mapSize.set(2048,2048);
+key.shadow.mapSize.set(1024,1024);
 key.shadow.camera.near=1; key.shadow.camera.far=40;
-key.shadow.camera.left=-3; key.shadow.camera.right=3;
+key.shadow.camera.left=-3.2; key.shadow.camera.right=3.2;
 key.shadow.camera.top=12; key.shadow.camera.bottom=-12;
-key.shadow.bias=-0.0004;
+key.shadow.bias=-0.0005;
 scene.add(key);
-var fill=new THREE.DirectionalLight(0x88aaff,0.35); fill.position.set(-4,5,-6); scene.add(fill);
+var fill=new THREE.DirectionalLight(0x88aaff,0.32); fill.position.set(-4,5,-6); scene.add(fill);
+var deckGlow=new THREE.PointLight(0x6db8ff,0.7,7); deckGlow.position.set(0,1.5,PIN_APEX_Z-0.4); scene.add(deckGlow);
 
 // ── PHYSICS WORLD ───────────────────────────────────────────────────────────
 var world=new CANNON.World();
 world.gravity.set(0,-9.82,0);
 world.broadphase=new CANNON.SAPBroadphase(world);
 world.allowSleep=true;
-world.solver.iterations=14;
+world.solver.iterations=12;
 
 var matLane=new CANNON.Material('lane');
 var matBall=new CANNON.Material('ball');
 var matPin =new CANNON.Material('pin');
-world.addContactMaterial(new CANNON.ContactMaterial(matBall,matLane,{friction:0.04,restitution:0.05}));
-world.addContactMaterial(new CANNON.ContactMaterial(matPin ,matLane,{friction:0.38,restitution:0.10}));
-world.addContactMaterial(new CANNON.ContactMaterial(matBall,matPin ,{friction:0.14,restitution:0.16}));
-world.addContactMaterial(new CANNON.ContactMaterial(matPin ,matPin ,{friction:0.16,restitution:0.12}));
+world.addContactMaterial(new CANNON.ContactMaterial(matBall,matLane,{friction:0.05,restitution:0.02}));
+world.addContactMaterial(new CANNON.ContactMaterial(matPin ,matLane,{friction:0.45,restitution:0.18}));
+world.addContactMaterial(new CANNON.ContactMaterial(matBall,matPin ,{friction:0.10,restitution:0.32}));
+world.addContactMaterial(new CANNON.ContactMaterial(matPin ,matPin ,{friction:0.10,restitution:0.30}));
 
 function staticBox(w,h,d,x,y,z,mat){
   var body=new CANNON.Body({mass:0,material:mat||null});
@@ -216,48 +264,52 @@ function staticBox(w,h,d,x,y,z,mat){
 // ── BUILD LANE ──────────────────────────────────────────────────────────────
 var laneGroup=new THREE.Group(); scene.add(laneGroup);
 
-// wood material with subtle plank stripes via canvas texture
 function woodTexture(){
-  var c=document.createElement('canvas'); c.width=64; c.height=512;
+  var c=document.createElement('canvas'); c.width=128; c.height=512;
   var x=c.getContext('2d');
-  x.fillStyle='#c79a5b'; x.fillRect(0,0,64,512);
-  for(var i=0;i<14;i++){
-    x.fillStyle='rgba(90,60,25,'+(0.10+Math.random()*0.10)+')';
-    x.fillRect(i*4.6,0,1.4,512);
+  var grad=x.createLinearGradient(0,0,128,0);
+  grad.addColorStop(0,'#b98e50'); grad.addColorStop(.5,'#cda263'); grad.addColorStop(1,'#b98e50');
+  x.fillStyle=grad; x.fillRect(0,0,128,512);
+  for(var i=0;i<16;i++){ // board seams
+    x.fillStyle='rgba(80,52,20,'+(0.18+Math.random()*0.12)+')';
+    x.fillRect(i*8,0,1.6,512);
   }
-  for(var j=0;j<70;j++){
-    x.fillStyle='rgba(255,230,190,'+(Math.random()*0.05)+')';
-    x.fillRect(Math.random()*64,Math.random()*512,2,40);
+  for(var j=0;j<90;j++){ // grain flecks + sheen
+    x.fillStyle='rgba(255,232,190,'+(Math.random()*0.06)+')';
+    x.fillRect(Math.random()*128,Math.random()*512,2,30+Math.random()*40);
   }
   var t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping;
-  t.repeat.set(1,8); t.anisotropy=8; return t;
+  t.repeat.set(1,8); t.anisotropy=4; return t;
 }
 var laneMesh=new THREE.Mesh(
   new THREE.BoxGeometry(LANE_W,0.2,LANE_LEN),
-  new THREE.MeshStandardMaterial({map:woodTexture(),roughness:0.35,metalness:0.05})
+  new THREE.MeshStandardMaterial({map:woodTexture(),roughness:0.28,metalness:0.06})
 );
-// front edge stays near the pit (~-9.8); back edge extended to ~+13 (the approach)
 laneMesh.position.set(0,-0.1,1.6);
 laneMesh.receiveShadow=true; laneGroup.add(laneMesh);
 staticBox(LANE_W,0.2,LANE_LEN,0,-0.1,laneMesh.position.z,matLane);
 
-// aiming guide arrows (the 7 lane arrows near foul line)
+// foul line
+var foulLine=new THREE.Mesh(new THREE.BoxGeometry(LANE_W,0.004,0.05),
+  new THREE.MeshStandardMaterial({color:0x2a1c0c,roughness:0.5}));
+foulLine.position.set(0,0.002,FOUL_Z-0.5); laneGroup.add(foulLine);
+
+// the 7 aiming arrows
+var arrowMat=new THREE.MeshStandardMaterial({color:0x5e4220,roughness:0.55});
 for(var a=0;a<7;a++){
-  var ar=new THREE.Mesh(new THREE.ConeGeometry(0.028,0.16,3),
-    new THREE.MeshStandardMaterial({color:0x6a4a22,roughness:0.6}));
+  var ar=new THREE.Mesh(new THREE.ConeGeometry(0.028,0.16,3),arrowMat);
   ar.rotation.x=-Math.PI/2; ar.rotation.z=Math.PI;
   var off=(a-3); ar.position.set(off*0.12, 0.005, 3.2 - Math.abs(off)*0.18);
   laneGroup.add(ar);
 }
 
-// gutters (lower channels) + outer walls
+// gutters + outer walls
 function makeGutter(sign){
   var gx=sign*(LANE_W/2 + GUTTER_W/2);
   var gMesh=new THREE.Mesh(new THREE.BoxGeometry(GUTTER_W,0.16,LANE_LEN),
-    new THREE.MeshStandardMaterial({color:0x12161f,roughness:0.5,metalness:0.3}));
+    new THREE.MeshStandardMaterial({color:0x12161f,roughness:0.45,metalness:0.35}));
   gMesh.position.set(gx,-0.16,laneMesh.position.z); gMesh.receiveShadow=true; laneGroup.add(gMesh);
   staticBox(GUTTER_W,0.16,LANE_LEN,gx,-0.16,laneMesh.position.z,matLane);
-  // outer wall
   var wx=sign*(LANE_W/2 + GUTTER_W + 0.04);
   var wMesh=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.5,LANE_LEN),
     new THREE.MeshStandardMaterial({color:0x1a2230,roughness:0.6}));
@@ -266,45 +318,58 @@ function makeGutter(sign){
 }
 makeGutter(1); makeGutter(-1);
 
-// pin deck + pit back wall
+// pin deck + pit
 var deckZ = PIN_APEX_Z - 1.1;
 var pitWall=new THREE.Mesh(new THREE.BoxGeometry(LANE_W+2*GUTTER_W+0.3,1.4,0.2),
   new THREE.MeshStandardMaterial({color:0x141c2c,roughness:0.7}));
 pitWall.position.set(0,0.5,deckZ-1.0); pitWall.receiveShadow=true; scene.add(pitWall);
 staticBox(LANE_W+2*GUTTER_W+0.3,1.4,0.2,0,0.5,deckZ-1.0,matLane);
-// pit floor (slightly lower so knocked pins drop & settle out of count)
 staticBox(LANE_W+2*GUTTER_W+0.3,0.2,1.4,0,-0.22,deckZ-0.5,matLane);
 var pitFloor=new THREE.Mesh(new THREE.BoxGeometry(LANE_W+2*GUTTER_W+0.3,0.2,1.4),
   new THREE.MeshStandardMaterial({color:0x0c1018,roughness:0.8}));
 pitFloor.position.set(0,-0.22,deckZ-0.5); pitFloor.receiveShadow=true; scene.add(pitFloor);
 
-// back wall far backdrop
+// pinsetter shroud (masking unit) with neon strip — frames the pins
+var shroud=new THREE.Mesh(new THREE.BoxGeometry(LANE_W+2*GUTTER_W+0.55,0.85,1.9),
+  new THREE.MeshStandardMaterial({color:0x101828,roughness:0.65}));
+shroud.position.set(0,1.45,PIN_APEX_Z-0.45); scene.add(shroud);
+var neon=new THREE.Mesh(new THREE.BoxGeometry(LANE_W+2*GUTTER_W+0.55,0.05,0.05),
+  new THREE.MeshStandardMaterial({color:0x123,emissive:0x37c8ff,emissiveIntensity:1.6}));
+neon.position.set(0,1.02,PIN_APEX_Z+0.5); scene.add(neon);
+var neon2=neon.clone(); neon2.material=new THREE.MeshStandardMaterial({color:0x123,emissive:0xff4f9a,emissiveIntensity:1.2});
+neon2.position.y=1.10; neon2.position.z=PIN_APEX_Z+0.46; scene.add(neon2);
+
+// far backdrop
 var bg=new THREE.Mesh(new THREE.PlaneGeometry(40,16),
   new THREE.MeshStandardMaterial({color:0x0b1422,roughness:1}));
 bg.position.set(0,4,deckZ-3.5); scene.add(bg);
 
-// ── PIN GEOMETRY (lathe) ────────────────────────────────────────────────────
+// ── PIN VISUAL (lathe + painted stripes — 1 mesh/pin) ──────────────────────
 var PIN_H=0.38;
 function pinGeometry(){
   var p=[[0.024,0.0],[0.040,0.012],[0.047,0.045],[0.045,0.085],[0.034,0.135],
          [0.023,0.185],[0.0235,0.205],[0.028,0.245],[0.0305,0.285],[0.026,0.325],
          [0.014,0.362],[0.0,0.378]];
   var pts=p.map(function(a){return new THREE.Vector2(a[0],a[1]);});
-  var g=new THREE.LatheGeometry(pts,24);
-  g.translate(0,-PIN_H/2,0);  // center at body origin
+  var g=new THREE.LatheGeometry(pts,20);
+  g.translate(0,-PIN_H/2,0);
   g.computeVertexNormals();
   return g;
 }
-var PIN_GEO=pinGeometry();
-var pinBodyMat=new THREE.MeshStandardMaterial({color:0xfdfdfd,roughness:0.35,metalness:0.05});
-// red stripe rings near neck (two thin tori)
-function stripeMesh(y){
-  var m=new THREE.Mesh(new THREE.TorusGeometry(0.027,0.006,8,24),
-    new THREE.MeshStandardMaterial({color:0xe53935,roughness:0.4}));
-  m.rotation.x=Math.PI/2; m.position.y=y - PIN_H/2; return m;
+function pinTexture(){
+  var c=document.createElement('canvas'); c.width=64; c.height=256;
+  var x=c.getContext('2d');
+  var grad=x.createLinearGradient(0,0,64,0);
+  grad.addColorStop(0,'#e8e8ea'); grad.addColorStop(.5,'#ffffff'); grad.addColorStop(1,'#e8e8ea');
+  x.fillStyle=grad; x.fillRect(0,0,64,256);
+  x.fillStyle='#e02830';                   // neck stripes (v by lathe point index)
+  x.fillRect(0,84,64,11);
+  x.fillRect(0,66,64,11);
+  var t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
 }
+var PIN_GEO=pinGeometry();
+var pinBodyMat=new THREE.MeshStandardMaterial({map:pinTexture(),roughness:0.32,metalness:0.04});
 
-// standard 10-pin triangle, apex toward bowler (+z)
 function pinLayout(){
   var rows=[1,2,3,4], out=[], z=PIN_APEX_Z;
   for(var r=0;r<4;r++){
@@ -312,27 +377,46 @@ function pinLayout(){
     for(var k=0;k<n;k++) out.push(new THREE.Vector3(x0+k*PIN_DX, PIN_H/2, z));
     z+=ROW_DZ;
   }
-  return out; // 10 pins
+  return out;
 }
 
-var pins=[];
+// compound physics shape ≈ real pin silhouette (base, belly, neck, head)
+function buildPinBody(){
+  var body=new CANNON.Body({mass:1.5,material:matPin,
+    linearDamping:0.06,angularDamping:0.12,
+    allowSleep:true,sleepSpeedLimit:0.5,sleepTimeLimit:0.4});
+  body.addShape(new CANNON.Cylinder(0.036,0.047,0.16,9), new CANNON.Vec3(0,-0.105,0));
+  body.addShape(new CANNON.Sphere(0.054),                new CANNON.Vec3(0,-0.075,0));
+  body.addShape(new CANNON.Cylinder(0.021,0.030,0.14,8), new CANNON.Vec3(0, 0.050,0));
+  body.addShape(new CANNON.Sphere(0.026),                new CANNON.Vec3(0, 0.155,0));
+  return body;
+}
+
+var pins=[], sinking=[];
+var lastPinSnd=0, lastVib=0;
+function onPinCollide(e){
+  var iv=0;
+  try{ iv=Math.abs(e.contact.getImpactVelocityAlongNormal()); }catch(_){}
+  if(iv<1.1) return;
+  var now=performance.now();
+  if(now-lastPinSnd>45){ lastPinSnd=now; beep('pin', Math.min(1, iv/7)); }
+  shakeAmp=Math.min(0.09, shakeAmp+iv*0.0028);
+  if(now-lastVib>140){ lastVib=now; vibrate(12); }
+}
 function createPins(){
-  var layout=pinLayout();
-  layout.forEach(function(pos){
-    var grp=new THREE.Group();
+  pinLayout().forEach(function(pos){
     var mesh=new THREE.Mesh(PIN_GEO,pinBodyMat);
     mesh.castShadow=true; mesh.receiveShadow=true;
-    grp.add(mesh); grp.add(stripeMesh(0.30)); grp.add(stripeMesh(0.245));
-    scene.add(grp);
-    var body=new CANNON.Body({mass:1.6,material:matPin,
-      linearDamping:0.32,angularDamping:0.5,allowSleep:true,sleepSpeedLimit:0.14,sleepTimeLimit:0.35});
-    body.addShape(new CANNON.Box(new CANNON.Vec3(0.05,PIN_H/2,0.05)));
-    pins.push({mesh:grp,body:body,home:pos.clone(),active:false});
+    scene.add(mesh);
+    var body=buildPinBody();
+    body.addEventListener('collide',onPinCollide);
+    pins.push({mesh:mesh,body:body,home:pos.clone(),active:false});
   });
 }
 function resetAllPins(){
+  sinking.length=0;
   pins.forEach(function(p){
-    p.active=true; p.mesh.visible=true;
+    p.active=true; p.mesh.visible=true; p.mesh.scale.set(1,1,1);
     p.body.position.set(p.home.x,p.home.y,p.home.z);
     p.body.quaternion.set(0,0,0,1);
     p.body.velocity.set(0,0,0); p.body.angularVelocity.set(0,0,0);
@@ -341,112 +425,255 @@ function resetAllPins(){
     syncPin(p);
   });
 }
-function removeFallen(){ // remove pins that are down; keep standing
+function removeFallen(){
   pins.forEach(function(p){
     if(p.active && !isUpright(p)){
-      p.active=false; p.mesh.visible=false;
+      p.active=false;
       if(p.body.world===world) world.removeBody(p.body);
+      sinking.push({p:p,t:0});   // animate out instead of popping
     }
   });
 }
 var _up=new THREE.Vector3(), _q=new THREE.Quaternion();
 function isUpright(p){
-  if(p.body.position.y < 0.10) return false;           // dropped off deck
+  if(p.body.position.y < 0.06) return false;
   _q.copy(p.body.quaternion);
   _up.set(0,1,0).applyQuaternion(_q);
-  return _up.dot(WORLD_UP) > 0.72;                     // not tilted much
+  return _up.dot(WORLD_UP) > 0.75;
 }
 function syncPin(p){
   p.mesh.position.copy(p.body.position);
   p.mesh.quaternion.copy(p.body.quaternion);
 }
+function updateSinking(dt){
+  for(var i=sinking.length-1;i>=0;i--){
+    var s=sinking[i]; s.t+=dt;
+    s.p.mesh.position.y-=dt*0.9;
+    s.p.mesh.rotation.z+=dt*1.5;
+    var sc=Math.max(0.01,1-s.t*1.4); s.p.mesh.scale.set(sc,sc,sc);
+    if(s.t>0.7){ s.p.mesh.visible=false; sinking.splice(i,1); }
+  }
+}
 createPins();
 
-// ── BALL ────────────────────────────────────────────────────────────────────
-var ballMesh=new THREE.Mesh(new THREE.SphereGeometry(BALL_R,32,24),
-  new THREE.MeshStandardMaterial({color:0x1565c0,roughness:0.15,metalness:0.35,
-    emissive:0x0a2540,emissiveIntensity:0.4}));
-ballMesh.castShadow=true; scene.add(ballMesh);
-// finger holes (visual)
-for(var h=0;h<3;h++){
-  var hole=new THREE.Mesh(new THREE.CircleGeometry(0.016,12),
-    new THREE.MeshStandardMaterial({color:0x07111d}));
-  var ang=h*0.5; hole.position.set(Math.sin(ang)*0.03, BALL_R-0.005, Math.cos(ang)*0.03);
-  hole.lookAt(hole.position.clone().add(new THREE.Vector3(0,1,0)));
-  // attach roughly on top
-  ballMesh.add(hole); hole.position.set(Math.sin(ang)*0.04,BALL_R-0.002,Math.cos(ang)*0.04);
-  hole.rotation.x=-Math.PI/2;
+// ── BALL (swirl texture so spin is visible) ────────────────────────────────
+function ballTexture(){
+  var c=document.createElement('canvas'); c.width=256; c.height=128;
+  var x=c.getContext('2d');
+  x.fillStyle='#0f3f8e'; x.fillRect(0,0,256,128);
+  for(var i=0;i<7;i++){               // marble swirls
+    x.strokeStyle='rgba('+(60+i*20)+','+(120+i*14)+',255,0.35)';
+    x.lineWidth=4+Math.random()*7;
+    x.beginPath();
+    x.moveTo(Math.random()*256, Math.random()*128);
+    x.bezierCurveTo(Math.random()*256,Math.random()*128,
+                    Math.random()*256,Math.random()*128,
+                    Math.random()*256,Math.random()*128);
+    x.stroke();
+  }
+  x.fillStyle='#061224';              // finger holes
+  [[120,28],[136,28],[128,44]].forEach(function(h){
+    x.beginPath(); x.arc(h[0],h[1],5,0,7); x.fill();
+  });
+  var t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
 }
-var ballBody=new CANNON.Body({mass:5.4,material:matBall,
-  linearDamping:0.015,angularDamping:0.02});
+var ballMesh=new THREE.Mesh(new THREE.SphereGeometry(BALL_R,28,20),
+  new THREE.MeshStandardMaterial({map:ballTexture(),roughness:0.18,metalness:0.3,
+    emissive:0x0a2540,emissiveIntensity:0.35}));
+ballMesh.castShadow=true; scene.add(ballMesh);
+
+var ballBody=new CANNON.Body({mass:6.8,material:matBall,
+  linearDamping:0.012,angularDamping:0.015});
 ballBody.addShape(new CANNON.Sphere(BALL_R));
 world.addBody(ballBody);
 
-function resetBall(){
+function resetBall(x){
   ballBody.velocity.set(0,0,0); ballBody.angularVelocity.set(0,0,0);
-  ballBody.position.set(0, BALL_R+0.002, FOUL_Z);
+  ballBody.position.set(x||0, BALL_R+0.002, FOUL_Z);
+  ballBody.quaternion.set(0,0,0,1);
   ballBody.wakeUp();
   ballMesh.position.copy(ballBody.position);
 }
 
-// ── AIM GUIDE LINE ──────────────────────────────────────────────────────────
-var guideMat=new THREE.LineBasicMaterial({color:0x4fc3f7,transparent:true,opacity:0.8});
-var guideGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
-var guideLine=new THREE.Line(guideGeo,guideMat); guideLine.visible=false; scene.add(guideLine);
-function updateGuide(angle){
-  var len=6.5;
-  var x=Math.sin(angle)*len, z=-Math.cos(angle)*len;
-  var s=ballBody.position;
-  var arr=guideGeo.attributes.position.array;
-  arr[0]=s.x; arr[1]=0.02; arr[2]=s.z;
-  arr[3]=s.x+x; arr[4]=0.02; arr[5]=s.z+z;
+// ── BALL TRAIL ──────────────────────────────────────────────────────────────
+function softDot(){
+  var c=document.createElement('canvas'); c.width=c.height=32;
+  var x=c.getContext('2d');
+  var g=x.createRadialGradient(16,16,0,16,16,16);
+  g.addColorStop(0,'rgba(140,210,255,1)'); g.addColorStop(1,'rgba(140,210,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,32,32);
+  return new THREE.CanvasTexture(c);
+}
+var TRAIL_N=22;
+var trailPos=new Float32Array(TRAIL_N*3);
+var trailGeo=new THREE.BufferGeometry();
+trailGeo.setAttribute('position',new THREE.BufferAttribute(trailPos,3));
+var trail=new THREE.Points(trailGeo,new THREE.PointsMaterial({
+  map:softDot(),size:0.14,transparent:true,opacity:0.5,depthWrite:false,
+  blending:THREE.AdditiveBlending,color:0x77ccff,sizeAttenuation:true}));
+trail.visible=false; trail.frustumCulled=false; scene.add(trail);
+function trailReset(){
+  for(var i=0;i<TRAIL_N;i++){
+    trailPos[i*3]=ballBody.position.x; trailPos[i*3+1]=ballBody.position.y;
+    trailPos[i*3+2]=ballBody.position.z;
+  }
+  trailGeo.attributes.position.needsUpdate=true;
+}
+function trailUpdate(){
+  for(var i=0;i<TRAIL_N-1;i++){
+    trailPos[i*3]=trailPos[(i+1)*3]; trailPos[i*3+1]=trailPos[(i+1)*3+1]; trailPos[i*3+2]=trailPos[(i+1)*3+2];
+  }
+  var k=(TRAIL_N-1)*3;
+  trailPos[k]=ballBody.position.x; trailPos[k+1]=ballBody.position.y; trailPos[k+2]=ballBody.position.z;
+  trailGeo.attributes.position.needsUpdate=true;
+}
+
+// ── CONFETTI ────────────────────────────────────────────────────────────────
+var CONF_N=90;
+var confPos=new Float32Array(CONF_N*3), confVel=new Float32Array(CONF_N*3), confCol=new Float32Array(CONF_N*3);
+var confGeo=new THREE.BufferGeometry();
+confGeo.setAttribute('position',new THREE.BufferAttribute(confPos,3));
+confGeo.setAttribute('color',new THREE.BufferAttribute(confCol,3));
+var confMat=new THREE.PointsMaterial({size:0.06,vertexColors:true,transparent:true,opacity:1,depthWrite:false});
+var confetti=new THREE.Points(confGeo,confMat);
+confetti.visible=false; confetti.frustumCulled=false; scene.add(confetti);
+var confLife=0;
+function confettiBurst(x,y,z){
+  var palette=[[1,.85,.24],[.31,.76,.97],[1,.31,.32],[.55,1,.55],[1,.5,.9]];
+  for(var i=0;i<CONF_N;i++){
+    confPos[i*3]=x+(Math.random()-0.5)*0.4; confPos[i*3+1]=y; confPos[i*3+2]=z+(Math.random()-0.5)*0.3;
+    confVel[i*3]=(Math.random()-0.5)*3.4;
+    confVel[i*3+1]=2.2+Math.random()*3.2;
+    confVel[i*3+2]=(Math.random()-0.5)*2.4;
+    var cc=palette[i%palette.length];
+    confCol[i*3]=cc[0]; confCol[i*3+1]=cc[1]; confCol[i*3+2]=cc[2];
+  }
+  confGeo.attributes.position.needsUpdate=true;
+  confGeo.attributes.color.needsUpdate=true;
+  confLife=1.5; confetti.visible=true; confMat.opacity=1;
+}
+function confettiUpdate(dt){
+  if(confLife<=0) return;
+  confLife-=dt;
+  for(var i=0;i<CONF_N;i++){
+    confVel[i*3+1]-=6.5*dt;
+    confPos[i*3]+=confVel[i*3]*dt; confPos[i*3+1]+=confVel[i*3+1]*dt; confPos[i*3+2]+=confVel[i*3+2]*dt;
+  }
+  confGeo.attributes.position.needsUpdate=true;
+  confMat.opacity=Math.max(0,confLife/1.5);
+  if(confLife<=0) confetti.visible=false;
+}
+
+// ── AIM GUIDE (curved path preview incl. hook) ─────────────────────────────
+var GUIDE_N=26;
+var guidePos=new Float32Array(GUIDE_N*3);
+var guideGeo=new THREE.BufferGeometry();
+guideGeo.setAttribute('position',new THREE.BufferAttribute(guidePos,3));
+var guideLine=new THREE.Line(guideGeo,
+  new THREE.LineDashedMaterial({color:0x4fc3f7,transparent:true,opacity:0.85,dashSize:0.22,gapSize:0.14}));
+guideLine.visible=false; guideLine.frustumCulled=false; scene.add(guideLine);
+function updateGuide(angle,hook){
+  var sx=ballBody.position.x, sz=ballBody.position.z;
+  var dist=sz-(PIN_APEX_Z-0.4);
+  for(var i=0;i<GUIDE_N;i++){
+    var t=i/(GUIDE_N-1);
+    var x=sx + Math.tan(angle)*dist*t + hook*0.7*Math.pow(t,2.6);
+    guidePos[i*3]=x; guidePos[i*3+1]=0.02; guidePos[i*3+2]=sz-dist*t;
+  }
   guideGeo.attributes.position.needsUpdate=true;
+  guideLine.computeLineDistances();
 }
 
 // ── GAME STATE ──────────────────────────────────────────────────────────────
 var STATE={AIM:0,ROLLING:1,SETTLE:2,OVER:3};
 var state=STATE.AIM;
 var running=false;
-var currentFrame=0;            // 0..9
-var framesData=[];             // array of arrays of pins-per-roll
+var currentFrame=0;
+var framesData=[];
 var pinsBeforeRoll=10;
-var settleTimer=0, rollTimer=0, lowMotion=0;
+var rollTimer=0, lowMotion=0;
+var strikeStreak=0;
+var gutterBall=false;
+var curHook=0;
+
+// slow-motion + camera shake
+var timeScale=1, slowUntil=0, slowFired=false, impactCam=false;
+var shakeAmp=0;
 
 function startGame(){
   framesData=[]; for(var i=0;i<10;i++) framesData.push([]);
-  currentFrame=0;
-  resetAllPins(); resetBall();
+  currentFrame=0; strikeStreak=0;
+  resetAllPins(); resetBall(0);
   state=STATE.AIM; running=true;
+  timeScale=1; impactCam=false; shakeAmp=0;
   $i('startOv').classList.add('hidden');
   $i('endOv').classList.add('hidden');
   $i('hint').style.opacity='0.9';
+  $i('banner').classList.remove('show');
+  confetti.visible=false; confLife=0;
   updateBoard(); updateHud();
 }
 
-// ── INPUT (swipe to bowl) ───────────────────────────────────────────────────
-var pointerDown=false, startX=0, startY=0, curAngle=0, curPower=0;
-var MAX_ANGLE=0.34;            // ~19.5°
+// ── INPUT: drag sideways to position, flick up to throw, curve = hook ──────
+var pointerDown=false, throwing=false;
+var startX=0, startY=0, lockX=0, ballStartX=0;
+var curAngle=0, curPower=0;
+var samples=[];                       // recent pointer samples for flick velocity
+var MAX_ANGLE=0.09;                   // ~5°: full range still reaches the gutters
+var BALL_X_LIM=LANE_W/2-BALL_R-0.01;
 function px(e){return e.touches?e.touches[0].clientX:e.clientX;}
 function py(e){return e.touches?e.touches[0].clientY:e.clientY;}
+function pushSample(x,y){
+  samples.push({x:x,y:y,t:performance.now()});
+  if(samples.length>10) samples.shift();
+}
+function flickVel(){ // px/sec over the last ~120ms
+  var now=performance.now(), old=null;
+  for(var i=0;i<samples.length;i++){ if(now-samples[i].t<=130){ old=samples[i]; break; } }
+  if(!old) old=samples[0];
+  var last=samples[samples.length-1];
+  var dt=Math.max(16,(last.t-old.t))/1000;
+  return {vx:(last.x-old.x)/dt, vy:(old.y-last.y)/dt}; // vy>0 = upward
+}
 
 function onDown(e){
   initAudio();
   if(!running || state!==STATE.AIM) return;
-  pointerDown=true; startX=px(e); startY=py(e);
-  curAngle=0; curPower=0;
-  guideLine.visible=true; updateGuide(0);
-  $i('power').style.opacity='1';
+  pointerDown=true; throwing=false;
+  startX=px(e); startY=py(e); lockX=startX;
+  ballStartX=ballBody.position.x;
+  curAngle=0; curPower=0; curHook=0;
+  samples.length=0; pushSample(startX,startY);
   $i('hint').style.opacity='0';
   e.preventDefault();
 }
 function onMove(e){
   if(!pointerDown) return;
-  var dx=px(e)-startX, dy=startY-py(e);     // dy>0 means swiped up
-  var swipe=Math.max(0,dy);
-  curPower=Math.min(1, swipe/ (innerHeight*0.42));
-  curAngle=Math.max(-MAX_ANGLE,Math.min(MAX_ANGLE, dx/ (innerWidth*0.55) ));
-  updateGuide(curAngle);
-  $i('power').firstElementChild.style.width=(curPower*100)+'%';
+  var x=px(e), y=py(e);
+  pushSample(x,y);
+  var dy=startY-y;                       // >0 = moved up
+  if(!throwing){
+    // positioning phase: slide the ball across the lane
+    var bx=Math.max(-BALL_X_LIM,Math.min(BALL_X_LIM, ballStartX+(x-startX)/innerWidth*2.0));
+    ballBody.position.x=bx; ballMesh.position.x=bx;
+    if(dy>26){                           // upward motion starts the throw
+      throwing=true; lockX=x;
+      guideLine.visible=true;
+      $i('power').style.opacity='1';
+    }
+  } else {
+    curPower=Math.min(1,(startY-y)/(innerHeight*0.5));
+    curAngle=Math.max(-MAX_ANGLE,Math.min(MAX_ANGLE,(x-lockX)/innerWidth*0.30));
+    var fv=flickVel();
+    curHook=Math.max(-1,Math.min(1, fv.vx/(innerWidth*2.2) ));
+    updateGuide(curAngle,curHook);
+    $i('power').firstElementChild.style.width=(curPower*100)+'%';
+    var sp=$i('spin');
+    if(Math.abs(curHook)>0.18){
+      sp.style.opacity=Math.min(1,Math.abs(curHook));
+      sp.textContent=curHook>0?'↷':'↶';
+    } else sp.style.opacity='0';
+  }
   e.preventDefault();
 }
 function onUp(e){
@@ -454,11 +681,16 @@ function onUp(e){
   pointerDown=false;
   guideLine.visible=false;
   $i('power').style.opacity='0';
-  if(curPower<0.12){ // too weak — cancel
-    $i('hint').style.opacity='0.9';
-    return;
-  }
-  bowl(curAngle,curPower);
+  $i('spin').style.opacity='0';
+  if(!throwing){ $i('hint').style.opacity='0.9'; return; }
+  throwing=false;
+  var fv=flickVel();
+  // power: fast flick OR a long deliberate swipe both work
+  var flickPower=fv.vy/(innerHeight*2.4);
+  var power=Math.max(Math.min(1,flickPower), curPower*0.9);
+  if(power<0.16){ $i('hint').style.opacity='0.9'; return; }   // too weak — cancel
+  curHook=Math.max(-1,Math.min(1, fv.vx/(innerWidth*2.2) ));
+  bowl(curAngle,Math.min(1,power),curHook);
   e.preventDefault();
 }
 canvas.addEventListener('touchstart',onDown,{passive:false});
@@ -467,18 +699,39 @@ canvas.addEventListener('touchend',onUp,{passive:false});
 canvas.addEventListener('mousedown',onDown);
 window.addEventListener('mousemove',onMove);
 window.addEventListener('mouseup',onUp);
+window.addEventListener('contextmenu',function(e){e.preventDefault();});
 
-function bowl(angle,power){
+// ── BOWL + HOOK PHYSICS ─────────────────────────────────────────────────────
+var HOOK_N=24;                          // peak lateral force (oil-pattern hook)
+function bowl(angle,power,hook){
   state=STATE.ROLLING;
   pinsBeforeRoll=pins.filter(function(p){return p.active;}).length;
-  var speed=5.0 + power*5.5;                 // m/s  (realistic: ~5–10.5)
+  var speed=7.5 + power*6.5;            // 7.5–14 m/s
   var vx=Math.sin(angle)*speed, vz=-Math.cos(angle)*speed;
   ballBody.velocity.set(vx,0,vz);
-  // rolling spin so it looks like it rolls forward (matched to roll, no extra energy)
-  ballBody.angularVelocity.set(vz/BALL_R, 0, -vx/BALL_R);
+  // forward roll + visible side-spin for the hook
+  ballBody.angularVelocity.set(vz/BALL_R, -hook*16, -vx/BALL_R);
   ballBody.wakeUp();
-  rollTimer=0; lowMotion=0; settleTimer=0;
-  beep('roll', 0.7+power*0.5);
+  curHook=hook;
+  rollTimer=0; lowMotion=0; gutterBall=false;
+  slowFired=false; impactCam=false; timeScale=1;
+  trailReset(); trail.visible=true;
+  if(AC&&rollGain) rollGain.gain.setTargetAtTime(0.10+power*0.12, AC.currentTime, 0.05);
+  vibrate(8);
+}
+var _hookF=new CANNON.Vec3();
+function applyHook(){
+  if(state!==STATE.ROLLING || gutterBall) return;
+  var b=ballBody;
+  if(b.position.y>0.16 || b.position.z<PIN_APEX_Z+0.4 || b.position.z>FOUL_Z) return;
+  var v=b.velocity, sp=Math.sqrt(v.x*v.x+v.z*v.z);
+  if(sp<1.5) return;
+  // oil pattern: ball skids the first half, then friction grabs and it hooks
+  var p=Math.max(0,Math.min(1,(FOUL_Z-b.position.z)/(FOUL_Z-PIN_APEX_Z)));
+  var phase=p<0.5 ? 0.15 : 0.15+(p-0.5)/0.5*0.85;
+  var f=curHook*HOOK_N*phase;
+  _hookF.set(-v.z/sp*f, 0, v.x/sp*f);
+  b.applyForce(_hookF, b.position);
 }
 
 // ── ROLL RESOLUTION ─────────────────────────────────────────────────────────
@@ -491,7 +744,7 @@ function ballStopped(){
 }
 function pinsCalm(){
   for(var i=0;i<pins.length;i++){
-    var p=pins[i]; if(!p.active && p.body.world!==world) continue;
+    var p=pins[i]; if(!p.active) continue;
     var v=p.body.velocity, av=p.body.angularVelocity;
     if(v.lengthSquared()>0.02 || av.lengthSquared()>0.05) return false;
   }
@@ -499,9 +752,12 @@ function pinsCalm(){
 }
 
 function finishRoll(){
-  state=STATE.SETTLE;  // brief hold then evaluate
+  state=STATE.SETTLE;
+  timeScale=1;
+  trail.visible=false;
+  if(AC&&rollGain) rollGain.gain.setTargetAtTime(0, AC.currentTime, 0.08);
   var standing=pins.filter(function(p){return p.active && isUpright(p);}).length;
-  var knocked=pinsBeforeRoll - standing;
+  var knocked=pinsBeforeRoll-standing;
   if(knocked<0) knocked=0;
   framesData[currentFrame].push(knocked);
   removeFallen();
@@ -509,37 +765,54 @@ function finishRoll(){
 
   var f=framesData[currentFrame];
   var isStrike = f.length===1 && knocked===10;
-  var isSpare  = f.length===2 && (f[0]+f[1]===10) && f[0]!==10;
+  var isSpare  = f.length>=2 && !isStrike && f[f.length-2]+knocked===10 && f[f.length-2]!==10;
+  // 10th frame: a 10 on a fresh rack is also a strike
+  var freshTen = knocked===10 && pinsBeforeRoll===10;
 
-  if(isStrike) showBanner('STRIKE! ⚡','#FFD93D'), beep('strike');
-  else if(isSpare) showBanner('SPARE! ✨','#4fc3f7'), beep('spare');
-  else if(knocked>0) beep('pin',0.6);
+  if(freshTen){ strikeStreak++; } else { strikeStreak=0; }
 
-  setTimeout(advance, 1300);
+  if(freshTen){
+    var txt = strikeStreak>=3?'تيركي! 🦃':strikeStreak===2?'دبل! 🔥':'سترايك! ⚡';
+    var sub = strikeStreak>=3?'TURKEY':strikeStreak===2?'DOUBLE':'STRIKE';
+    showBanner(txt,'#FFD93D',sub);
+    beep('strike'); vibrate([40,60,90]);
+    confettiBurst(0,0.7,PIN_APEX_Z-0.3);
+  } else if(isSpare){
+    showBanner('سبير! ✨','#4fc3f7','SPARE');
+    beep('spare'); vibrate([30,40,50]);
+  } else if(knocked===0 && gutterBall){
+    showBanner('في القناة! 😅','#90a4ae','GUTTER');
+    beep('gutter');
+  } else if(knocked>0){
+    showFloat('+'+knocked);
+    beep('pin',0.6);
+  }
+
+  setTimeout(advance, 1350);
 }
 
 function advance(){
   var f=framesData[currentFrame];
+  impactCam=false;
   if(currentFrame<9){
     var strike = f[0]===10;
-    if(strike || f.length===2){           // frame complete
-      currentFrame++; resetAllPins(); resetBall(); newRoll();
-    } else {                              // second ball, keep standing pins
-      resetBall(); newRoll();
+    if(strike || f.length===2){
+      currentFrame++; resetAllPins(); resetBall(0); newRoll();
+    } else {
+      resetBall(0); newRoll();
     }
   } else {
-    // 10th frame: up to 3 rolls
     var rolls=f.length;
     var sumFirstTwo=(f[0]||0)+(f[1]||0);
     if(rolls===1){
-      if(f[0]===10) resetAllPins();       // strike → fresh rack
-      resetBall(); newRoll();
+      if(f[0]===10) resetAllPins();
+      resetBall(0); newRoll();
     } else if(rolls===2){
       var bonus = f[0]===10 || sumFirstTwo===10;
       if(bonus){
         if(f[0]===10 && f[1]!==10) { /* keep standing for 3rd */ }
-        else resetAllPins();              // spare, or double strike → fresh rack
-        resetBall(); newRoll();
+        else resetAllPins();
+        resetBall(0); newRoll();
       } else { gameOver(); }
     } else { gameOver(); }
   }
@@ -556,10 +829,10 @@ function frameCumulatives(){
   var rolls=flatRolls(), out=[], score=0, i=0;
   for(var fr=0; fr<10; fr++){
     if(framesData[fr].length===0){ out.push(null); continue; }
-    if(rolls[i]===10){ // strike
+    if(rolls[i]===10){
       if(rolls[i+1]==null){ out.push(null); break; }
       score+=10+rolls[i+1]+(rolls[i+2]||0); i+=1;
-    } else if((rolls[i]||0)+(rolls[i+1]||0)===10){ // spare
+    } else if((rolls[i]||0)+(rolls[i+1]||0)===10){
       if(rolls[i+2]==null && fr<9){ out.push(null); break; }
       score+=10+(rolls[i+2]||0); i+=2;
     } else {
@@ -579,7 +852,6 @@ function rollSymbol(frame, idx){
     if(idx===1 && (f[0]+f[1]===10)) return '/';
     return v===0?'-':v;
   } else {
-    // tenth frame
     if(v===10) return 'X';
     if(idx>0 && f[idx-1]!==10 && f[idx-1]+v===10) return '/';
     return v===0?'-':v;
@@ -598,9 +870,9 @@ function buildBoard(){
     var d=document.createElement('div'); d.className='frame'+(f===9?' tenth':'');
     var slots=f===9?3:2;
     var rolls='<div class="rolls">';
-    for(var s=0;s<slots;s++) rolls+='<span data-f="'+f+'" data-s="'+s+'"></span>';
+    for(var s=0;s<slots;s++) rolls+='<span></span>';
     rolls+='</div>';
-    d.innerHTML=rolls+'<div class="cum" data-cum="'+f+'"></div>';
+    d.innerHTML=rolls+'<div class="cum"></div>';
     boardRow.appendChild(d);
   }
 }
@@ -616,13 +888,22 @@ function updateBoard(){
 }
 buildBoard();
 
-// ── BANNER ──────────────────────────────────────────────────────────────────
+// ── BANNER / FLOAT ──────────────────────────────────────────────────────────
 var bannerT=null;
-function showBanner(text,color){
-  var b=$i('banner'); b.textContent=text; b.style.color=color;
+function showBanner(text,color,sub){
+  var b=$i('banner');
+  b.innerHTML=text+(sub?'<small>'+sub+'</small>':'');
+  b.style.color=color;
   b.classList.add('show');
   clearTimeout(bannerT);
-  bannerT=setTimeout(function(){b.classList.remove('show');},1100);
+  bannerT=setTimeout(function(){b.classList.remove('show');},1200);
+}
+function showFloat(text){
+  var fl=$i('float');
+  fl.textContent=text;
+  fl.classList.remove('show');
+  void fl.offsetWidth;          // restart animation
+  fl.classList.add('show');
 }
 
 // ── GAME OVER ───────────────────────────────────────────────────────────────
@@ -630,38 +911,52 @@ function gameOver(){
   state=STATE.OVER; updateBoard();
   var sc=totalScore();
   $i('finalScore').textContent=sc;
+  var stars = sc>=180?3 : sc>=120?2 : sc>=60?1 : 0;
+  $i('finalStars').textContent = '★★★'.slice(0,stars) + '☆☆☆'.slice(0,3-stars);
   var msg = sc>=200?'أداء أسطوري! 🏆' : sc>=150?'ممتاز! 🎯' : sc>=100?'جيد جداً! 👏' : 'تدرّب أكثر! 💪';
   $i('finalMsg').textContent=msg+' مجموعك '+sc+' من 300.';
   $i('endOv').classList.remove('hidden');
   beep('win');
+  confettiBurst(0,1.2,FOUL_Z-3);
 }
 
 // ── CAMERA ──────────────────────────────────────────────────────────────────
-// viewFit grows on tall/narrow (portrait phone) screens so the lane width and
-// pins stay framed: the camera is pulled back and raised, never cropping.
-var camPos=new THREE.Vector3(), camLook=new THREE.Vector3();
-var portraitT=0;                     // 0 = landscape, 1 = very tall phone
+var camLook=new THREE.Vector3(0,0.3,0);
+var _tp=new THREE.Vector3(), _tl=new THREE.Vector3();
+var portraitT=0;
+var swayT=0;
 function updateCamera(dt){
-  var tp, tl;
-  // On portrait, RAISE the camera and look further down the lane (steeper top-down)
-  // instead of dollying back past the lane — this fills the tall frame with floor.
-  var rise = portraitT*1.15;
-  var back = portraitT*1.7;          // modest pull-back, always stays over the lane
+  swayT+=dt;
+  var rise=portraitT*1.15, back=portraitT*1.7;
+  var rate;
+  var bx=ballBody.position.x, bz=ballBody.position.z;
   if(state===STATE.AIM || state===STATE.OVER){
-    tp=new THREE.Vector3(0, 1.40+rise, FOUL_Z + 2.2 + back);
-    tl=new THREE.Vector3(0, 0.16, FOUL_Z - 6.5 - portraitT*1.6);
+    _tp.set(bx*0.4 + Math.sin(swayT*0.5)*0.03, 1.48+rise, FOUL_Z+2.3+back);
+    _tl.set(bx*0.6, 0.12, FOUL_Z-7.0-portraitT*1.6);
+    rate=3.2;
+  } else if(impactCam){
+    // cinematic side/elevated view of the pin deck during impact + settle
+    var side = bx>=0 ? 1 : -1;
+    _tp.set(side*1.45, 0.95+rise*0.5, PIN_APEX_Z+2.6);
+    _tl.set(0, 0.28, PIN_APEX_Z-0.5);
+    rate=4.2;
   } else {
-    // follow the ball down the lane while staying centered over the lane
-    var bz=ballBody.position.z;
-    tp=new THREE.Vector3(ballBody.position.x*0.18, 1.35+rise, Math.min(FOUL_Z+2.2+back, bz+3.0));
-    tl=new THREE.Vector3(ballBody.position.x*0.12, 0.18, Math.max(PIN_APEX_Z-0.5, bz-5.0));
+    // chase cam: follows the ball down the lane
+    _tp.set(bx*0.5, 1.18+rise*0.7, Math.min(FOUL_Z+2.3+back, bz+3.4));
+    _tl.set(Math.max(-0.6,Math.min(0.6,bx*0.7)), 0.15, Math.max(PIN_APEX_Z-0.5, bz-4.5));
+    rate=5.5;
   }
-  var k=1-Math.pow(0.0009,dt);
-  camera.position.lerp(tp,k);
-  camLook.lerp(tl,k);
+  var k=1-Math.exp(-rate*dt);
+  camera.position.lerp(_tp,k);
+  camLook.lerp(_tl,k);
+  // impact shake
+  if(shakeAmp>0.0005){
+    camera.position.x+=(Math.random()-0.5)*shakeAmp;
+    camera.position.y+=(Math.random()-0.5)*shakeAmp*0.6;
+    shakeAmp*=Math.exp(-6*dt);
+  }
   camera.lookAt(camLook);
 }
-camLook.copy(camDefault.look);
 
 // ── LOOP ────────────────────────────────────────────────────────────────────
 var last=performance.now(), acc=0, FIXED=1/120;
@@ -669,18 +964,46 @@ function loop(now){
   requestAnimationFrame(loop);
   var dt=Math.min(0.05,(now-last)/1000); last=now;
 
+  // ease slow-motion back to realtime
+  if(timeScale<1 && now>slowUntil) timeScale=Math.min(1,timeScale+dt*2.4);
+
   if(running){
-    acc+=dt;
-    while(acc>=FIXED){ world.step(FIXED); acc-=FIXED; }
+    acc+=dt*timeScale;
+    var steps=0;
+    while(acc>=FIXED && steps<6){ applyHook(); world.step(FIXED); acc-=FIXED; steps++; }
     ballMesh.position.copy(ballBody.position);
     ballMesh.quaternion.copy(ballBody.quaternion);
-    pins.forEach(syncPin);
+    for(var i=0;i<pins.length;i++) if(pins[i].active) syncPin(pins[i]);
+    updateSinking(dt);
 
     if(state===STATE.ROLLING){
       rollTimer+=dt;
+      var b=ballBody.position;
+      // gutter detection
+      if(!gutterBall && Math.abs(b.x)>LANE_W/2+0.02 && b.y<0.04 && b.z<FOUL_Z-1){
+        gutterBall=true;
+        if(b.z>PIN_APEX_Z+1.5) beep('gutter');
+      }
+      // impact: slow-mo + cinematic cam as the ball reaches the rack
+      if(!slowFired && b.z<PIN_APEX_Z+1.7){
+        slowFired=true; impactCam=true;
+        var v=ballBody.velocity, sp=Math.sqrt(v.x*v.x+v.z*v.z);
+        if(!gutterBall && sp>3 && pinsBeforeRoll>0){
+          timeScale=0.3; slowUntil=now+620;
+        }
+      }
+      trailUpdate();
+      // rolling sound follows ball speed
+      if(AC&&rollGain){
+        var v2=ballBody.velocity, sp2=Math.sqrt(v2.x*v2.x+v2.z*v2.z);
+        var on=ballBody.position.y<0.2 ? Math.min(0.22,sp2*0.018) : 0;
+        rollGain.gain.setTargetAtTime(on, AC.currentTime, 0.07);
+        rollFilter.frequency.setTargetAtTime(140+sp2*26, AC.currentTime, 0.07);
+      }
       if(ballStopped() && pinsCalm()) lowMotion+=dt; else lowMotion=0;
-      if(lowMotion>0.7 || rollTimer>9){ finishRoll(); }
+      if(lowMotion>0.55 || rollTimer>8){ finishRoll(); }
     }
+    confettiUpdate(dt);
   }
   updateCamera(dt);
   renderer.render(scene,camera);
@@ -689,16 +1012,13 @@ requestAnimationFrame(loop);
 
 // ── RESIZE ──────────────────────────────────────────────────────────────────
 function resize(){
-  // use the actual visible viewport (accounts for mobile URL bar / safe areas)
   var vw=(window.visualViewport&&window.visualViewport.width)||innerWidth;
   var vh=(window.visualViewport&&window.visualViewport.height)||innerHeight;
   var aspect=vw/vh;
   camera.aspect=aspect;
-  // portrait → tall & narrow: widen FOV and pull the camera back so the full
-  // lane width and the pin rack are always captured on-screen on phones.
-  var t=Math.max(0, Math.min(1, (1-aspect)/0.55));   // 0 = landscape, 1 = very tall
-  camera.fov = 55 + t*16;                            // 55° (wide) → 71° (tall)
-  portraitT = t;                                     // drives camera raise / tilt
+  var t=Math.max(0, Math.min(1, (1-aspect)/0.55));
+  camera.fov = 55 + t*16;
+  portraitT = t;
   camera.updateProjectionMatrix();
   renderer.setSize(vw,vh,false);
 }
@@ -706,6 +1026,12 @@ window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,120);});
 if(window.visualViewport) window.visualViewport.addEventListener('resize',resize);
 resize();
+
+// avoid a dt spike / stuck audio when the WebView is backgrounded
+document.addEventListener('visibilitychange',function(){
+  last=performance.now();
+  if(AC){ if(document.hidden){ AC.suspend(); } else if(running){ AC.resume(); } }
+});
 
 // ── UI BUTTONS ──────────────────────────────────────────────────────────────
 $i('startBtn').addEventListener('click',function(){initAudio();startGame();});

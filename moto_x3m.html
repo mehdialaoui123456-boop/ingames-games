@@ -1,0 +1,1115 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>موتو إكس — تحدي الدراجة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800;900&display=swap" rel="stylesheet" />
+<!-- Physics engine -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<style>
+  :root{
+    --ink:#241a14; --accent:#ff7a18; --accent2:#ffb347; --good:#2fd27a; --bad:#ff4d4d;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  html,body{width:100%;height:100%;overflow:hidden;position:fixed;inset:0;
+    background:#1a1024;font-family:'Cairo',system-ui,sans-serif;color:var(--ink);
+    overscroll-behavior:none;touch-action:none;-webkit-text-size-adjust:100%;}
+  #scene{position:fixed;inset:0;display:block;touch-action:none;}
+
+  /* ---------- HUD ---------- */
+  #hud{position:absolute;top:0;left:0;right:0;display:flex;align-items:flex-start;
+    justify-content:space-between;gap:8px;padding:10px 12px;pointer-events:none;
+    font-weight:800;transition:opacity .25s;opacity:0;z-index:6;}
+  .chipcol{display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
+  .chip{background:rgba(28,18,10,.55);border:2px solid rgba(255,255,255,.16);
+    border-radius:16px;padding:6px 12px;display:flex;align-items:center;gap:7px;
+    color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25);backdrop-filter:blur(3px);
+    font-variant-numeric:tabular-nums;}
+  #timeChip{font-size:20px;color:#fff;letter-spacing:.5px;}
+  #timeChip .ico{font-size:16px;color:var(--accent2);}
+  #lvChip b{color:var(--accent2);}
+  #bestChip{font-size:13px;color:#ffe;opacity:.92;}
+  #topRight{display:flex;gap:8px;pointer-events:none;}
+  .iconbtn{pointer-events:auto;width:42px;height:42px;border-radius:14px;border:2px solid rgba(255,255,255,.18);
+    background:rgba(28,18,10,.55);box-shadow:0 4px 14px rgba(0,0,0,.25);
+    display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;
+    cursor:pointer;transition:transform .12s,background .15s;backdrop-filter:blur(3px);}
+  .iconbtn:active{transform:scale(.9);}
+
+  /* flip / status popups */
+  #popup{position:absolute;left:50%;top:24%;transform:translateX(-50%);
+    font-weight:900;font-size:30px;color:#fff;text-shadow:0 3px 0 #c24a00,0 6px 16px rgba(0,0,0,.4);
+    opacity:0;pointer-events:none;z-index:6;transition:opacity .15s, transform .25s;text-align:center;white-space:nowrap;}
+  #popup.show{opacity:1;}
+
+  /* ---------- touch controls ---------- */
+  #controls{position:absolute;inset:auto 0 0 0;bottom:0;height:38vh;max-height:230px;
+    pointer-events:none;z-index:5;display:none;}
+  .pad{position:absolute;bottom:max(18px,env(safe-area-inset-bottom));
+    width:min(33vw,150px);height:min(33vw,150px);max-height:150px;border-radius:50%;
+    pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;font-weight:900;color:#fff;font-size:17px;
+    border:3px solid rgba(255,255,255,.5);box-shadow:0 6px 20px rgba(0,0,0,.35);
+    transition:transform .07s, filter .07s, background .07s;}
+  .pad .ar{font-size:34px;line-height:1;}
+  .pad.act{transform:scale(.93);filter:brightness(1.25);}
+  #btnBrake{left:max(16px,env(safe-area-inset-left));
+    background:radial-gradient(circle at 38% 32%,#7fc0ff,#2a6fd6);}
+  #btnGas{right:max(16px,env(safe-area-inset-right));
+    background:radial-gradient(circle at 38% 32%,#ffb04a,#e8590c);}
+
+  /* ---------- overlay screens ---------- */
+  .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:16px;text-align:center;padding:24px;z-index:10;
+    background:radial-gradient(120% 90% at 50% 0%,rgba(60,30,70,.55),rgba(20,10,28,.86));
+    backdrop-filter:blur(2px);}
+  .screen.show{display:flex;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .panel{background:linear-gradient(180deg,#fff,#fdf3ea);border-radius:26px;padding:24px 22px;
+    box-shadow:0 18px 50px rgba(0,0,0,.45);max-width:400px;width:92%;
+    display:flex;flex-direction:column;align-items:center;gap:14px;}
+  .title{font-size:32px;font-weight:900;color:var(--ink);line-height:1.12;}
+  .title .sub{display:block;font-size:15px;font-weight:700;color:#a05a25;margin-top:4px;}
+  .big{font-size:54px;line-height:1;}
+  .stars{display:flex;gap:10px;font-size:42px;}
+  .stars span{filter:grayscale(1);opacity:.32;transform:scale(.85);transition:all .4s;}
+  .stars span.on{filter:none;opacity:1;transform:scale(1.12);
+    text-shadow:0 4px 12px rgba(255,170,40,.8);}
+  .msg{font-size:15px;color:#6a4a30;font-weight:700;}
+  .timebox{font-size:30px;font-weight:900;color:#e8590c;font-variant-numeric:tabular-nums;}
+  .timebox small{font-size:14px;color:#9a7a60;font-weight:700;}
+  .btn{pointer-events:auto;border:none;border-radius:18px;padding:13px 26px;font-family:inherit;
+    font-weight:900;font-size:17px;color:#fff;cursor:pointer;
+    background:linear-gradient(180deg,#ff9b3d,#e8590c);
+    box-shadow:0 6px 0 #b8430a,0 10px 18px rgba(180,70,10,.4);transition:transform .1s,box-shadow .1s;}
+  .btn:active{transform:translateY(4px);box-shadow:0 2px 0 #b8430a,0 4px 10px rgba(180,70,10,.4);}
+  .btn.green{background:linear-gradient(180deg,#54e09a,#27b878);box-shadow:0 6px 0 #1c8f5d,0 10px 18px rgba(40,180,120,.4);}
+  .btn.gray{background:linear-gradient(180deg,#d7c9bd,#b29a88);color:#3a2a1d;box-shadow:0 6px 0 #8a715e,0 10px 18px rgba(120,90,70,.3);}
+  .btnrow{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+  .small{font-size:14px;padding:10px 18px;}
+
+  /* level select grid */
+  #grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;width:100%;}
+  .lv{aspect-ratio:1;border-radius:18px;border:none;cursor:pointer;position:relative;
+    font-family:inherit;font-weight:900;font-size:22px;color:#fff;
+    background:linear-gradient(180deg,#ff9b3d,#e8590c);box-shadow:0 4px 0 #b8430a;
+    display:flex;align-items:center;justify-content:center;transition:transform .1s;}
+  .lv:active{transform:scale(.94);}
+  .lv.locked{background:linear-gradient(180deg,#cdbfb3,#a08b7b);box-shadow:0 4px 0 #7d6757;
+    color:rgba(255,255,255,.85);cursor:default;}
+  .lv .lvstars{position:absolute;bottom:4px;left:0;right:0;font-size:11px;letter-spacing:1px;color:#ffe9a8;}
+  .lv .lock{font-size:18px;}
+  .hintline{font-size:13px;color:#8a6a50;font-weight:700;line-height:1.5;}
+
+  #loadErr{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    color:#fff;font-weight:800;font-size:18px;padding:30px;text-align:center;
+    background:#e8590c;z-index:50;line-height:1.7;}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="hud">
+  <div class="chipcol">
+    <div class="chip" id="timeChip"><span class="ico">⏱</span><span id="timeVal">0.00</span></div>
+    <div class="chip" id="bestChip">الأفضل: <span id="bestVal">—</span></div>
+  </div>
+  <div class="chipcol" style="align-items:flex-end;">
+    <div id="topRight">
+      <div class="iconbtn" id="muteBtn" title="الصوت">🔊</div>
+      <div class="iconbtn" id="restartBtn" title="إعادة">↻</div>
+      <div class="iconbtn" id="menuBtn" title="القائمة">☰</div>
+    </div>
+    <div class="chip" id="lvChip">المرحلة <b id="lvNum">1</b></div>
+  </div>
+</div>
+
+<div id="popup"></div>
+
+<div id="controls">
+  <div class="pad" id="btnBrake"><span class="ar">◀</span>فرامل</div>
+  <div class="pad" id="btnGas"><span class="ar">▶</span>غاز</div>
+</div>
+
+<!-- Start -->
+<div class="screen" id="startScreen">
+  <div class="panel">
+    <div class="title">موتو إكس<span class="sub">تحدّي الدراجة النارية</span></div>
+    <div class="big">🏍️🔥</div>
+    <div class="hintline">
+      اضغط <b>غاز</b> للتسارع و<b>فرامل</b> للتراجع.<br>
+      في الهواء: <b>غاز</b> = شقلبة خلفية، <b>فرامل</b> = أمامية.<br>
+      كل شقلبة تخصم وقتًا — والاصطدام يضيف وقتًا!
+    </div>
+    <div class="btnrow">
+      <button class="btn" id="playBtn">▶ ابدأ</button>
+      <button class="btn gray small" id="selectBtn">المراحل</button>
+    </div>
+  </div>
+</div>
+
+<!-- Level select -->
+<div class="screen" id="levelScreen">
+  <div class="panel">
+    <div class="title">اختر المرحلة</div>
+    <div id="grid"></div>
+    <button class="btn gray small" id="backBtn">رجوع</button>
+  </div>
+</div>
+
+<!-- Complete -->
+<div class="screen" id="winScreen">
+  <div class="panel">
+    <div class="title" id="winTitle">أحسنت!</div>
+    <div class="stars" id="winStars"><span>★</span><span>★</span><span>★</span></div>
+    <div class="timebox"><span id="winTime">0.00</span><small> ثانية</small></div>
+    <div class="msg" id="winMsg"></div>
+    <div class="btnrow">
+      <button class="btn green" id="nextBtn">التالية ▶</button>
+      <button class="btn small" id="replayBtn">إعادة ↻</button>
+      <button class="btn gray small" id="winMenuBtn">القائمة</button>
+    </div>
+  </div>
+</div>
+
+<div id="loadErr">تعذّر تحميل محرّك اللعبة.<br>تأكد من اتصال الإنترنت ثم أعد المحاولة.</div>
+
+<script>
+/* ============================================================
+   موتو إكس — single-player Moto X3M-style stunt bike game.
+   Matter.js physics + custom canvas renderer, tuned to run
+   smoothly inside a Flutter WebView. Arabic UI, western digits.
+   ============================================================ */
+function bootError(){ var e=document.getElementById('loadErr'); if(e) e.style.display='flex'; }
+window.addEventListener('load', function(){
+  if(typeof Matter !== 'undefined'){ startGame(); return; }
+  var s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js';
+  s.onload=function(){ if(typeof Matter!=='undefined') startGame(); else bootError(); };
+  s.onerror=bootError;
+  document.head.appendChild(s);
+});
+
+function startGame(){
+'use strict';
+const { Engine, World, Composite, Bodies, Body, Constraint, Events } = Matter;
+
+/* =================== tuning =================== */
+const STEP_MS = 1000/60;
+const R = 25;              // wheel radius
+const WB = 84;             // wheelbase
+const WDROP = 16;          // wheel center drop below chassis center
+const GROUND0 = 360;       // baseline terrain y (world, y-down)
+const KILL_Y = 1400;       // fall below this => crash
+const CRASH_PENALTY = 5;   // seconds added on each crash
+const FLIP_BONUS = 1.0;    // seconds removed per flip
+
+const FWD_FORCE   = 0.0166;// forward drive force (through centre of mass)
+const TOPV        = 10.6;  // top horizontal speed (px/step)
+const WHEELIE     = 0.0010;// gentle nose-lift torque under throttle (capped)
+const AIR_TORQUE  = 0.0150;// chassis air-rotation torque
+const MAX_AIR_W   = 0.135; // clamp chassis ang.vel airborne
+
+/* =================== canvas / camera =================== */
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+let SW=0, SH=0, DPR=1;
+const cam = { x:0, y:0, scale:1, tScale:1 };
+let shake = 0;
+
+function resize(){
+  const w = window.innerWidth||document.documentElement.clientWidth||360;
+  const h = window.innerHeight||document.documentElement.clientHeight||640;
+  if(w<2||h<2) return;               // WebView reports 0 before first layout
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  SW=w; SH=h;
+  canvas.width=Math.round(SW*DPR); canvas.height=Math.round(SH*DPR);
+  canvas.style.width=SW+'px'; canvas.style.height=SH+'px';
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', ()=>{ resize(); setTimeout(resize,300); });
+
+/* =================== physics =================== */
+const engine = Engine.create();
+engine.gravity.y = 1; engine.gravity.scale = 0.0016;
+engine.positionIterations = 6;
+engine.velocityIterations = 5;
+engine.constraintIterations = 3;
+const world = engine.world;
+
+let ground = [];      // static segment bodies
+let hazards = [];     // {body, type, ...}
+let saws = [];        // moving/rotating saws  {x,y,r,t,rot, slide?, body}
+let balls = [];       // swinging spike balls  {px,py,len,r,phase,sp,body}
+let decor = [];       // background decals
+let checkpoints = []; // {x,y,passed}
+let finishX = 0, finishY = 0;
+let pts = [];         // terrain heightfield points (sorted by x)
+let levelEndX = 0;
+
+/* bike bodies */
+let bike = null;      // {chassis, rear, front, pins:[], group, dir}
+const BGROUP = Body.nextGroup ? Body.nextGroup(true) : -Math.abs((Math.random()*1e6)|0)-1;
+
+function clearWorld(){
+  Composite.clear(world, false, true);
+  ground=[]; hazards=[]; saws=[]; balls=[]; decor=[]; checkpoints=[]; pts=[];
+  bike=null; finishX=0; levelEndX=0;
+}
+
+/* ---- terrain builder ---- */
+function Builder(){
+  this.x=0; this.y=GROUND0;
+  pts.push({x:0,y:GROUND0});
+}
+Builder.prototype._to=function(nx,ny,n){
+  const x0=this.x,y0=this.y;
+  for(let i=1;i<=n;i++){ const t=i/n; pts.push({x:x0+(nx-x0)*t, y:y0+(ny-y0)*t}); }
+  this.x=nx; this.y=ny;
+};
+Builder.prototype._curve=function(dx,fn,n){
+  const x0=this.x,y0=this.y;
+  for(let i=1;i<=n;i++){ const t=i/n; pts.push({x:x0+dx*t, y:y0+fn(t)}); }
+  this.x=x0+dx; this.y=pts[pts.length-1].y;
+};
+Builder.prototype.flat=function(dx){ this._to(this.x+dx,this.y,1); return this; };
+Builder.prototype.slope=function(dx,dy){ this._to(this.x+dx,this.y+dy,Math.max(2,(Math.abs(dx)/26)|0)); return this; };
+Builder.prototype.hill=function(dx,h){ const n=Math.max(8,(dx/22)|0);
+  this._curve(dx,t=>-h*Math.sin(Math.PI*t),n); return this; };          // bump up by h, returns to level
+Builder.prototype.valley=function(dx,h){ const n=Math.max(8,(dx/22)|0);
+  this._curve(dx,t=>h*Math.sin(Math.PI*t),n); return this; };
+Builder.prototype.bumps=function(dx,count,amp){ const n=Math.max(10,(dx/18)|0);
+  this._curve(dx,t=>-amp*Math.abs(Math.sin(Math.PI*count*t)),n); return this; };
+Builder.prototype.ramp=function(dx,h){ const n=Math.max(7,(dx/20)|0);   // kicker up by h (ease-out)
+  this._curve(dx,t=>-h*(t*t),n); return this; };
+Builder.prototype.drop=function(dx,h){ const n=Math.max(7,(dx/20)|0);
+  this._curve(dx,t=>h*(t*t),n); return this; };
+Builder.prototype.land=function(dx,h){ const n=Math.max(7,(dx/22)|0);    // smooth landing slope down
+  this._curve(dx,t=>h*(1-(1-t)*(1-t)),n); return this; };
+
+/* pit: down wall, flat bottom (spikes), up wall. Returns bottom y. */
+Builder.prototype.pit=function(width,depth){
+  const wall=Math.max(34,width*0.16);
+  this.slope(wall, depth);
+  const bx0=this.x, by=this.y;
+  this.flat(width-wall*2);
+  addSpikeRow(bx0, this.x, by);
+  this.slope(wall, -depth);
+  return this;
+};
+
+/* gapJump: a kicker ramp launches the bike over open lower ground that holds
+   a hazard, then the track climbs gently back to the base level. The terrain
+   stays continuous & climbable (no walled pits) — the ONLY consequence of a
+   short jump is landing on the hazard (which is lethal). Fair + recoverable. */
+Builder.prototype.gapJump=function(type, hazW, rampH){
+  rampH=rampH||74; hazW=hazW||86;
+  this.slope(122, -rampH);          // LINEAR kicker (~31°) -> ballistic launch
+  this.flat(16);                    // flat takeoff lip
+  this.drop(54, rampH+18);          // short drop to the low ground
+  const hx0=this.x, hy=this.y;
+  this.flat(hazW);                  // hazard sits on this open ground
+  if(type==='spike') addSpikeRow(hx0+4, this.x-4, hy);
+  else if(type==='saw') addSaw((hx0+this.x)/2, hy-28, 38, 0);
+  else if(type==='dsaw'){ addSaw(hx0+hazW*0.28, hy-28,34,0); addSaw(hx0+hazW*0.74, hy-28,34,0); }
+  this.flat(96);                    // FLAT landing runout (clear) — forgiving touchdown
+  this.ramp(118, 18);               // gentle climb back to base level
+  return this;
+};
+
+function terrainY(x){
+  if(!pts.length) return GROUND0;
+  if(x<=pts[0].x) return pts[0].y;
+  if(x>=pts[pts.length-1].x) return pts[pts.length-1].y;
+  // binary search
+  let lo=0, hi=pts.length-1;
+  while(hi-lo>1){ const m=(lo+hi)>>1; if(pts[m].x<x) lo=m; else hi=m; }
+  const a=pts[lo], b=pts[hi]; const t=(x-a.x)/((b.x-a.x)||1);
+  return a.y+(b.y-a.y)*t;
+}
+
+function buildGroundColliders(){
+  const THK=120;
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[i], b=pts[i+1];
+    let dx=b.x-a.x, dy=b.y-a.y; const len=Math.hypot(dx,dy);
+    if(len<1) continue;
+    const ang=Math.atan2(dy,dx);
+    // perpendicular pointing down (+y)
+    let nx=-dy/len, ny=dx/len; if(ny<0){ nx=-nx; ny=-ny; }
+    const cx=(a.x+b.x)/2 + nx*THK/2;
+    const cy=(a.y+b.y)/2 + ny*THK/2;
+    const body=Bodies.rectangle(cx,cy,len+4,THK,{ isStatic:true, friction:0.95, frictionStatic:1, restitution:0, label:'ground' });
+    Body.setAngle(body,ang);
+    World.add(world, body); ground.push(body);
+  }
+}
+
+/* ---- hazards ---- */
+function addSpikeRow(x0,x1,y){
+  const w=x1-x0;
+  const body=Bodies.rectangle((x0+x1)/2, y-9, w, 30, { isStatic:true, isSensor:true, label:'hazard' });
+  body._spike={x0:x0,x1:x1,y:y};
+  World.add(world,body); hazards.push({body:body,type:'spike',x0:x0,x1:x1,y:y});
+}
+function addSaw(x,y,r,slide){
+  const body=Bodies.circle(x,y,r*0.82,{ isStatic:true, isSensor:true, label:'hazard' });
+  const s={x:x,y:y,r:r,rot:0,t:Math.random()*6,slide:slide||0,body:body,bx:x};
+  World.add(world,body); saws.push(s); hazards.push({body:body,type:'saw'});
+}
+function addBall(px,py,len,r,phase){
+  const x=px+Math.sin(phase)*len, y=py+Math.cos(phase)*len;
+  const body=Bodies.circle(x,y,r,{ isStatic:true, isSensor:true, label:'hazard' });
+  const b={px:px,py:py,len:len,r:r,phase:phase,amp:1.15,sp:1.6,body:body};
+  World.add(world,body); balls.push(b); hazards.push({body:body,type:'ball'});
+}
+/* swinging ball whose lowest point clears a rider on the ground by `clear` px
+   (so it is safe to pass under at ground level, lethal only when airborne). */
+function addBallSwing(x,len,r,phase,clear){
+  const ty=terrainY(x); addBall(x, ty-(clear||110)-len, len, r, phase);
+}
+function addCheckpoint(x){ checkpoints.push({x:x, y:terrainY(x), passed:false}); }
+
+/* =================== levels =================== */
+/* each: {build, gold, silver, hint?} ; build uses global B (Builder) */
+let B=null;
+const LEVELS = [
+  // 1 — tutorial: rolling hills + one small jump
+  { gold:10, silver:15, hint:'اضغط غاز للانطلاق وفرامل للتراجع.',
+    build(){
+      B.flat(280).hill(360,64).flat(160).hill(300,46);
+      addCheckpoint(B.x); B.flat(150).ramp(140,70).land(180,70).flat(280);
+      finishHere(180);
+    } },
+  // 2 — flips: a big launch ramp to learn backflips for a time bonus
+  { gold:12, silver:18, hint:'في الهواء اضغط غاز للشقلبة الخلفية = وقت أقل!',
+    build(){
+      B.flat(260).bumps(300,3,30).flat(140);
+      B.ramp(150,118).land(230,118).flat(150); addCheckpoint(B.x);
+      B.hill(300,58).flat(140).hill(260,46).flat(260);
+      finishHere(170);
+    } },
+  // 3 — spikes you jump over
+  { gold:15, silver:22, hint:'تجاوز الأشواك بقفزة عالية!',
+    build(){
+      B.flat(300).hill(240,46).flat(150);
+      B.gapJump('spike',84,74); B.flat(160); addCheckpoint(B.x);
+      B.bumps(300,2,32).flat(140); B.gapJump('spike',88,76);
+      B.flat(170).hill(230,44).flat(240);
+      finishHere(170);
+    } },
+  // 4 — rotating saws inside the gaps
+  { gold:17, silver:25, hint:'المناشير في الحُفر — اقفز فوقها!',
+    build(){
+      B.flat(300).hill(250,48).flat(160);
+      B.gapJump('saw',74,74); B.flat(170); addCheckpoint(B.x);
+      B.hill(250,46).flat(150); B.gapJump('saw',78,76);
+      B.flat(160).bumps(280,3,32).flat(240);
+      finishHere(170);
+    } },
+  // 5 — swinging spiked balls (aerial hazards) over jumps
+  { gold:19, silver:28, hint:'الكرات المسننة تتأرجح في الأعلى — لا تقفز تحتها!',
+    build(){
+      B.flat(300).hill(240,48).flat(140);
+      addBallSwing(B.x+60, 150, 26, 0.2, 118); B.flat(220);
+      B.gapJump('spike',84,74); B.flat(160); addCheckpoint(B.x);
+      B.hill(250,48).flat(120); addBallSwing(B.x+60, 168, 28, 1.4, 122); B.flat(220);
+      B.gapJump('saw',78,76); B.flat(170).hill(230,42).flat(240);
+      finishHere(170);
+    } },
+  // 6 — bigger air, double saw, and a flip stretch
+  { gold:21, silver:31, hint:'قفزات كبيرة — اجمع الشقلبات!',
+    build(){
+      B.flat(300).hill(240,48).flat(160);
+      B.ramp(165,122).land(280,122).flat(170); addCheckpoint(B.x);
+      B.gapJump('dsaw',130,80); B.flat(160);
+      addBallSwing(B.x+70, 175, 28, 0.8, 120); B.flat(230);
+      B.gapJump('spike',88,78); B.flat(170).bumps(280,3,32).flat(240);
+      finishHere(170);
+    } },
+  // 7 — rough terrain + mixed hazards
+  { gold:23, silver:33, hint:'طريق وعر بمخاطر متنوعة — حافظ على توازنك.',
+    build(){
+      B.flat(300).bumps(320,4,32).flat(150);
+      addBallSwing(B.x+60, 170, 26, 0.5, 122); B.flat(200);
+      B.gapJump('saw',76,76); B.flat(160); addCheckpoint(B.x);
+      B.hill(250,48).flat(140); B.gapJump('spike',90,78);
+      B.flat(170).bumps(300,3,34).flat(140);
+      B.ramp(165,124).land(270,124).flat(240);
+      finishHere(170);
+    } },
+  // 8 — the gauntlet
+  { gold:26, silver:37, hint:'التحدي الأخير — كل شيء دفعة واحدة!',
+    build(){
+      B.flat(300).hill(230,46).flat(150);
+      B.ramp(168,128).land(285,128).flat(150); addCheckpoint(B.x);
+      B.gapJump('spike',88,78); B.flat(150);
+      addBallSwing(B.x+70, 180, 28, 0.3, 122); B.flat(220);
+      B.gapJump('dsaw',132,82); B.flat(160); addCheckpoint(B.x);
+      B.bumps(300,3,32).flat(130); addBallSwing(B.x+60, 185, 30, 1.1, 124); B.flat(210);
+      B.gapJump('saw',80,78); B.flat(160).hill(220,44).flat(240);
+      finishHere(180);
+    } },
+];
+
+function finishHere(run){ B.flat(run); finishX=B.x-run*0.5; finishY=terrainY(finishX); levelEndX=B.x; }
+
+/* =================== bike =================== */
+function spawnBike(cp){
+  if(bike){ for(const p of bike.pins) Composite.remove(world,p);
+    Composite.remove(world,bike.chassis); Composite.remove(world,bike.rear); Composite.remove(world,bike.front); }
+  const x=cp.x, y=cp.y-58;
+  const wheelOpts={ friction:2.4, frictionStatic:5, restitution:0, density:0.0016,
+    collisionFilter:{group:BGROUP}, label:'wheel' };
+  const rear=Bodies.circle(x-WB/2, y+WDROP, R, wheelOpts);
+  const front=Bodies.circle(x+WB/2, y+WDROP, R, Object.assign({},wheelOpts,{friction:2.0}));
+  const chassis=Bodies.rectangle(x, y, 80, 18, { density:0.0020, friction:0.5, restitution:0,
+    chamfer:{radius:6}, collisionFilter:{group:BGROUP}, label:'chassis' });
+  Body.setInertia(chassis, chassis.inertia*1.0);
+  const pinR=Constraint.create({ bodyA:chassis, pointA:{x:-WB/2,y:WDROP}, bodyB:rear, length:0, stiffness:0.92, damping:0.10 });
+  const pinF=Constraint.create({ bodyA:chassis, pointA:{x:WB/2, y:WDROP}, bodyB:front, length:0, stiffness:0.92, damping:0.10 });
+  World.add(world,[rear,front,chassis,pinR,pinF]);
+  bike={ chassis, rear, front, pins:[pinR,pinF] };
+}
+
+/* ground-contact flags refreshed by collision events each step */
+let rearGround=false, frontGround=false;
+Events.on(engine,'collisionActive', ev=>handleContacts(ev.pairs));
+Events.on(engine,'collisionStart',  ev=>handleContacts(ev.pairs, true));
+function handleContacts(pairs, start){
+  if(!bike || phase!=='run') return;
+  for(const p of pairs){
+    const a=p.bodyA, b=p.bodyB;
+    const la=a.label, lb=b.label;
+    const hazard = (la==='hazard'||lb==='hazard');
+    const involvesBike = (a===bike.rear||a===bike.front||a===bike.chassis||b===bike.rear||b===bike.front||b===bike.chassis);
+    if(!involvesBike) continue;
+    if(hazard){ crash(); return; }
+    if(la==='ground'||lb==='ground'){
+      const wheel = (a===bike.rear||b===bike.rear) ? 'rear' : (a===bike.front||b===bike.front)?'front':null;
+      if(wheel==='rear') rearGround=true; else if(wheel==='front') frontGround=true;
+      else if(a===bike.chassis||b===bike.chassis){ // frame touched the dirt
+        // only a crash if the bike is actually tipped over (not a hard upright landing)
+        let ang=bike.chassis.angle; while(ang>Math.PI)ang-=2*Math.PI; while(ang<-Math.PI)ang+=2*Math.PI;
+        if(Math.abs(ang)>1.05) crash();
+      }
+    }
+  }
+}
+
+/* =================== input =================== */
+const btn={gas:false, brake:false};
+function setGas(v){ btn.gas=v; gasPad.classList.toggle('act',v); if(v) ac(); }
+function setBrake(v){ btn.brake=v; brakePad.classList.toggle('act',v); if(v) ac(); }
+const gasPad=document.getElementById('btnGas');
+const brakePad=document.getElementById('btnBrake');
+
+function holdPad(el, set){
+  el.addEventListener('pointerdown', e=>{ e.preventDefault(); e.stopPropagation();
+    try{ el.setPointerCapture(e.pointerId); }catch(_){} set(true); });
+  const off=e=>{ e.preventDefault(); set(false); };
+  el.addEventListener('pointerup', off);
+  el.addEventListener('pointercancel', off);
+  el.addEventListener('lostpointercapture', off);
+}
+holdPad(gasPad, setGas);
+holdPad(brakePad, setBrake);
+
+/* menu/icon buttons: pointerup tap (reliable in WebView, avoids swallowed clicks) */
+function tap(el, fn){ if(!el) return;
+  el.addEventListener('pointerup', e=>{ e.preventDefault(); e.stopPropagation(); fn(e); }); }
+
+document.addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  if(e.code==='ArrowRight'||e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){ setGas(true); e.preventDefault(); }
+  if(e.code==='ArrowLeft'||e.code==='ArrowDown'||e.code==='KeyS'){ setBrake(true); e.preventDefault(); }
+});
+document.addEventListener('keyup', e=>{
+  if(e.code==='ArrowRight'||e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space') setGas(false);
+  if(e.code==='ArrowLeft'||e.code==='ArrowDown'||e.code==='KeyS') setBrake(false);
+});
+
+/* =================== game state =================== */
+let phase='menu';        // menu | run | crash | done
+let levelIdx=0;
+let elapsed=0;           // seconds
+let lastCp=null;
+let crashTimer=0;
+let airborne=false, airRot=0, lastAng=0, airApex=0;
+let totalFlips=0;
+let particles=[];
+
+const save=loadSave();
+
+function startLevel(i){
+  levelIdx=i; document.getElementById('lvNum').textContent=(i+1);
+  clearWorld();
+  B=new Builder();
+  LEVELS[i].build();
+  buildGroundColliders();
+  // build decor along the track
+  buildDecor();
+  // checkpoints: ensure a start one
+  checkpoints.unshift({x:120,y:terrainY(120),passed:true});
+  lastCp=checkpoints[0];
+  spawnBike(lastCp);
+  elapsed=0; totalFlips=0; particles=[]; crashTimer=0;
+  airborne=false; airRot=0; rearGround=frontGround=false;
+  btn.gas=btn.brake=false; gasPad.classList.remove('act'); brakePad.classList.remove('act');
+  cam.x=bike.chassis.position.x; cam.y=bike.chassis.position.y; cam.scale=cam.tScale=fitScale();
+  const best=save.best[i];
+  document.getElementById('bestVal').textContent = best?fmt(best):'—';
+  showScreen(null);
+  document.getElementById('controls').style.display='block';
+  document.getElementById('hud').style.opacity='1';
+  phase='run';
+  showPopup(LEVELS[i].hint||'', 2600);
+}
+
+function crash(){
+  if(phase!=='run') return;
+  phase='crash'; crashTimer=0;
+  elapsed+=CRASH_PENALTY;
+  shake=22; boom(bike.chassis.position.x, bike.chassis.position.y);
+  sfxCrash();
+  showPopup('💥 +'+CRASH_PENALTY+' ث', 1200);
+}
+
+function respawn(){
+  spawnBike(lastCp);
+  airborne=false; airRot=0; rearGround=frontGround=false;
+  phase='run';
+}
+
+function finishLevel(){
+  if(phase!=='run') return;
+  phase='done';
+  document.getElementById('controls').style.display='none';
+  btn.gas=btn.brake=false; gasPad.classList.remove('act'); brakePad.classList.remove('act');
+  sfxFinish();
+  const t=Math.max(0, elapsed);
+  const L=LEVELS[levelIdx];
+  let stars=1; if(t<=L.gold) stars=3; else if(t<=L.silver) stars=2;
+  // save
+  const prev=save.best[levelIdx];
+  const improved = (prev==null || t<prev);
+  if(improved) save.best[levelIdx]=+t.toFixed(2);
+  if(stars>(save.stars[levelIdx]||0)) save.stars[levelIdx]=stars;
+  if(levelIdx+1>save.unlocked && levelIdx<LEVELS.length-1) save.unlocked=levelIdx+1;
+  persist();
+  // screen
+  document.getElementById('winTitle').textContent = (stars===3)?'مثالي! ⭐':'أحسنت!';
+  document.getElementById('winTime').textContent = fmt(t);
+  const sp=document.querySelectorAll('#winStars span');
+  sp.forEach((s,i)=>s.classList.remove('on'));
+  setTimeout(()=>sp.forEach((s,i)=>{ if(i<stars) setTimeout(()=>s.classList.add('on'), i*180); }),120);
+  let msg='';
+  if(improved && prev!=null) msg='⏱ رقم قياسي جديد!';
+  else if(improved) msg='ذهبي: '+fmt(L.gold)+' • فضي: '+fmt(L.silver);
+  else msg='أفضل وقت لك: '+fmt(prev);
+  document.getElementById('winMsg').textContent=msg;
+  document.getElementById('nextBtn').style.display = (levelIdx<LEVELS.length-1)?'':'none';
+  showScreen('winScreen');
+  if(levelIdx===LEVELS.length-1) notifyFlutterDone();
+}
+
+/* =================== fixed-step loop =================== */
+let acc=0, lastT=performance.now();
+function loop(now){
+  let dt=(now-lastT)/1000; lastT=now;
+  if(dt>0.1) dt=0.1;
+  if(phase==='run' || phase==='crash'){
+    acc+=dt; let n=0;
+    while(acc>=STEP_MS/1000 && n<5){ step(STEP_MS/1000); acc-=STEP_MS/1000; n++; }
+    if(acc>STEP_MS/1000) acc=0;
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+
+function step(h){
+  if(phase==='crash'){
+    crashTimer+=h; updateParticles(h);
+    if(crashTimer>0.85) respawn();
+    return;
+  }
+  // ---- timer ----
+  elapsed+=h;
+
+  // ---- controls ----
+  const grounded = rearGround||frontGround;
+  const c0=bike.chassis;
+  if(grounded){
+    // Drive force is applied ALONG the local ground slope so the bike keeps
+    // its speed climbing ramps (a purely-horizontal push bleeds away uphill),
+    // yet stays horizontal on the flat -> no wheelie launch.
+    const gx=c0.position.x;
+    const sl=Math.atan2(terrainY(gx+22)-terrainY(gx-22), 44);   // ground angle
+    const ux=Math.cos(sl), uy=Math.sin(sl);
+    if(btn.gas){
+      if(c0.velocity.x < TOPV) Body.applyForce(c0, c0.position, {x:ux*FWD_FORCE, y:uy*FWD_FORCE});
+      const tw=Math.max(0.16, c0.velocity.x/R*1.15);
+      Body.setAngularVelocity(bike.rear, bike.rear.angularVelocity + (tw-bike.rear.angularVelocity)*0.25);
+      // a gentle nose-lift for moto feel, strongly capped so it never loops
+      if(c0.angularVelocity>-0.04 && c0.angle>-0.30) c0.torque += -WHEELIE;
+      if(bike.rear.angularVelocity>0.2 && Math.random()<0.55) dirtKick();
+    } else if(btn.brake){
+      if(c0.velocity.x > -TOPV*0.5) Body.applyForce(c0, c0.position, {x:-ux*FWD_FORCE*0.8, y:-uy*FWD_FORCE*0.8});
+      Body.setAngularVelocity(bike.rear, bike.rear.angularVelocity*0.82 - 0.03);
+    } else {
+      Body.setAngularVelocity(bike.rear, bike.rear.angularVelocity*0.94);
+    }
+  } else {
+    // air control: rotate the whole bike
+    let dir=0;
+    if(btn.gas) dir=-1;            // backflip
+    else if(btn.brake) dir=+1;    // frontflip
+    if(dir!==0) bike.chassis.torque = dir*AIR_TORQUE;
+    if(bike.chassis.angularVelocity> MAX_AIR_W) Body.setAngularVelocity(bike.chassis, MAX_AIR_W);
+    if(bike.chassis.angularVelocity<-MAX_AIR_W) Body.setAngularVelocity(bike.chassis,-MAX_AIR_W);
+  }
+
+  // ---- move kinematic hazards (script-driven) ----
+  const t=performance.now()/1000;
+  for(const s of saws){
+    s.rot += 0.34;
+    if(s.slide){ const nx=s.bx+Math.sin(t*1.3+s.t)*s.slide; Body.setPosition(s.body,{x:nx,y:s.y}); s.x=nx; }
+  }
+  for(const bl of balls){
+    const ang=bl.phase + Math.sin(t*bl.sp)*bl.amp;
+    const x=bl.px+Math.sin(ang)*bl.len, y=bl.py+Math.cos(ang)*bl.len;
+    Body.setPosition(bl.body,{x:x,y:y}); bl.cx=x; bl.cy=y; bl.ang=ang;
+  }
+
+  // ---- physics step ----
+  rearGround=false; frontGround=false;
+  Engine.update(engine, STEP_MS);
+
+  // ---- post update ----
+  const c=bike.chassis;
+  // flip tracking
+  const nowGround = rearGround||frontGround;
+  if(!nowGround){
+    if(!airborne){ airborne=true; airRot=0; lastAng=c.angle; }
+    let d=c.angle-lastAng;
+    while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI;
+    airRot+=d; lastAng=c.angle;
+    const done=Math.floor(Math.abs(airRot)/(2*Math.PI));
+    if(done>airApex){ airApex=done; flipScored(); }
+  } else {
+    airborne=false; airRot=0; airApex=0;
+  }
+
+  // checkpoints
+  for(const cp of checkpoints){
+    if(!cp.passed && c.position.x>cp.x){ cp.passed=true; lastCp=cp; sfxCheck(); showPopup('✔ نقطة تفتيش',1100); }
+  }
+  // finish
+  if(c.position.x>finishX){ finishLevel(); }
+  // fell
+  if(c.position.y>KILL_Y || c.position.y>GROUND0+1100) crash();
+
+  updateParticles(h);
+  if(shake>0.4) shake*=0.88; else shake=0;
+
+  // camera target
+  const sp=Math.min(1,Math.hypot(c.velocity.x,c.velocity.y)/14);
+  cam.tScale = fitScale()*(1 - 0.10*sp - (airborne?0.06:0));
+}
+let flipApexShown=0;
+function flipScored(){
+  totalFlips++; elapsed=Math.max(0,elapsed-FLIP_BONUS); sfxFlip();
+  showPopup('🌀 شقلبة! −'+FLIP_BONUS.toFixed(0)+' ث',1100);
+}
+
+function fitScale(){
+  // show ~ 760 world px tall, clamped
+  return Math.max(0.42, Math.min(1.25, (SH||640)/520));
+}
+
+/* =================== particles =================== */
+function dirtKick(){
+  const w=bike.rear.position; const a=bike.chassis.angle;
+  particles.push({x:w.x-Math.cos(a)*R, y:w.y+R*0.6, vx:-(2+Math.random()*2.5)*Math.cos(a)-1, vy:-(1+Math.random()*2),
+    r:2+Math.random()*3, life:0.5+Math.random()*0.3, col:'#8a5a2b'});
+}
+function boom(x,y){
+  for(let i=0;i<28;i++){ const a=Math.random()*Math.PI*2, s=2+Math.random()*7;
+    particles.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,r:2+Math.random()*4,life:0.6+Math.random()*0.5,
+      col:i%2?'#ff7a18':(i%3?'#ffd24a':'#5a3a22')}); }
+}
+function updateParticles(h){
+  for(let i=particles.length-1;i>=0;i--){ const p=particles[i];
+    p.vy+=0.35; p.x+=p.vx; p.y+=p.vy; p.vx*=0.98; p.life-=h*1.6;
+    if(p.life<=0) particles.splice(i,1); }
+}
+
+/* =================== rendering =================== */
+function render(){
+  if(!SW){ resize(); if(!SW) return; }
+  // camera lerp
+  if(bike){
+    const c=bike.chassis;
+    const lookAhead = Math.max(-40, Math.min(160, c.velocity.x*9));
+    cam.x += ((c.position.x+lookAhead) - cam.x)*0.12;
+    cam.y += ((c.position.y-40) - cam.y)*0.10;
+  }
+  cam.scale += (cam.tScale-cam.scale)*0.08;
+
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  drawSky();
+
+  const sx=(Math.random()-0.5)*shake, sy=(Math.random()-0.5)*shake;
+  ctx.save();
+  ctx.translate(SW/2+sx, SH/2+sy);
+  ctx.scale(cam.scale, cam.scale);
+  ctx.translate(-cam.x, -cam.y);
+
+  drawParallax();
+  drawTerrain();
+  drawHazards();
+  drawCheckpoints();
+  drawFinish();
+  if(bike && phase!=='crash') drawBike();
+  drawParticles();
+  ctx.restore();
+
+  updateHUD();
+}
+
+function drawSky(){
+  const g=ctx.createLinearGradient(0,0,0,SH);
+  g.addColorStop(0,'#ff9e5e'); g.addColorStop(.4,'#ffc07a'); g.addColorStop(.75,'#ffe2b0'); g.addColorStop(1,'#fff0d4');
+  ctx.fillStyle=g; ctx.fillRect(0,0,SW,SH);
+  // sun
+  ctx.fillStyle='rgba(255,250,230,.85)';
+  ctx.beginPath(); ctx.arc(SW*0.74, SH*0.26, 46, 0, Math.PI*2); ctx.fill();
+}
+
+function worldLeft(){ return cam.x - (SW/2)/cam.scale; }
+function worldRight(){ return cam.x + (SW/2)/cam.scale; }
+
+function drawParallax(){
+  const wl=worldLeft(), wr=worldRight();
+  // far hills
+  for(let layer=0; layer<2; layer++){
+    const k=layer===0?0.35:0.55;
+    const baseY=GROUND0 + (layer===0? -10: 40);
+    const amp=layer===0?120:80, wv=layer===0?520:360;
+    ctx.fillStyle=layer===0?'rgba(214,140,90,.5)':'rgba(186,110,70,.55)';
+    const off=cam.x*(1-k);
+    ctx.beginPath(); ctx.moveTo(wl-200, GROUND0+700);
+    for(let x=wl-200; x<wr+200; x+=24){
+      const y=baseY - amp*0.5*(1+Math.sin((x+off)/wv));
+      ctx.lineTo(x,y);
+    }
+    ctx.lineTo(wr+200, GROUND0+700); ctx.closePath(); ctx.fill();
+  }
+  // clouds
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  for(let i=0;i<6;i++){
+    const cx=((i*640 - cam.x*0.25) % 3000 + 3000)%3000 + wl-400;
+    const cy=GROUND0-260 - (i%3)*60;
+    cloud(cx, cy, 40+(i%3)*14);
+  }
+}
+function cloud(x,y,r){
+  ctx.beginPath();
+  ctx.arc(x,y,r,0,Math.PI*2); ctx.arc(x+r,y+6,r*0.8,0,Math.PI*2);
+  ctx.arc(x-r,y+8,r*0.7,0,Math.PI*2); ctx.arc(x+r*0.4,y-r*0.5,r*0.6,0,Math.PI*2);
+  ctx.fill();
+}
+
+function drawTerrain(){
+  if(!pts.length) return;
+  const wl=worldLeft()-60, wr=worldRight()+60;
+  // dirt body
+  ctx.beginPath();
+  let started=false;
+  ctx.moveTo(wl, GROUND0+1200);
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i];
+    if(p.x<wl-40 && i<pts.length-1 && pts[i+1].x<wl-40) continue;
+    if(p.x>wr+40){ ctx.lineTo(p.x,p.y); break; }
+    ctx.lineTo(p.x,p.y); started=true;
+  }
+  ctx.lineTo(wr, GROUND0+1200); ctx.closePath();
+  const g=ctx.createLinearGradient(0,GROUND0-160,0,GROUND0+400);
+  g.addColorStop(0,'#a6713e'); g.addColorStop(.5,'#7d5128'); g.addColorStop(1,'#5e3c1c');
+  ctx.fillStyle=g; ctx.fill();
+
+  // grass / top strip
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath();
+  let m=false;
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i];
+    if(p.x<wl-40) continue; if(p.x>wr+40){ ctx.lineTo(p.x,p.y); break; }
+    if(!m){ ctx.moveTo(p.x,p.y); m=true; } else ctx.lineTo(p.x,p.y);
+  }
+  ctx.strokeStyle='#3aa55a'; ctx.lineWidth=12; ctx.stroke();
+  ctx.strokeStyle='#57c878'; ctx.lineWidth=5; ctx.stroke();
+  // dashes (track texture)
+  ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=2; ctx.setLineDash([14,22]);
+  ctx.stroke(); ctx.setLineDash([]);
+}
+
+function drawHazards(){
+  // spikes
+  ctx.fillStyle='#c9ccd2';
+  for(const h of hazards){ if(h.type!=='spike') continue;
+    const n=Math.max(3,((h.x1-h.x0)/22)|0); const w=(h.x1-h.x0)/n;
+    for(let i=0;i<n;i++){ const x=h.x0+i*w;
+      ctx.beginPath(); ctx.moveTo(x,h.y); ctx.lineTo(x+w/2,h.y-26); ctx.lineTo(x+w,h.y); ctx.closePath();
+      ctx.fillStyle='#d7dae0'; ctx.fill(); ctx.strokeStyle='#8a8f98'; ctx.lineWidth=1.5; ctx.stroke();
+    }
+    ctx.fillStyle='#6b7078'; ctx.fillRect(h.x0,h.y-3,h.x1-h.x0,8);
+  }
+  // saws
+  for(const s of saws) drawSaw(s);
+  // balls
+  for(const b of balls) drawBall(b);
+}
+function drawSaw(s){
+  ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.rot);
+  const r=s.r, teeth=12;
+  ctx.beginPath();
+  for(let i=0;i<teeth;i++){ const a=i/teeth*Math.PI*2, a2=(i+0.5)/teeth*Math.PI*2;
+    ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r); ctx.lineTo(Math.cos(a2)*r*0.78, Math.sin(a2)*r*0.78); }
+  ctx.closePath();
+  ctx.fillStyle='#b9c0c8'; ctx.fill(); ctx.strokeStyle='#7d8893'; ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,r*0.4,0,Math.PI*2); ctx.fillStyle='#e8590c'; ctx.fill();
+  ctx.beginPath(); ctx.arc(0,0,r*0.14,0,Math.PI*2); ctx.fillStyle='#3a2a1d'; ctx.fill();
+  ctx.restore();
+}
+function drawBall(b){
+  const x=b.cx!=null?b.cx:b.px, y=b.cy!=null?b.cy:b.py;
+  ctx.strokeStyle='#4a4f57'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(b.px,b.py); ctx.lineTo(x,y); ctx.stroke();
+  ctx.fillStyle='#6b7078'; ctx.beginPath(); ctx.arc(b.px,b.py,7,0,Math.PI*2); ctx.fill();
+  // spiked ball
+  ctx.save(); ctx.translate(x,y);
+  ctx.fillStyle='#3a4048';
+  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a)*b.r,Math.sin(a)*b.r);
+    ctx.lineTo(Math.cos(a+0.14)*b.r*0.6,Math.sin(a+0.14)*b.r*0.6);
+    ctx.lineTo(Math.cos(a)*(b.r+11),Math.sin(a)*(b.r+11)); ctx.closePath(); ctx.fill(); }
+  const g=ctx.createRadialGradient(-b.r*0.3,-b.r*0.3,2,0,0,b.r);
+  g.addColorStop(0,'#7a828c'); g.addColorStop(1,'#363b42');
+  ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+  ctx.restore();
+}
+
+function drawCheckpoints(){
+  for(const cp of checkpoints){
+    if(cp.x<2) continue;
+    const x=cp.x, y=cp.y;
+    ctx.strokeStyle='#5e3c1c'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y-66); ctx.stroke();
+    ctx.fillStyle=cp.passed?'#2fd27a':'#cfd3d8';
+    ctx.beginPath(); ctx.moveTo(x,y-66); ctx.lineTo(x+34,y-58); ctx.lineTo(x,y-46); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.2)'; ctx.lineWidth=1.5; ctx.stroke();
+  }
+}
+function drawFinish(){
+  if(!finishX) return;
+  const x=finishX, y=finishY;
+  ctx.strokeStyle='#2a2a2a'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y-150); ctx.stroke();
+  // checkered flag
+  const fw=56, fh=40, sq=10;
+  for(let r=0;r<fh/sq;r++) for(let c2=0;c2<fw/sq;c2++){
+    ctx.fillStyle=((r+c2)%2)?'#1a1a1a':'#fff';
+    ctx.fillRect(x+c2*sq, y-150+r*sq, sq, sq);
+  }
+  ctx.fillStyle='#222'; ctx.font='900 22px Cairo, sans-serif'; ctx.textAlign='center';
+  // (label drawn in screen-space would be cleaner, keep flag only)
+}
+
+function drawBike(){
+  const c=bike.chassis, rw=bike.rear, fw=bike.front;
+  // wheels
+  drawWheel(rw.position.x, rw.position.y, rw.angle);
+  drawWheel(fw.position.x, fw.position.y, fw.angle);
+  // forks
+  ctx.strokeStyle='#2a2f36'; ctx.lineWidth=6; ctx.lineCap='round';
+  const ra=local(c,-WB/2,WDROP), fa=local(c,WB/2,WDROP);
+  ctx.beginPath(); ctx.moveTo(ra.x,ra.y); ctx.lineTo(rw.position.x,rw.position.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(fa.x,fa.y); ctx.lineTo(fw.position.x,fw.position.y); ctx.stroke();
+  // body + rider
+  ctx.save(); ctx.translate(c.position.x,c.position.y); ctx.rotate(c.angle);
+  // frame
+  const fg=ctx.createLinearGradient(0,-14,0,14);
+  fg.addColorStop(0,'#ff8a3d'); fg.addColorStop(1,'#d8480a');
+  ctx.fillStyle=fg;
+  roundRect(-30,-9,60,20,7); ctx.fill();
+  ctx.fillStyle='#23272e'; roundRect(-34,-2,16,10,3); ctx.fill();   // seat back
+  // handlebar
+  ctx.strokeStyle='#23272e'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(24,-4); ctx.lineTo(40,-20); ctx.stroke();
+  ctx.beginPath(); ctx.arc(41,-21,3,0,Math.PI*2); ctx.fillStyle='#111'; ctx.fill();
+  // rider
+  ctx.fillStyle='#2e6fd6';                       // torso
+  ctx.save(); ctx.translate(-2,-14); ctx.rotate(-0.2);
+  roundRect(-9,-10,18,20,6); ctx.fill(); ctx.restore();
+  ctx.strokeStyle='#2e6fd6'; ctx.lineWidth=6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(2,-12); ctx.lineTo(30,-16); ctx.stroke();   // arm to bar
+  ctx.beginPath(); ctx.moveTo(-6,-6); ctx.lineTo(-14,8); ctx.lineTo(-22,6); ctx.stroke(); // leg
+  // helmet
+  ctx.fillStyle='#ff5a3c'; ctx.beginPath(); ctx.arc(-2,-26,9,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.8)'; ctx.beginPath(); ctx.arc(2,-26,4,-0.6,1.0); ctx.fill();
+  ctx.restore();
+}
+function drawWheel(x,y,ang){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
+  ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fillStyle='#1c1f24'; ctx.fill();   // tire
+  ctx.beginPath(); ctx.arc(0,0,R-6,0,Math.PI*2); ctx.fillStyle='#3a3f47'; ctx.fill();
+  ctx.beginPath(); ctx.arc(0,0,R-9,0,Math.PI*2); ctx.fillStyle='#c9ccd2'; ctx.fill(); // rim
+  ctx.strokeStyle='#6b7078'; ctx.lineWidth=3;
+  for(let i=0;i<6;i++){ const a=i*Math.PI/3; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*(R-9),Math.sin(a)*(R-9)); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(0,0,5,0,Math.PI*2); ctx.fillStyle='#23272e'; ctx.fill();   // hub
+  // tread marks
+  ctx.strokeStyle='#0f1216'; ctx.lineWidth=2;
+  for(let i=0;i<8;i++){ const a=i*Math.PI/4; ctx.beginPath();
+    ctx.arc(0,0,R-2.5, a, a+0.18); ctx.stroke(); }
+  ctx.restore();
+}
+function local(body, dx, dy){
+  const a=body.angle, c=Math.cos(a), s=Math.sin(a);
+  return { x:body.position.x + dx*c - dy*s, y:body.position.y + dx*s + dy*c };
+}
+
+function drawParticles(){
+  for(const p of particles){
+    ctx.globalAlpha=Math.max(0,Math.min(1,p.life*1.6)); ctx.fillStyle=p.col;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+function roundRect(x,y,w,h,r){ r=Math.min(r,w/2,h/2);
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function buildDecor(){
+  // (kept light; parallax handles most of the look)
+}
+
+/* =================== HUD (throttled DOM writes) =================== */
+const timeVal=document.getElementById('timeVal');
+let _hudT=0, _shownTime=-1;
+function updateHUD(){
+  const now=performance.now();
+  if(now-_hudT<90) return; _hudT=now;
+  if(phase==='run'||phase==='crash'){
+    const v=Math.max(0,elapsed);
+    if(Math.abs(v-_shownTime)>0.005){ timeVal.textContent=fmt(v); _shownTime=v; }
+  }
+}
+function fmt(s){ return (Math.max(0,s)).toFixed(2); }
+
+/* popup */
+let popTimer=null;
+const popEl=document.getElementById('popup');
+function showPopup(txt,ms){ if(!txt) return; popEl.textContent=txt; popEl.classList.add('show');
+  clearTimeout(popTimer); popTimer=setTimeout(()=>popEl.classList.remove('show'), ms||1200); }
+
+/* =================== screens =================== */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
+  if(id) document.getElementById(id).classList.add('show');
+  const inMenu = (id==='startScreen'||id==='levelScreen');
+  document.getElementById('hud').style.opacity = inMenu?'0':(id?'0':'1');
+  if(id){ document.getElementById('controls').style.display='none'; }
+}
+function buildGrid(){
+  const grid=document.getElementById('grid'); grid.innerHTML='';
+  for(let i=0;i<LEVELS.length;i++){
+    const locked=i>save.unlocked;
+    const b=document.createElement('button');
+    b.className='lv'+(locked?' locked':'');
+    if(locked) b.innerHTML='<span class="lock">🔒</span>';
+    else{ const st=save.stars[i]||0;
+      b.innerHTML=(i+1)+'<span class="lvstars">'+'★'.repeat(st)+'☆'.repeat(3-st)+'</span>';
+      tap(b,()=>startLevel(i)); }
+    grid.appendChild(b);
+  }
+}
+
+/* buttons */
+tap(document.getElementById('playBtn'), ()=>{ ac(); startLevel(Math.min(save.unlocked,LEVELS.length-1)); });
+tap(document.getElementById('selectBtn'), ()=>{ buildGrid(); showScreen('levelScreen'); });
+tap(document.getElementById('backBtn'), ()=>showScreen('startScreen'));
+tap(document.getElementById('nextBtn'), ()=>{ if(levelIdx<LEVELS.length-1) startLevel(levelIdx+1); else { buildGrid(); showScreen('levelScreen'); } });
+tap(document.getElementById('replayBtn'), ()=>startLevel(levelIdx));
+tap(document.getElementById('winMenuBtn'), ()=>{ buildGrid(); showScreen('levelScreen'); });
+tap(document.getElementById('restartBtn'), ()=>{ if(phase==='run'||phase==='crash'||phase==='done') startLevel(levelIdx); });
+tap(document.getElementById('menuBtn'), ()=>{ phase='menu'; document.getElementById('controls').style.display='none'; buildGrid(); showScreen('levelScreen'); });
+tap(document.getElementById('muteBtn'), function(){ muted=!muted; this.textContent=muted?'🔇':'🔊'; if(!muted) ac(); });
+
+/* prevent the page from scrolling/gesturing under the canvas */
+canvas.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
+
+/* =================== storage =================== */
+function loadSave(){
+  let s={unlocked:0, stars:[], best:[]};
+  try{ const r=JSON.parse(localStorage.getItem('motox3m_v1')); if(r){ s=Object.assign(s,r); } }catch(e){}
+  if(!Array.isArray(s.stars)) s.stars=[]; if(!Array.isArray(s.best)) s.best=[];
+  return s;
+}
+function persist(){ try{ localStorage.setItem('motox3m_v1', JSON.stringify(save)); }catch(e){} }
+
+/* =================== audio (tiny WebAudio synth) =================== */
+let actx=null, muted=false, eng=null, engGain=null;
+function ac(){ if(muted) return null; if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } }
+  if(actx.state==='suspended') actx.resume(); return actx; }
+function beep(freq,dur,type,vol){ const a=ac(); if(!a) return;
+  const o=a.createOscillator(), g=a.createGain();
+  o.type=type||'sine'; o.frequency.value=freq; g.gain.value=0;
+  o.connect(g); g.connect(a.destination);
+  const t=a.currentTime; g.gain.linearRampToValueAtTime(vol||0.12, t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur); o.start(t); o.stop(t+dur+0.02);
+}
+function sfxFlip(){ beep(680,0.12,'square',0.10); setTimeout(()=>beep(920,0.12,'square',0.09),70); }
+function sfxCheck(){ beep(560,0.1,'triangle',0.12); setTimeout(()=>beep(840,0.14,'triangle',0.10),90); }
+function sfxCrash(){ const a=ac(); if(!a) return;
+  const o=a.createOscillator(), g=a.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(220,a.currentTime);
+  o.frequency.exponentialRampToValueAtTime(40,a.currentTime+0.4); g.gain.setValueAtTime(0.22,a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.45); o.connect(g); g.connect(a.destination);
+  o.start(); o.stop(a.currentTime+0.46); }
+function sfxFinish(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.22,'triangle',0.13),i*110)); }
+
+/* engine drone tied to throttle */
+function engineSound(){
+  if(muted){ if(eng){ try{eng.stop();}catch(e){} eng=null; } return; }
+  const a=ac(); if(!a) return;
+  if(!eng){ eng=a.createOscillator(); engGain=a.createGain(); eng.type='sawtooth';
+    engGain.gain.value=0; eng.connect(engGain); engGain.connect(a.destination); eng.start(); }
+  const spinning = bike && (rearGround||frontGround) && (btn.gas||btn.brake);
+  const sp = bike? Math.min(1, Math.abs(bike.rear.angularVelocity)/0.5):0;
+  const targetGain = (phase==='run' && (btn.gas||btn.brake))?0.05:0.0;
+  engGain.gain.setTargetAtTime(targetGain, a.currentTime, 0.08);
+  eng.frequency.setTargetAtTime(60 + sp*150 + (btn.gas?20:0), a.currentTime, 0.05);
+}
+setInterval(engineSound, 90);
+
+/* =================== Flutter bridge =================== */
+function notifyFlutterDone(){ if(typeof FlutterBridge!=='undefined'){ try{ FlutterBridge.postMessage('gameOver'); }catch(e){} } }
+
+/* =================== go =================== */
+resize(); setTimeout(resize,80); setTimeout(resize,300); setTimeout(resize,900);
+showScreen('startScreen');
+requestAnimationFrame(loop);
+
+/* expose a tiny hook for headless verification (no effect in normal play) */
+window.__moto={ get bike(){return bike;}, get phase(){return phase;}, get elapsed(){return elapsed;},
+  startLevel, setGas, setBrake, get finishX(){return finishX;},
+  get airborne(){return airborne;}, get angle(){return bike?bike.chassis.angle:0;},
+  get vx(){return bike?bike.chassis.velocity.x:0;}, get x(){return bike?bike.chassis.position.x:0;} };
+}
+</script>
+</body>
+</html>

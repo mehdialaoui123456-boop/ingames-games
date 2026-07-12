@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1020">
+<title>بريك بلاست</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0;height:100%;overflow:hidden;
+    background:#0f1020;color:#e8e9f3;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    user-select:none;-webkit-user-select:none;touch-action:none;
+    overscroll-behavior:none;
+  }
+  #app{position:fixed;inset:0;display:flex;overflow:hidden;}
+
+  /* ---------- MENU ---------- */
+  #menu{
+    position:absolute;inset:0;z-index:20;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;
+    padding:24px;text-align:center;
+    background:
+      radial-gradient(900px 600px at 20% 0%, rgba(77,171,247,.25), transparent 60%),
+      radial-gradient(900px 600px at 100% 100%, rgba(255,135,135,.22), transparent 55%),
+      linear-gradient(160deg,#11122a,#0c0d1c);
+  }
+  .title{
+    font-size:clamp(40px,11vw,82px);font-weight:800;letter-spacing:1px;line-height:1;
+    background:linear-gradient(90deg,#69db7c,#4dabf7,#9775fa,#ff8787);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 6px 18px rgba(0,0,0,.45));
+  }
+  .subtitle{opacity:.75;font-size:clamp(13px,3.4vw,18px);max-width:520px;line-height:1.5;}
+  .menuBtns{display:flex;flex-direction:column;gap:14px;width:min(360px,86vw);}
+  .menuBtn{
+    border:none;border-radius:18px;padding:18px 20px;cursor:pointer;
+    font-size:clamp(16px,4.6vw,20px);font-weight:700;color:#fff;
+    box-shadow:0 12px 28px rgba(0,0,0,.35);transition:transform .12s ease,filter .12s ease;
+    display:flex;align-items:center;justify-content:center;gap:10px;
+  }
+  .menuBtn:active{transform:translateY(2px) scale(.99);filter:brightness(1.08);}
+  .btn-bot{background:linear-gradient(135deg,#4dabf7,#3b5bdb);}
+  .btn-friend{background:linear-gradient(135deg,#ff8787,#f06595);}
+  .hint{opacity:.55;font-size:12px;max-width:420px;line-height:1.5;}
+
+  /* ---------- GAME ---------- */
+  #game{display:none;flex:1;flex-direction:column;min-height:0;width:100%;padding:8px;gap:8px;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:0 0 auto;}
+  .brand{font-weight:800;font-size:clamp(15px,4.2vw,20px);
+    background:linear-gradient(90deg,#69db7c,#4dabf7);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .topActions{display:flex;gap:8px;}
+  .iconBtn{
+    border:none;border-radius:12px;padding:9px 14px;cursor:pointer;color:#fff;font-weight:700;font-size:14px;
+    background:rgba(255,255,255,.08);transition:transform .1s ease,background .1s ease;
+  }
+  .iconBtn:active{transform:translateY(2px);background:rgba(255,255,255,.16);}
+
+  #banner{
+    flex:0 0 auto;text-align:center;font-weight:800;font-size:clamp(14px,4vw,18px);
+    padding:9px;border-radius:14px;background:rgba(255,255,255,.06);
+    transition:background .25s ease,color .25s ease;
+  }
+
+  #boards{flex:1 1 auto;display:flex;min-height:0;gap:8px;}
+  #boards.portrait{flex-direction:column;}
+  #boards.landscape{flex-direction:row;}
+
+  .panel{
+    flex:1 1 0;min-width:0;min-height:0;display:flex;flex-direction:column;gap:6px;
+    padding:8px;border-radius:18px;background:rgba(255,255,255,.04);
+    border:2px solid rgba(255,255,255,.05);
+    transition:border-color .2s ease,box-shadow .2s ease,opacity .2s ease;
+  }
+  .panel.active{border-color:#6ce5ff;box-shadow:0 0 0 1px rgba(108,229,255,.4),0 10px 30px rgba(108,229,255,.16);}
+  .panel.inactive{opacity:.72;}
+  .panel.inactive .tray{pointer-events:none;opacity:.45;}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px;flex:0 0 auto;}
+  .pname{font-weight:700;font-size:clamp(13px,3.6vw,16px);display:flex;align-items:center;gap:6px;}
+  .pscore{font-weight:800;font-size:clamp(16px,4.6vw,22px);font-variant-numeric:tabular-nums;}
+
+  .board-wrap{flex:1 1 auto;min-height:0;min-width:0;position:relative;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  canvas.board{display:block;border-radius:14px;}
+
+  .toast{
+    position:absolute;left:50%;top:14%;transform:translate(-50%,-6px);
+    padding:8px 14px;border-radius:999px;font-weight:800;font-size:clamp(14px,4vw,20px);
+    background:rgba(255,255,255,.92);color:#1b1b2e;pointer-events:none;
+    opacity:0;white-space:nowrap;box-shadow:0 8px 20px rgba(0,0,0,.35);
+  }
+  .toast.show{animation:pop 0.95s ease forwards;}
+  @keyframes pop{
+    0%{opacity:0;transform:translate(-50%,6px) scale(.7);}
+    18%{opacity:1;transform:translate(-50%,-10px) scale(1.12);}
+    40%{transform:translate(-50%,-14px) scale(1);}
+    100%{opacity:0;transform:translate(-50%,-44px) scale(.95);}
+  }
+
+  .tray{flex:0 0 auto;display:flex;gap:8px;height:clamp(56px,15vmin,108px);}
+  .slot{flex:1 1 0;min-width:0;background:rgba(255,255,255,.05);border-radius:14px;touch-action:none;}
+
+  /* ---------- WINNER OVERLAY ---------- */
+  #overlay{
+    position:absolute;inset:0;z-index:30;display:none;
+    align-items:center;justify-content:center;padding:24px;
+    background:rgba(8,8,20,.72);backdrop-filter:blur(6px);
+  }
+  .card{
+    width:min(420px,90vw);border-radius:24px;padding:28px 24px;text-align:center;
+    background:linear-gradient(160deg,#1a1b38,#121226);
+    box-shadow:0 24px 60px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08);
+  }
+  #winTitle{font-size:clamp(26px,7vw,40px);font-weight:800;margin:0 0 8px;}
+  #winSub{opacity:.8;font-size:15px;margin:0 0 22px;line-height:1.5;}
+  .cardBtns{display:flex;gap:12px;}
+  .cardBtns .menuBtn{flex:1;padding:15px;font-size:16px;}
+
+  /* ---------- DRAG GHOST ---------- */
+  #dragGhost{position:fixed;left:0;top:0;z-index:50;pointer-events:none;display:none;
+    will-change:transform;filter:drop-shadow(0 10px 14px rgba(0,0,0,.45));}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- MENU -->
+  <div id="menu">
+    <div class="title">بريك بلاست</div>
+    <div class="subtitle">ضع القطع على لوحة 8×8. املأ صفًّا كاملًا أو عمودًا كاملًا ليُمسح وتكسب نقاطًا.
+      تغلّب على خصمك — عندما تتوقف لوحة لاعب يخسر ذلك اللاعب!</div>
+    <div class="menuBtns">
+      <button class="menuBtn btn-bot"    id="btnBot">🤖 &nbsp;اللعب ضد الكمبيوتر</button>
+      <button class="menuBtn btn-friend" id="btnFriend">🎮 &nbsp;ضد صديق (نفس الجهاز)</button>
+    </div>
+    <div class="hint">نصيحة: اسحب قطعة من الحامل إلى لوحتك. تطفو القطعة فوق إصبعك؛ ارفع إصبعك لإسقاطها حيث تضيء باللون الأخضر.</div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game">
+    <div class="topbar">
+      <div class="brand">▦ بريك بلاست</div>
+      <div class="topActions">
+        <button class="iconBtn" id="btnRestart">↻ إعادة</button>
+        <button class="iconBtn" id="btnMenu">☰ القائمة</button>
+      </div>
+    </div>
+
+    <div id="banner">دورك</div>
+
+    <div id="boards" class="portrait">
+      <!-- Panel 0 -->
+      <div class="panel" id="panel0">
+        <div class="panel-head">
+          <div class="pname" id="name0">اللاعب 1</div>
+          <div class="pscore" id="score0">0</div>
+        </div>
+        <div class="board-wrap">
+          <canvas class="board" id="board0"></canvas>
+          <div class="toast" id="toast0"></div>
+        </div>
+        <div class="tray" id="tray0"></div>
+      </div>
+      <!-- Panel 1 -->
+      <div class="panel" id="panel1">
+        <div class="panel-head">
+          <div class="pname" id="name1">اللاعب 2</div>
+          <div class="pscore" id="score1">0</div>
+        </div>
+        <div class="board-wrap">
+          <canvas class="board" id="board1"></canvas>
+          <div class="toast" id="toast1"></div>
+        </div>
+        <div class="tray" id="tray1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WINNER -->
+  <div id="overlay">
+    <div class="card">
+      <h1 id="winTitle">فزت!</h1>
+      <p id="winSub"></p>
+      <div class="cardBtns">
+        <button class="menuBtn btn-bot" id="btnAgain">العب مجددًا</button>
+        <button class="menuBtn btn-friend" id="btnToMenu">القائمة</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="dragGhost"></canvas>
+</div>
+
+<script>
+"use strict";
+(function(){
+  const GRID = 8;
+  const COLORS = ['#ff6b6b','#ffa94d','#ffd43b','#69db7c','#38d9a9','#4dabf7','#748ffc','#9775fa','#f783ac','#63e6be'];
+
+  // Piece shapes (normalized, max ~5 cells)
+  const SHAPES = [
+    // singles & lines
+    [[0,0]],
+    [[0,0],[0,1]],
+    [[0,0],[0,1],[0,2]],
+    [[0,0],[0,1],[0,2],[0,3]],
+    [[0,0],[0,1],[0,2],[0,3],[0,4]],
+    [[0,0],[1,0]],
+    [[0,0],[1,0],[2,0]],
+    [[0,0],[1,0],[2,0],[3,0]],
+    [[0,0],[1,0],[2,0],[3,0],[4,0]],
+    // square
+    [[0,0],[0,1],[1,0],[1,1]],
+    // small corners (3 cells) – 4 rotations
+    [[0,0],[1,0],[1,1]],
+    [[0,1],[1,0],[1,1]],
+    [[0,0],[0,1],[1,1]],
+    [[0,0],[0,1],[1,0]],
+    // L / J (4 cells)
+    [[0,0],[1,0],[2,0],[2,1]],
+    [[0,0],[0,1],[0,2],[1,0]],
+    [[0,0],[0,1],[1,1],[2,1]],
+    [[0,2],[1,0],[1,1],[1,2]],
+    [[0,0],[0,1],[1,0],[2,0]],
+    [[0,0],[1,0],[1,1],[1,2]],
+    [[0,1],[1,1],[2,0],[2,1]],
+    [[0,0],[0,1],[0,2],[1,2]],
+    // T (4 cells)
+    [[0,0],[0,1],[0,2],[1,1]],
+    [[0,1],[1,0],[1,1],[2,1]],
+    [[0,1],[1,0],[1,1],[1,2]],
+    [[0,0],[1,0],[1,1],[2,0]],
+    // S / Z (4 cells)
+    [[0,1],[0,2],[1,0],[1,1]],
+    [[0,0],[0,1],[1,1],[1,2]],
+    [[0,0],[1,0],[1,1],[2,1]],
+    [[0,1],[1,0],[1,1],[2,0]],
+    // plus (5 cells)
+    [[0,1],[1,0],[1,1],[1,2],[2,1]],
+    // big corners (5 cells)
+    [[0,0],[1,0],[2,0],[2,1],[2,2]],
+    [[0,0],[0,1],[0,2],[1,0],[2,0]],
+    [[0,0],[0,1],[0,2],[1,2],[2,2]],
+    [[0,2],[1,2],[2,0],[2,1],[2,2]],
+  ];
+
+  // ---------- State ----------
+  let game = null;       // {mode,current,over,players:[]}
+  let busy = false;      // input lock during animations / bot turn
+  let drag = null;       // active drag info
+  let playing = false;   // game screen visible
+  let DPR = 1;
+  let gen = 0;           // generation token to invalidate stale timers
+
+  const $ = id => document.getElementById(id);
+  const dragGhost = $('dragGhost');
+  const gctx = dragGhost.getContext('2d');
+
+  function schedule(fn, delay){ const g = gen; return setTimeout(()=>{ if(g===gen) fn(); }, delay); }
+
+  // ---------- Geometry helpers ----------
+  function rr(ctx,x,y,w,h,r){
+    r = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+  function lighten(hex, amt){
+    let c = hex.replace('#','');
+    if(c.length===3) c = c.split('').map(x=>x+x).join('');
+    let r=parseInt(c.substr(0,2),16), g=parseInt(c.substr(2,2),16), b=parseInt(c.substr(4,2),16);
+    r=Math.min(255,r+amt); g=Math.min(255,g+amt); b=Math.min(255,b+amt);
+    return 'rgb('+r+','+g+','+b+')';
+  }
+  function easeBack(t){ const s=1.70158; t=t-1; return t*t*((s+1)*t+s)+1; }
+
+  function drawCell(ctx,x,y,cell,color,scale,alpha){
+    const inset = cell*0.07;
+    const full = cell - inset*2;
+    const s = full*scale;
+    const cx = x+cell/2, cy = y+cell/2;
+    const x0 = cx-s/2, y0 = cy-s/2;
+    const rad = s*0.24;
+    const a = (alpha==null?1:alpha);
+    ctx.globalAlpha = a;
+    rr(ctx,x0,y0,s,s,rad);
+    const g = ctx.createLinearGradient(x0,y0,x0,y0+s);
+    g.addColorStop(0, lighten(color,30));
+    g.addColorStop(1, color);
+    ctx.fillStyle = g; ctx.fill();
+    // gloss highlight
+    ctx.globalAlpha = a*0.20;
+    rr(ctx, x0+s*0.13, y0+s*0.1, s*0.74, s*0.30, rad*0.7);
+    ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  function drawEmpty(ctx,x,y,cell){
+    const inset = cell*0.07;
+    const s = cell - inset*2;
+    rr(ctx, x+inset, y+inset, s, s, s*0.24);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill();
+  }
+
+  // ---------- Board logic ----------
+  function canPlace(board,piece,r0,c0){
+    for(const cc of piece.cells){
+      const r=r0+cc[0], c=c0+cc[1];
+      if(r<0||c<0||r>=GRID||c>=GRID) return false;
+      if(board[r*GRID+c]!==0) return false;
+    }
+    return true;
+  }
+  function findClears(board){
+    const rows=[], cols=[];
+    for(let r=0;r<GRID;r++){ let f=true; for(let c=0;c<GRID;c++){ if(board[r*GRID+c]===0){f=false;break;} } if(f) rows.push(r); }
+    for(let c=0;c<GRID;c++){ let f=true; for(let r=0;r<GRID;r++){ if(board[r*GRID+c]===0){f=false;break;} } if(f) cols.push(c); }
+    return {rows,cols};
+  }
+  function gatherClearCells(board,clears){
+    const seen=new Set(), out=[];
+    const add=(r,c)=>{ const i=r*GRID+c; if(seen.has(i))return; seen.add(i); out.push({r,c,color:board[i]||'#ffffff'}); };
+    clears.rows.forEach(r=>{ for(let c=0;c<GRID;c++) add(r,c); });
+    clears.cols.forEach(c=>{ for(let r=0;r<GRID;r++) add(r,c); });
+    return out;
+  }
+  function applyClear(board,clears){
+    clears.rows.forEach(r=>{ for(let c=0;c<GRID;c++) board[r*GRID+c]=0; });
+    clears.cols.forEach(c=>{ for(let r=0;r<GRID;r++) board[r*GRID+c]=0; });
+  }
+  function hasAnyMove(p){
+    for(let s=0;s<3;s++){ const piece=p.tray[s]; if(!piece) continue;
+      for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++) if(canPlace(p.board,piece,r,c)) return true;
+    }
+    return false;
+  }
+
+  // ---------- Bot AI ----------
+  function largestEmpty(board){
+    const seen=new Array(64).fill(false); let max=0;
+    for(let i=0;i<64;i++){
+      if(board[i]===0 && !seen[i]){
+        let size=0; const st=[i]; seen[i]=true;
+        while(st.length){
+          const cur=st.pop(); size++;
+          const r=(cur/GRID)|0, c=cur%GRID;
+          const nb=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
+          for(const nn of nb){ const nr=nn[0],nc=nn[1];
+            if(nr<0||nc<0||nr>=GRID||nc>=GRID) continue;
+            const ni=nr*GRID+nc;
+            if(board[ni]===0 && !seen[ni]){ seen[ni]=true; st.push(ni); }
+          }
+        }
+        if(size>max) max=size;
+      }
+    }
+    return max;
+  }
+  function countHoles(board){
+    let h=0;
+    for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+      if(board[r*GRID+c]!==0) continue;
+      let enclosed=true;
+      const nb=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
+      for(const nn of nb){ const nr=nn[0],nc=nn[1];
+        if(nr<0||nc<0||nr>=GRID||nc>=GRID) continue;
+        if(board[nr*GRID+nc]===0){ enclosed=false; break; }
+      }
+      if(enclosed) h++;
+    }
+    return h;
+  }
+  function botBest(p){
+    let best=null, bestScore=-Infinity;
+    for(let s=0;s<3;s++){
+      const piece=p.tray[s]; if(!piece) continue;
+      for(let r=0;r<GRID;r++) for(let c=0;c<GRID;c++){
+        if(!canPlace(p.board,piece,r,c)) continue;
+        const sim=p.board.slice();
+        for(const cc of piece.cells) sim[(r+cc[0])*GRID+(c+cc[1])]=piece.color;
+        const cl=findClears(sim);
+        const lines=cl.rows.length+cl.cols.length;
+        applyClear(sim,cl);
+        const empty=largestEmpty(sim);
+        const holes=countHoles(sim);
+        // primary: maximize lines cleared; tie-break: most contiguous empty space, fewest holes
+        const sc = lines*100000 + empty*12 - holes*7 + Math.random()*0.5;
+        if(sc>bestScore){ bestScore=sc; best={s,r,c}; }
+      }
+    }
+    return best;
+  }
+
+  // ---------- Pieces / tray ----------
+  function randomPiece(){
+    const sh = SHAPES[(Math.random()*SHAPES.length)|0];
+    let w=0,h=0;
+    for(const cc of sh){ if(cc[1]+1>w) w=cc[1]+1; if(cc[0]+1>h) h=cc[0]+1; }
+    return { cells: sh.map(x=>x.slice()), w, h, color: COLORS[(Math.random()*COLORS.length)|0] };
+  }
+  function refill(p){ for(let i=0;i<3;i++) p.tray[i]=randomPiece(); drawTray(p); }
+
+  function drawTray(p){
+    for(let i=0;i<3;i++) drawTraySlot(p,i);
+  }
+  function drawTraySlot(p,i){
+    const canvas=p.slotCanvas[i], ctx=p.slotCtx[i];
+    const w=canvas.clientWidth, h=canvas.clientHeight;
+    if(w<=0||h<=0) return;
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.clearRect(0,0,w,h);
+    const piece=p.tray[i];
+    if(!piece || p.dragSlot===i) return;
+    const maxDim=Math.max(piece.w,piece.h);
+    const cell=Math.min(w,h)*0.82/maxDim;
+    const pw=piece.w*cell, ph=piece.h*cell;
+    const ox=(w-pw)/2, oy=(h-ph)/2;
+    for(const cc of piece.cells) drawCell(ctx, ox+cc[1]*cell, oy+cc[0]*cell, cell, piece.color, 1, 1);
+  }
+
+  // ---------- Rendering ----------
+  function drawBoard(p){
+    if(!p.cell) return;
+    const ctx=p.ctx, n=GRID, cell=p.cell, size=cell*n;
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.clearRect(0,0,size,size);
+    rr(ctx,0,0,size,size,cell*0.3); ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fill();
+
+    const now=performance.now();
+    const placeScale={}; const clearAnims=[];
+    p.animations = p.animations.filter(a=>{
+      const t=(now-a.start)/a.dur;
+      if(t>=1) return false;
+      if(a.type==='place'){ for(const c of a.cells) placeScale[c.r*n+c.c]=easeBack(Math.min(1,t)); }
+      else clearAnims.push({a,t});
+      return true;
+    });
+
+    for(let r=0;r<n;r++) for(let c=0;c<n;c++){
+      const x=c*cell, y=r*cell, v=p.board[r*n+c];
+      if(v===0) drawEmpty(ctx,x,y,cell);
+      else { const sc=placeScale[r*n+c]; drawCell(ctx,x,y,cell,v, sc==null?1:sc, 1); }
+    }
+
+    // ghost preview while dragging
+    if(p.ghost){
+      const gp=p.ghost;
+      for(const cc of gp.piece.cells){
+        const r=gp.r+cc[0], c=gp.c+cc[1];
+        if(r<0||c<0||r>=n||c>=n) continue;
+        drawCell(ctx, c*cell, r*cell, cell, gp.valid?gp.piece.color:'#ff5252', 1, gp.valid?0.85:0.5);
+      }
+    }
+
+    // line-clear flash / fade
+    for(const item of clearAnims){
+      const t=item.t;
+      for(const c of item.a.cells){
+        const x=c.c*cell, y=c.r*cell;
+        const scale=1+0.35*t, alpha=1-t;
+        drawCell(ctx,x,y,cell,c.color,scale,alpha);
+        ctx.globalAlpha=(1-t)*0.7;
+        const inset=cell*0.07, s=(cell-inset*2)*scale, cx=x+cell/2, cy=y+cell/2;
+        rr(ctx,cx-s/2,cy-s/2,s,s,s*0.24); ctx.fillStyle='#ffffff'; ctx.fill();
+        ctx.globalAlpha=1;
+      }
+    }
+  }
+
+  function loop(){
+    if(playing && game){ for(const p of game.players) drawBoard(p); }
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Layout ----------
+  function layout(){
+    if(!playing || !game) return;
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    const app=$('app');
+    const landscape = app.clientWidth > app.clientHeight;
+    const boards=$('boards');
+    boards.classList.toggle('landscape', landscape);
+    boards.classList.toggle('portrait', !landscape);
+
+    for(const p of game.players){
+      const wrap = p.canvas.parentElement; // board-wrap
+      const availW = wrap.clientWidth, availH = wrap.clientHeight;
+      let size = Math.min(availW, availH);
+      size = Math.max(120, Math.floor(size));
+      p.canvas.style.width = size+'px';
+      p.canvas.style.height = size+'px';
+      p.canvas.width = Math.floor(size*DPR);
+      p.canvas.height = Math.floor(size*DPR);
+      p.cell = size/GRID;
+      for(const sc of p.slotCanvas){
+        const w=sc.clientWidth, h=sc.clientHeight;
+        sc.width = Math.max(1, Math.floor(w*DPR));
+        sc.height = Math.max(1, Math.floor(h*DPR));
+      }
+      drawTray(p);
+    }
+  }
+
+  // ---------- Player factory ----------
+  function newPlayer(name, isBot, index){
+    const p = {
+      name, isBot, index, score:0, streak:0,
+      board:new Array(64).fill(0),
+      tray:[null,null,null],
+      animations:[], ghost:null, dragSlot:-1, cell:0,
+      slotCanvas:[], slotCtx:[]
+    };
+    p.panelEl = $('panel'+index);
+    p.nameEl  = $('name'+index);
+    p.scoreEl = $('score'+index);
+    p.toastEl = $('toast'+index);
+    p.canvas  = $('board'+index);
+    p.ctx     = p.canvas.getContext('2d');
+
+    const tray = $('tray'+index);
+    tray.innerHTML='';
+    for(let i=0;i<3;i++){
+      const cv=document.createElement('canvas');
+      cv.className='slot';
+      tray.appendChild(cv);
+      p.slotCanvas.push(cv);
+      p.slotCtx.push(cv.getContext('2d'));
+      cv.addEventListener('pointerdown', e=>dragStart(index,i,e));
+    }
+    p.nameEl.textContent = name + (isBot?' 🤖':'');
+    refill(p);
+    return p;
+  }
+
+  // ---------- Turn / move flow ----------
+  function commitMove(pi, s, r0, c0){
+    busy = true;
+    const p = game.players[pi];
+    const piece = p.tray[s];
+    // place
+    for(const cc of piece.cells) p.board[(r0+cc[0])*GRID+(c0+cc[1])] = piece.color;
+    p.animations.push({type:'place', start:performance.now(), dur:180,
+      cells: piece.cells.map(cc=>({r:r0+cc[0], c:c0+cc[1]}))});
+    p.score += piece.cells.length;
+
+    // clears
+    const clears = findClears(p.board);
+    const count = clears.rows.length + clears.cols.length;
+    if(count>0){
+      const gathered = gatherClearCells(p.board, clears);
+      applyClear(p.board, clears);
+      p.streak++;
+      let gained = 10*count*count;
+      if(p.streak>=2) gained += 5*(p.streak-1)*count;
+      p.score += gained;
+      p.animations.push({type:'clear', start:performance.now(), dur:380, cells:gathered});
+      showToast(p, count, gained);
+    } else {
+      p.streak = 0;
+    }
+    updateScores();
+
+    // consume piece, refill if empty
+    p.tray[s]=null; p.dragSlot=-1;
+    if(p.tray.every(x=>!x)) refill(p);
+    drawTray(p);
+
+    const settle = count>0 ? 520 : 200;
+    schedule(()=>finishTurn(pi), settle);
+  }
+
+  function finishTurn(pi){
+    if(game.over) return;
+    const p = game.players[pi];
+    if(!hasAnyMove(p)){ endGame(1-pi); return; } // this player's board is stuck -> they lose
+    nextTurn();
+  }
+
+  function nextTurn(){
+    if(game.over) return;
+    game.current = 1 - game.current;
+    updateTurnUI();
+    const cur = game.players[game.current];
+    if(cur.isBot){ busy=true; schedule(botMove, 600); }
+    else busy=false;
+  }
+
+  function botMove(){
+    if(game.over) return;
+    const pi = game.current, p = game.players[pi];
+    const best = botBest(p);
+    if(!best){ endGame(1-pi); return; }
+    commitMove(pi, best.s, best.r, best.c);
+  }
+
+  function endGame(wi){
+    game.over = true; busy = true;
+    drag = null; dragGhost.style.display='none';
+    const a=game.players[0], b=game.players[1];
+    let title;
+    if(game.mode==='bot') title = (wi===0) ? 'فزت! 🎉' : 'فاز الكمبيوتر 🤖';
+    else title = 'فاز اللاعب '+(wi+1)+'! 🎉';
+    $('winTitle').textContent = title;
+    $('winSub').textContent = a.name+': '+a.score+'   ·   '+b.name+': '+b.score;
+    $('overlay').style.display = 'flex';
+    updateTurnUI();
+  }
+
+  // ---------- UI updates ----------
+  function updateScores(){
+    for(const p of game.players) p.scoreEl.textContent = p.score;
+  }
+  function updateTurnUI(){
+    game.players.forEach((p,i)=>{
+      const active = (i===game.current) && !game.over;
+      p.panelEl.classList.toggle('active', active);
+      p.panelEl.classList.toggle('inactive', !active);
+    });
+    const banner=$('banner');
+    if(game.over){
+      banner.textContent='انتهت اللعبة';
+      banner.style.background='rgba(255,255,255,.08)';
+      banner.style.color='#fff';
+      return;
+    }
+    const cur=game.players[game.current];
+    if(cur.isBot){
+      banner.textContent='🤖 الكمبيوتر يفكّر…';
+      banner.style.background='rgba(255,135,135,.18)';
+      banner.style.color='#ffd0d0';
+    } else {
+      banner.textContent = (game.mode==='bot') ? '🧍 دورك' : ('🎮 دور '+cur.name);
+      const tint = (game.current===0) ? ['rgba(77,171,247,.20)','#cfe6ff'] : ['rgba(255,135,135,.20)','#ffd6d6'];
+      banner.style.background=tint[0];
+      banner.style.color=tint[1];
+    }
+  }
+  function showToast(p, count, gained){
+    const words={1:'إزالة!',2:'إزالة مزدوجة!',3:'ثلاثية!',4:'رباعية!'};
+    const w = words[count] || 'هائلة!';
+    p.toastEl.textContent = w+' +'+gained;
+    p.toastEl.classList.remove('show');
+    void p.toastEl.offsetWidth; // reflow to restart animation
+    p.toastEl.classList.add('show');
+  }
+
+  // ---------- Drag & drop (pointer events) ----------
+  function dragStart(pi, s, e){
+    if(busy || !game || game.over) return;
+    if(game.current!==pi) return;
+    const p=game.players[pi];
+    if(p.isBot) return;
+    const piece=p.tray[s];
+    if(!piece) return;
+
+    drag = { pi, s, piece, pointerId:e.pointerId, target:null };
+    p.dragSlot = s;
+    drawTraySlot(p, s); // blank the lifted slot
+
+    setupGhost(p, piece, e.clientX, e.clientY);
+    window.addEventListener('pointermove', dragMove, {passive:false});
+    window.addEventListener('pointerup', dragEnd);
+    window.addEventListener('pointercancel', dragEnd);
+    e.preventDefault();
+  }
+
+  function setupGhost(p, piece, x, y){
+    const rect = p.canvas.getBoundingClientRect();
+    const cell = rect.width/GRID;
+    drag.cell = cell;
+    const w=piece.w*cell, h=piece.h*cell;
+    dragGhost.style.width = w+'px';
+    dragGhost.style.height = h+'px';
+    dragGhost.width = Math.max(1,Math.floor(w*DPR));
+    dragGhost.height = Math.max(1,Math.floor(h*DPR));
+    gctx.setTransform(DPR,0,0,DPR,0,0);
+    gctx.clearRect(0,0,w,h);
+    for(const cc of piece.cells) drawCell(gctx, cc[1]*cell, cc[0]*cell, cell, piece.color, 1, 0.96);
+    dragGhost.style.display='block';
+    positionGhost(p, x, y);
+  }
+
+  function positionGhost(p, x, y){
+    const piece=drag.piece, cell=drag.cell;
+    const w=piece.w*cell, h=piece.h*cell;
+    const lift = cell*1.5;
+    const topLeftX = x - w/2;
+    const topLeftY = y - h/2 - lift;
+    dragGhost.style.transform = 'translate('+topLeftX+'px,'+topLeftY+'px)';
+
+    const rect = p.canvas.getBoundingClientRect();
+    const c0 = Math.round((topLeftX - rect.left)/cell);
+    const r0 = Math.round((topLeftY - rect.top)/cell);
+    const valid = canPlace(p.board, piece, r0, c0);
+    const near = (c0 > -piece.w && c0 < GRID && r0 > -piece.h && r0 < GRID);
+    p.ghost = near ? { piece, r:r0, c:c0, valid } : null;
+    drag.target = valid ? { r:r0, c:c0 } : null;
+  }
+
+  function dragMove(e){
+    if(!drag || e.pointerId!==drag.pointerId) return;
+    e.preventDefault();
+    positionGhost(game.players[drag.pi], e.clientX, e.clientY);
+  }
+
+  function dragEnd(e){
+    if(!drag || e.pointerId!==drag.pointerId) return;
+    window.removeEventListener('pointermove', dragMove);
+    window.removeEventListener('pointerup', dragEnd);
+    window.removeEventListener('pointercancel', dragEnd);
+    dragGhost.style.display='none';
+    const p=game.players[drag.pi];
+    const pi=drag.pi, s=drag.s, target=drag.target;
+    p.ghost=null;
+    drag=null;
+    if(target){
+      commitMove(pi, s, target.r, target.c);
+    } else {
+      p.dragSlot=-1;
+      drawTray(p); // restore lifted piece
+    }
+  }
+
+  // ---------- Game lifecycle ----------
+  function startGame(mode){
+    gen++;
+    busy=false; drag=null; dragGhost.style.display='none';
+    $('menu').style.display='none';
+    $('overlay').style.display='none';
+    $('game').style.display='flex';
+    playing=true;
+
+    game = { mode, current:0, over:false, players:[] };
+    const n0 = (mode==='bot') ? 'أنت'        : 'اللاعب 1';
+    const n1 = (mode==='bot') ? 'الكمبيوتر'  : 'اللاعب 2';
+    game.players = [ newPlayer(n0,false,0), newPlayer(n1, mode==='bot', 1) ];
+
+    updateScores();
+    updateTurnUI();
+    layout();
+    requestAnimationFrame(layout); // re-measure after flex settles
+  }
+  function restart(){ if(game) startGame(game.mode); }
+  function backToMenu(){
+    gen++;
+    if(game) game.over=true;
+    playing=false; busy=false; drag=null;
+    dragGhost.style.display='none';
+    $('game').style.display='none';
+    $('overlay').style.display='none';
+    $('menu').style.display='flex';
+  }
+
+  // ---------- Wire up ----------
+  $('btnBot').addEventListener('click', ()=>startGame('bot'));
+  $('btnFriend').addEventListener('click', ()=>startGame('friend'));
+  $('btnRestart').addEventListener('click', restart);
+  $('btnMenu').addEventListener('click', backToMenu);
+  $('btnAgain').addEventListener('click', restart);
+  $('btnToMenu').addEventListener('click', backToMenu);
+
+  window.addEventListener('resize', ()=>{ if(playing) layout(); });
+  window.addEventListener('orientationchange', ()=>{ schedule(()=>{ if(playing) layout(); }, 150); });
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
