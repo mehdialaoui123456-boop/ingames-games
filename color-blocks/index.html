@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>مخرج المكعبات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   BASE / LAYOUT
+   ============================================================ */
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  font-family:'Cairo', sans-serif;
+  background:#e8eaf0;
+  touch-action:none;
+  -webkit-user-select:none; user-select:none;
+}
+#game-container {
+  position:fixed; inset:0;
+  background:linear-gradient(175deg, #f2f4fa 0%, #dfe3ee 45%, #cdd3e4 100%);
+}
+#c { position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+/* Western numerals everywhere */
+.num { font-feature-settings:"lnum"; direction:ltr; unicode-bidi:embed; }
+
+/* ============================================================
+   HUD
+   ============================================================ */
+#hud {
+  position:absolute; top:0; left:0; right:0;
+  padding:calc(10px + env(safe-area-inset-top)) 12px 8px;
+  display:none; justify-content:space-between; align-items:flex-start;
+  pointer-events:none; z-index:10;
+}
+.hud-box {
+  background:rgba(255,255,255,.85);
+  border-radius:14px; padding:6px 14px;
+  box-shadow:0 3px 10px rgba(40,50,90,.12);
+  text-align:center; min-width:76px;
+}
+.hud-label { font-size:11px; font-weight:600; color:#8a90a8; line-height:1.1; }
+.hud-value { font-size:19px; font-weight:900; color:#3a4060; line-height:1.25; }
+#hud-timer.danger .hud-value { color:#e33; animation:blink .5s steps(2) infinite; }
+@keyframes blink { 50% { opacity:.35; } }
+
+#hud-buttons {
+  position:absolute; bottom:calc(14px + env(safe-area-inset-bottom)); left:0; right:0;
+  display:none; justify-content:center; gap:14px;
+  z-index:10; pointer-events:none;
+}
+.round-btn {
+  pointer-events:auto;
+  width:56px; height:56px; border:none; border-radius:50%;
+  background:rgba(255,255,255,.9); color:#3a4060;
+  font-size:24px; font-family:'Cairo',sans-serif; font-weight:700;
+  box-shadow:0 4px 12px rgba(40,50,90,.18);
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .1s;
+}
+.round-btn:active { transform:scale(.9); }
+.round-btn:disabled { opacity:.35; }
+.round-btn svg { width:26px; height:26px; fill:none; stroke:#3a4060; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
+
+/* ============================================================
+   SCREENS (menu / level select / overlays)
+   ============================================================ */
+.screen {
+  position:absolute; inset:0; z-index:20;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  padding:24px;
+}
+.screen.show { display:flex; }
+#screen-menu { background:linear-gradient(170deg,#fdf6ec 0%,#f3e3f7 50%,#dceafc 100%); }
+#menu-title {
+  font-size:44px; font-weight:900; color:#3a4060;
+  text-shadow:0 3px 0 #fff, 0 8px 20px rgba(90,60,160,.18);
+  margin-bottom:6px; text-align:center;
+}
+#menu-sub { font-size:15px; font-weight:600; color:#8a80a0; margin-bottom:36px; text-align:center; }
+#menu-cubes { display:flex; gap:10px; margin-bottom:40px; }
+.menu-cube {
+  width:44px; height:44px; border-radius:12px;
+  box-shadow:inset 0 -6px 0 rgba(0,0,0,.18), 0 6px 14px rgba(40,50,90,.25);
+  animation:bob 2.2s ease-in-out infinite;
+}
+@keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+.big-btn {
+  border:none; border-radius:20px;
+  padding:14px 60px; font-family:'Cairo',sans-serif;
+  font-size:24px; font-weight:900; color:#fff;
+  background:linear-gradient(180deg,#5e8bff,#3f66e8);
+  box-shadow:0 6px 0 #2c4bb8, 0 12px 24px rgba(63,102,232,.35);
+  transition:transform .1s, box-shadow .1s;
+}
+.big-btn:active { transform:translateY(4px); box-shadow:0 2px 0 #2c4bb8, 0 6px 12px rgba(63,102,232,.3); }
+
+/* level select */
+#screen-levels { background:linear-gradient(170deg,#f2f4fa,#dde3f2); }
+#levels-title { font-size:26px; font-weight:900; color:#3a4060; margin-bottom:18px; }
+#levels-grid {
+  direction:rtl;
+  display:grid; grid-template-columns:repeat(4,1fr); gap:12px;
+  width:100%; max-width:360px; max-height:62vh; overflow-y:auto; padding:4px;
+}
+.lvl-tile {
+  aspect-ratio:1; border:none; border-radius:16px;
+  background:#fff; color:#3a4060;
+  font-family:'Cairo',sans-serif; font-size:22px; font-weight:900;
+  box-shadow:0 4px 10px rgba(40,50,90,.14);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+  transition:transform .1s;
+}
+.lvl-tile:active { transform:scale(.92); }
+.lvl-tile.locked { background:#c9cede; color:#9aa0b6; box-shadow:none; }
+.lvl-stars { font-size:10px; letter-spacing:1px; color:#f5b921; line-height:1; }
+.lvl-stars .off { color:#d5d8e4; }
+#btn-back-menu { margin-top:20px; background:none; border:none; font-family:'Cairo',sans-serif; font-size:16px; font-weight:700; color:#7a80a0; padding:8px 20px; }
+
+/* modal overlays (pause / win / fail) */
+.overlay {
+  position:absolute; inset:0; z-index:30;
+  display:none; align-items:center; justify-content:center;
+  background:rgba(30,34,55,.55); backdrop-filter:blur(3px);
+}
+.overlay.show { display:flex; }
+.panel {
+  background:#fff; border-radius:26px;
+  padding:28px 30px 24px; width:min(84vw,320px);
+  text-align:center;
+  box-shadow:0 20px 50px rgba(10,15,40,.4);
+  animation:pop-in .28s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes pop-in { from { transform:scale(.6); opacity:0; } to { transform:scale(1); opacity:1; } }
+.panel h2 { font-size:28px; font-weight:900; color:#3a4060; margin-bottom:6px; }
+.panel .sub { font-size:14px; font-weight:600; color:#8a90a8; margin-bottom:18px; }
+#win-stars { font-size:42px; letter-spacing:6px; margin:4px 0 14px; direction:ltr; }
+#win-stars span { display:inline-block; color:#e2e5ef; transition:transform .3s; }
+#win-stars span.on { color:#f5b921; text-shadow:0 3px 8px rgba(245,185,33,.5); animation:star-pop .45s cubic-bezier(.34,1.56,.64,1) both; }
+@keyframes star-pop { from { transform:scale(0) rotate(-40deg); } to { transform:scale(1) rotate(0); } }
+#win-stars span.on:nth-child(2) { animation-delay:.18s; }
+#win-stars span.on:nth-child(3) { animation-delay:.36s; }
+.panel-btns { display:flex; flex-direction:column; gap:10px; }
+.p-btn {
+  border:none; border-radius:16px; padding:11px 10px;
+  font-family:'Cairo',sans-serif; font-size:18px; font-weight:900;
+  transition:transform .1s;
+}
+.p-btn:active { transform:scale(.95); }
+.p-btn.primary { background:linear-gradient(180deg,#5e8bff,#3f66e8); color:#fff; box-shadow:0 4px 0 #2c4bb8; }
+.p-btn.green   { background:linear-gradient(180deg,#4ecb71,#2ea852); color:#fff; box-shadow:0 4px 0 #1f7a3a; }
+.p-btn.ghost   { background:#eef0f7; color:#5a6080; }
+
+/* floating toast for blocked-move hint */
+#toast {
+  position:absolute; left:50%; top:18%;
+  transform:translateX(-50%);
+  background:rgba(40,45,70,.85); color:#fff;
+  font-size:14px; font-weight:700;
+  padding:8px 18px; border-radius:20px;
+  opacity:0; pointer-events:none; z-index:15;
+  transition:opacity .3s;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="c"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-box" id="hud-level"><div class="hud-label">المستوى</div><div class="hud-value num" id="hud-level-v">1</div></div>
+    <div class="hud-box" id="hud-timer"><div class="hud-label">الوقت</div><div class="hud-value num" id="hud-timer-v">01:00</div></div>
+    <div class="hud-box" id="hud-moves"><div class="hud-label">الحركات</div><div class="hud-value num" id="hud-moves-v">0</div></div>
+  </div>
+  <div id="hud-buttons">
+    <button class="round-btn" id="btn-pause" aria-label="إيقاف"><svg viewBox="0 0 24 24"><line x1="9" y1="6" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="18"/></svg></button>
+    <button class="round-btn" id="btn-undo" aria-label="تراجع"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+    <button class="round-btn" id="btn-restart" aria-label="إعادة"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg></button>
+  </div>
+  <div id="toast"></div>
+
+  <!-- MAIN MENU -->
+  <div class="screen show" id="screen-menu">
+    <div id="menu-title">مخرج المكعبات</div>
+    <div id="menu-sub">اسحب المكعبات إلى الأبواب الملوّنة!</div>
+    <div id="menu-cubes"></div>
+    <button class="big-btn" id="btn-start">ابدأ</button>
+  </div>
+
+  <!-- LEVEL SELECT -->
+  <div class="screen" id="screen-levels">
+    <div id="levels-title">اختر المستوى</div>
+    <div id="levels-grid"></div>
+    <button id="btn-back-menu">⌂ القائمة الرئيسية</button>
+  </div>
+
+  <!-- PAUSE -->
+  <div class="overlay" id="ov-pause">
+    <div class="panel">
+      <h2>إيقاف مؤقت</h2>
+      <div class="sub">خذ نفسًا وفكّر في الحل…</div>
+      <div class="panel-btns">
+        <button class="p-btn primary" id="btn-resume">استئناف</button>
+        <button class="p-btn ghost" id="btn-pause-restart">إعادة</button>
+        <button class="p-btn ghost" id="btn-pause-exit">الخروج</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIN -->
+  <div class="overlay" id="ov-win">
+    <div class="panel">
+      <h2>أحسنت!</h2>
+      <div id="win-stars"><span>★</span><span>★</span><span>★</span></div>
+      <div class="sub" id="win-sub"></div>
+      <div class="panel-btns">
+        <button class="p-btn green" id="btn-next">المستوى التالي</button>
+        <button class="p-btn ghost" id="btn-win-replay">إعادة</button>
+        <button class="p-btn ghost" id="btn-win-exit">قائمة المستويات</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAIL -->
+  <div class="overlay" id="ov-fail">
+    <div class="panel">
+      <h2>انتهى الوقت!</h2>
+      <div class="sub">حاول مرة أخرى — يمكنك حلّها!</div>
+      <div class="panel-btns">
+        <button class="p-btn primary" id="btn-fail-retry">إعادة المحاولة</button>
+        <button class="p-btn ghost" id="btn-fail-exit">قائمة المستويات</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ============================================================
+   CONSTANTS & LEVEL DATA
+   ============================================================
+   Level format (compact arrays for easy editing):
+   c: cols, r: rows, t: time limit (seconds)
+   b: blocks  [color, x, y, w, h]         color: 0R 1B 2Y 3G 4P 5O
+   w: walls   [x, y]                      static grey obstacles
+   d: doors   [color, side, pos, len]     side: 0 top, 1 bottom, 2 left, 3 right
+                                          pos: cell index along that edge
+   g: gates   [color, x, y]               only same-color blocks may pass
+   m: movers  [x, y, period, phase]       wall that opens/closes every period/2 s
+   Grid coords: x → right (+X world), y → down (+Z world, toward camera).
+   ============================================================ */
+const COLORS = [
+  { hex: 0xff5252, css: '#ff5252', name: 'red'    },
+  { hex: 0x4a7dff, css: '#4a7dff', name: 'blue'   },
+  { hex: 0xffc93c, css: '#ffc93c', name: 'yellow' },
+  { hex: 0x4ecb71, css: '#4ecb71', name: 'green'  },
+  { hex: 0xa55eea, css: '#a55eea', name: 'purple' },
+  { hex: 0xff9f43, css: '#ff9f43', name: 'orange' }
+];
+const SIDE = { TOP: 0, BOTTOM: 1, LEFT: 2, RIGHT: 3 };
+// direction each side's exit points to (grid dx,dy)
+const SIDE_DIR = [ [0,-1], [0,1], [-1,0], [1,0] ];
+
+const LEVELS = [
+/* 1 — teach: drag to the matching door */
+{ c:4, r:5, t:60, b:[[0,1,1,1,1],[1,2,3,1,1]], w:[], d:[[0,0,1,1],[1,1,2,1]], g:[], m:[] },
+/* 2 — a long block + two singles */
+{ c:4, r:5, t:60, b:[[0,1,1,2,1],[1,0,3,1,1],[2,3,3,1,1]], w:[], d:[[0,0,1,2],[1,2,3,1],[2,3,3,1]], g:[], m:[] },
+/* 3 — first wall: route around it */
+{ c:5, r:5, t:75, b:[[0,1,1,1,2],[1,2,1,2,1],[2,2,3,1,1]], w:[[2,2]], d:[[0,2,1,2],[1,1,2,2],[2,0,2,1]], g:[], m:[] },
+/* 4 — wall column splits paths; clear green before yellow */
+{ c:5, r:6, t:75, b:[[0,1,1,1,1],[1,3,1,1,1],[3,1,4,2,1],[2,4,3,1,2]], w:[[2,2],[2,3]], d:[[0,0,1,1],[1,3,1,1],[3,1,1,2],[2,2,3,2]], g:[], m:[] },
+/* 5 — red sits in blue's way: order matters */
+{ c:5, r:6, t:90, b:[[0,2,4,1,1],[1,2,2,1,2],[2,1,0,2,1],[3,3,3,1,1]], w:[[0,2],[4,2]], d:[[0,2,4,1],[1,1,2,1],[2,0,1,2],[3,3,3,1]], g:[], m:[] },
+/* 6 — gate intro: only green passes the green gate */
+{ c:5, r:6, t:90, b:[[3,2,1,1,1],[0,1,1,1,1],[1,3,0,2,1],[2,1,4,1,1]], w:[[0,3],[1,3],[3,3],[4,3]], d:[[3,1,2,1],[0,0,1,1],[1,0,3,2],[2,1,1,1]], g:[[3,2,3]], m:[] },
+/* 7 — big 2x2 block; blue must circle the board */
+{ c:6, r:6, t:105, b:[[4,2,2,2,2],[0,0,0,1,1],[1,5,0,1,2],[3,0,5,2,1],[2,4,4,1,1]], w:[[1,2],[4,1]], d:[[4,3,2,2],[0,0,0,1],[1,2,0,2],[3,1,0,2],[2,1,4,1]], g:[], m:[] },
+/* 8 — wall column with one gap; thread the needle */
+{ c:6, r:7, t:105, b:[[0,0,1,1,2],[1,3,0,2,1],[2,4,5,1,1],[3,0,4,2,1],[5,1,6,1,1]], w:[[2,1],[2,2],[2,5]], d:[[0,3,1,2],[1,2,0,1],[2,1,4,1],[3,1,0,2],[5,0,1,1]], g:[], m:[] },
+/* 9 — mover intro: the wall breathes, time your pass */
+{ c:6, r:7, t:105, b:[[0,1,1,1,1],[1,4,5,1,1],[2,0,5,2,1],[3,4,1,1,1]], w:[[0,3],[1,3],[2,3],[4,3],[5,3]], d:[[0,1,2,1],[1,0,4,1],[2,1,0,2],[3,3,1,1]], g:[], m:[[3,3,4,0]] },
+/* 10 — two gates: each color has its own passage */
+{ c:6, r:7, t:120, b:[[0,1,0,1,1],[1,4,0,1,2],[2,2,1,2,1],[3,0,4,1,1],[5,5,5,1,1]], w:[[0,2],[2,2],[3,2],[5,2]], d:[[0,1,1,1],[1,1,4,1],[2,0,2,2],[3,2,4,1],[5,3,5,1]], g:[[0,1,2],[1,4,2]], m:[] },
+/* 11 — central pillar: yellow & green must swap sides */
+{ c:6, r:8, t:120, b:[[0,2,1,2,1],[1,2,6,2,1],[2,1,3,1,2],[3,4,3,1,2],[4,0,0,1,1],[5,5,7,1,1]], w:[[2,3],[3,3],[2,4],[3,4]], d:[[0,0,2,2],[1,1,2,2],[2,3,3,2],[3,2,3,2],[4,0,0,1],[5,1,5,1]], g:[], m:[] },
+/* 12 — mover + gate on the same barrier */
+{ c:6, r:8, t:120, b:[[3,0,1,1,1],[0,1,0,1,2],[1,3,1,1,1],[2,2,5,2,1],[5,4,6,1,1]], w:[[1,2],[2,2],[3,2],[4,2]], d:[[3,1,0,1],[0,1,5,1],[1,1,3,1],[2,2,5,1],[5,3,6,1]], g:[[3,0,2]], m:[[5,2,5,0]] },
+/* 13 — parking jam: clear the ring before the 2x2 */
+{ c:6, r:8, t:135, b:[[0,2,1,2,1],[4,2,3,2,2],[1,1,3,1,2],[3,4,3,1,2],[2,4,2,1,1],[5,1,6,1,1]], w:[[0,4],[5,4]], d:[[0,2,1,1],[4,0,2,2],[1,1,1,1],[3,0,4,1],[2,3,2,1],[5,3,6,1]], g:[], m:[] },
+/* 14 — twin movers alternate: rush the open one */
+{ c:6, r:8, t:135, b:[[0,1,0,1,2],[1,4,5,1,2],[2,2,1,2,1],[3,2,6,2,1],[5,0,5,1,1],[4,5,1,1,1]], w:[[0,3],[1,3],[4,3],[5,3]], d:[[0,1,1,1],[1,0,4,1],[2,0,2,2],[3,1,2,2],[5,2,5,1],[4,3,1,1]], g:[], m:[[2,3,4,0],[3,3,4,2]] },
+/* 15 — gate pockets left & right */
+{ c:6, r:8, t:135, b:[[0,2,3,1,1],[1,3,4,1,1],[2,0,2,1,2],[3,2,6,2,1],[4,2,1,2,2],[5,5,0,1,1]], w:[[1,2],[1,4],[1,5],[4,2],[4,3],[4,5]], d:[[0,2,3,1],[1,3,4,1],[2,0,0,1],[3,1,2,2],[4,0,2,2],[5,3,0,1]], g:[[0,1,3],[1,4,4]], m:[] },
+/* 16 — plus-shaped wall: everything detours */
+{ c:7, r:8, t:150, b:[[0,5,3,2,1],[1,3,0,1,2],[2,1,1,1,1],[3,5,6,1,1],[4,0,5,1,2],[5,4,0,2,1]], w:[[3,2],[3,3],[3,4],[2,3],[4,3]], d:[[0,2,3,1],[1,1,3,1],[2,0,1,1],[3,1,5,1],[4,3,5,2],[5,0,4,2]], g:[], m:[] },
+/* 17 — one mover, four blocks queue through it */
+{ c:7, r:8, t:135, b:[[0,1,1,1,1],[1,5,1,1,1],[2,3,0,1,2],[3,2,6,2,1],[5,6,7,1,1]], w:[[0,4],[1,4],[2,4],[4,4],[5,4],[6,4]], d:[[0,1,1,1],[1,1,5,1],[2,1,3,1],[3,2,6,1],[5,3,7,1]], g:[], m:[[3,4,4,0]] },
+/* 18 — deep jam: unlock chain R→Y→B, G before P */
+{ c:7, r:9, t:150, b:[[4,2,3,2,2],[3,2,5,2,1],[1,4,3,1,2],[2,3,1,2,1],[0,1,1,1,1],[5,1,3,1,2],[0,5,7,1,1]], w:[[0,2],[6,2],[0,6],[6,6]], d:[[4,1,2,2],[3,3,5,1],[1,0,4,1],[2,2,1,1],[0,0,1,1],[5,2,3,2],[0,1,5,1]], g:[], m:[] },
+/* 19 — gates + movers guard both barriers */
+{ c:7, r:9, t:165, b:[[0,2,4,1,1],[1,4,4,1,1],[2,2,3,2,1],[3,3,5,2,1],[4,3,1,1,1],[5,3,7,1,1]], w:[[1,2],[2,2],[3,2],[4,2],[5,2],[1,6],[2,6],[3,6],[4,6],[5,6]], d:[[0,0,0,1],[1,1,6,1],[2,2,3,1],[3,3,5,1],[4,0,3,1],[5,1,3,1]], g:[[0,0,2],[1,6,6]], m:[[6,2,5,0],[0,6,5,2.5]] },
+/* 20 — snake maze: long journeys, tight clock */
+{ c:7, r:9, t:165, b:[[0,1,0,1,1],[1,5,8,1,1],[2,6,0,1,2],[3,0,3,2,1],[5,5,5,2,1],[4,3,7,1,1]], w:[[0,2],[1,2],[2,2],[3,2],[4,2],[2,4],[3,4],[4,4],[5,4],[6,4],[0,6],[1,6],[2,6],[3,6],[4,6]], d:[[0,1,1,1],[1,0,5,1],[2,2,0,2],[3,3,3,1],[5,2,5,1],[4,3,7,1]], g:[], m:[] },
+/* 21 — twin 2x2s face opposite doors, guards first */
+{ c:7, r:9, t:165, b:[[4,1,3,2,2],[5,4,3,2,2],[0,0,3,1,2],[1,6,3,1,2],[2,2,1,2,1],[3,2,7,2,1]], w:[], d:[[4,2,3,2],[5,3,3,2],[0,0,0,1],[1,1,6,1],[2,0,2,2],[3,1,2,2]], g:[], m:[] },
+/* 22 — three bands, two movers in series */
+{ c:7, r:10, t:180, b:[[0,1,1,1,1],[1,4,1,2,1],[2,2,4,1,2],[3,4,4,1,2],[4,3,5,1,1],[5,2,8,2,1]], w:[[0,3],[1,3],[2,3],[4,3],[5,3],[6,3],[0,7],[1,7],[2,7],[4,7],[5,7],[6,7]], d:[[0,1,1,1],[1,0,4,2],[2,2,4,2],[3,3,4,2],[4,1,4,1],[5,1,2,2]], g:[], m:[[3,3,4,0],[3,7,4,2]] },
+/* 23 — grand jam: two reds, two oranges, long chain */
+{ c:7, r:10, t:180, b:[[4,2,4,2,2],[2,2,2,2,1],[1,5,1,1,2],[0,2,0,2,1],[3,1,5,1,2],[5,4,5,1,2],[0,3,8,1,1],[5,0,8,1,1]], w:[[0,3],[6,3]], d:[[4,0,2,2],[2,3,2,1],[1,1,5,1],[0,2,0,1],[3,2,5,2],[5,3,5,2],[0,1,3,1],[5,2,8,1]], g:[], m:[] },
+/* 24 — finale: gate + mover + 2x2 across three zones */
+{ c:7, r:10, t:180, b:[[0,5,0,1,1],[1,2,3,2,2],[2,5,3,1,2],[3,4,4,1,1],[5,2,7,2,1],[4,5,7,1,2],[0,1,8,1,1]], w:[[2,2],[3,2],[4,2],[5,2],[6,2],[0,5],[1,5],[4,5],[5,5],[6,5]], d:[[0,1,5,1],[0,1,1,1],[1,2,3,2],[2,3,3,2],[3,1,3,1],[5,2,7,1],[4,3,7,2]], g:[[0,2,5]], m:[[3,5,4,0]] }
+];
+
+/* ---------- progress persistence ---------- */
+const SAVE_KEY = 'colorBlocksProgress';
+let progress = { unlocked: 1, stars: {} };
+try {
+  const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+  if (s && s.unlocked) progress = s;
+} catch (e) {}
+function saveProgress() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(progress)); } catch (e) {}
+}
+
+/* ---------- tiny WebAudio blips ---------- */
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function blip(freq, dur, type, vol) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = type || 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol || 0.12, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (dur || 0.12));
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + (dur || 0.12) + 0.02);
+}
+const sfx = {
+  snap()  { blip(320, 0.07, 'sine', 0.08); },
+  block() { blip(140, 0.12, 'square', 0.05); },
+  exit()  { blip(520, 0.18, 'sine', 0.14); setTimeout(() => blip(780, 0.2, 'sine', 0.12), 90); },
+  win()   { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.22, 'sine', 0.13), i * 120)); },
+  fail()  { blip(220, 0.3, 'sawtooth', 0.08); setTimeout(() => blip(160, 0.4, 'sawtooth', 0.08), 180); }
+};
+
+/* ============================================================
+   SCENE SETUP
+   ============================================================ */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+
+const ambLight = new THREE.AmbientLight(0xffffff, 0.62);
+scene.add(ambLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.75);
+dirLight.position.set(6, 14, 4);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+dirLight.shadow.camera.near = 1;
+dirLight.shadow.camera.far = 40;
+scene.add(dirLight);
+
+const BLOCK_H = 0.55;     // block height
+const BOARD_TOP = 0;      // y of board surface
+let CW = 6, CR = 8;       // current level cols/rows
+
+// grid → world (block/cell top-left origin; returns center of a w×h footprint)
+function gridToWorld(x, y, w, h) {
+  return {
+    x: x + (w || 1) / 2 - CW / 2,
+    z: y + (h || 1) / 2 - CR / 2
+  };
+}
+
+function sizeRenderer() {
+  const wpx = canvas.clientWidth, hpx = canvas.clientHeight;
+  if (canvas.width !== wpx || canvas.height !== hpx) {
+    renderer.setSize(wpx, hpx, false);
+  }
+  camera.aspect = wpx / Math.max(1, hpx);
+  camera.updateProjectionMatrix();
+  fitCamera();
+}
+window.addEventListener('resize', () => sizeRenderer());
+window.addEventListener('orientationchange', () => setTimeout(sizeRenderer, 250));
+
+// fit whole board (plus door margin) in view at a slight top-down tilt
+function fitCamera() {
+  const R = 0.5 * Math.sqrt(CW * CW + CR * CR) + 1.6;
+  const vfov = camera.fov * Math.PI / 180;
+  const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+  const dist = Math.max(R / Math.sin(vfov / 2), R / Math.sin(hfov / 2));
+  const tilt = 0.42; // 0 = straight down; radians toward the player
+  camera.position.set(0, dist * Math.cos(tilt), dist * Math.sin(tilt) + CR * 0.06);
+  camera.lookAt(0, 0, CR * 0.02);
+  dirLight.shadow.camera.left = -R; dirLight.shadow.camera.right = R;
+  dirLight.shadow.camera.top = R; dirLight.shadow.camera.bottom = -R;
+  dirLight.shadow.camera.updateProjectionMatrix();
+}
+
+/* ---------- shared geometries & materials ---------- */
+const geoCache = {};   // rounded-top boxes keyed "wxh"
+function roundedBox(w, h) {
+  const key = w + 'x' + h;
+  if (geoCache[key]) return geoCache[key];
+  const gap = 0.09, rad = 0.16;
+  const W = w - gap * 2, H = h - gap * 2;
+  const s = new THREE.Shape();
+  s.moveTo(-W / 2 + rad, -H / 2);
+  s.lineTo(W / 2 - rad, -H / 2);  s.quadraticCurveTo(W / 2, -H / 2, W / 2, -H / 2 + rad);
+  s.lineTo(W / 2, H / 2 - rad);   s.quadraticCurveTo(W / 2, H / 2, W / 2 - rad, H / 2);
+  s.lineTo(-W / 2 + rad, H / 2);  s.quadraticCurveTo(-W / 2, H / 2, -W / 2, H / 2 - rad);
+  s.lineTo(-W / 2, -H / 2 + rad); s.quadraticCurveTo(-W / 2, -H / 2, -W / 2 + rad, -H / 2);
+  const g = new THREE.ExtrudeGeometry(s, {
+    depth: BLOCK_H - 0.1, bevelEnabled: true,
+    bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 2, curveSegments: 4
+  });
+  g.rotateX(-Math.PI / 2);           // extrude up
+  g.translate(0, 0.05, 0);
+  geoCache[key] = g;
+  return g;
+}
+const matCache = {};   // block materials per color index
+function blockMat(ci) {
+  if (matCache[ci]) return matCache[ci];
+  const m = new THREE.MeshPhongMaterial({
+    color: COLORS[ci].hex, shininess: 70,
+    specular: 0x666666, emissive: COLORS[ci].hex, emissiveIntensity: 0.06
+  });
+  matCache[ci] = m;
+  return m;
+}
+const wallMat = new THREE.MeshPhongMaterial({ color: 0x9aa0b4, shininess: 20, specular: 0x333333 });
+const moverMat = new THREE.MeshPhongMaterial({ color: 0x7d8498, shininess: 30, specular: 0x444444 });
+
+/* ---------- level scene state ---------- */
+let boardGroup = null;   // everything belonging to current level
+let blocks = [];         // {ci,x,y,w,h, fx,fy, mesh, exited, doorFlash}
+let walls = [];          // {x,y}
+let gates = [];          // {ci,x,y,mesh}
+let movers = [];         // {x,y,period,phase,open,mesh,targetY}
+let doors = [];          // {ci,side,pos,len,mesh,glow}
+
+function clearBoard() {
+  if (boardGroup) { scene.remove(boardGroup); boardGroup.traverse(o => { if (o.geometry && !o.geometry._shared) o.geometry.dispose(); }); }
+  boardGroup = new THREE.Group();
+  scene.add(boardGroup);
+  blocks = []; walls = []; gates = []; movers = []; doors = [];
+}
+
+/* board surface with a subtle painted grid (canvas texture) */
+function makeBoardMesh(cols, rows) {
+  const px = 48;
+  const cv = document.createElement('canvas');
+  cv.width = cols * px; cv.height = rows * px;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#eceef5'; g.fillRect(0, 0, cv.width, cv.height);
+  for (let x = 0; x < cols; x++) for (let y = 0; y < rows; y++) {
+    g.fillStyle = (x + y) % 2 ? '#e4e7f0' : '#eceef5';
+    g.fillRect(x * px, y * px, px, px);
+    g.strokeStyle = 'rgba(150,158,185,.28)'; g.lineWidth = 2;
+    g.strokeRect(x * px + 1, y * px + 1, px - 2, px - 2);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  const top = new THREE.Mesh(
+    new THREE.PlaneGeometry(cols, rows),
+    new THREE.MeshLambertMaterial({ map: tex })
+  );
+  top.rotation.x = -Math.PI / 2;
+  top.position.y = BOARD_TOP + 0.001;
+  top.receiveShadow = true;
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(cols + 0.5, 0.5, rows + 0.5),
+    new THREE.MeshPhongMaterial({ color: 0xcfd4e2, shininess: 10 })
+  );
+  base.position.y = BOARD_TOP - 0.25;
+  const grp = new THREE.Group();
+  grp.add(base); grp.add(top);
+  return grp;
+}
+
+/* door frame sitting just outside the board edge */
+function makeDoor(d) {
+  const [ci, side, pos, len] = d;
+  const col = COLORS[ci].hex;
+  const grp = new THREE.Group();
+  const frameMat = new THREE.MeshPhongMaterial({ color: col, emissive: col, emissiveIntensity: 0.55, shininess: 60 });
+  const horiz = (side === SIDE.TOP || side === SIDE.BOTTOM);
+  const L = len - 0.12;
+  // flat glowing pad
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(horiz ? L : 0.5, 0.1, horiz ? 0.5 : L), frameMat);
+  // two end posts
+  const post = new THREE.BoxGeometry(0.14, 0.5, 0.14);
+  const p1 = new THREE.Mesh(post, frameMat), p2 = new THREE.Mesh(post, frameMat);
+  p1.position.y = p2.position.y = 0.25;
+  if (horiz) { p1.position.x = -L / 2; p2.position.x = L / 2; }
+  else       { p1.position.z = -L / 2; p2.position.z = L / 2; }
+  grp.add(pad); grp.add(p1); grp.add(p2);
+  // position just outside edge
+  let cx, cz;
+  if (horiz) {
+    cx = pos + len / 2 - CW / 2;
+    cz = (side === SIDE.TOP ? -CR / 2 - 0.35 : CR / 2 + 0.35);
+  } else {
+    cz = pos + len / 2 - CR / 2;
+    cx = (side === SIDE.LEFT ? -CW / 2 - 0.35 : CW / 2 + 0.35);
+  }
+  grp.position.set(cx, BOARD_TOP + 0.05, cz);
+  return { grp, mat: frameMat };
+}
+
+/* ---------- build a level into the scene ---------- */
+function buildLevel(idx) {
+  const L = LEVELS[idx];
+  CW = L.c; CR = L.r;
+  clearBoard();
+  boardGroup.add(makeBoardMesh(CW, CR));
+
+  // walls
+  for (const [x, y] of L.w) {
+    const m = new THREE.Mesh(roundedBox(1, 1), wallMat);
+    const p = gridToWorld(x, y, 1, 1);
+    m.position.set(p.x, BOARD_TOP, p.z);
+    m.scale.y = 0.8;
+    m.castShadow = true; m.receiveShadow = true;
+    boardGroup.add(m);
+    walls.push({ x, y });
+  }
+
+  // gates (flat colored pass-tiles, only matching color may cross)
+  for (const [ci, x, y] of L.g) {
+    const col = COLORS[ci].hex;
+    const grp = new THREE.Group();
+    const mat = new THREE.MeshPhongMaterial({ color: col, emissive: col, emissiveIntensity: 0.35, transparent: true, opacity: 0.85 });
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.06, 0.88), mat);
+    grp.add(pad);
+    const post = new THREE.BoxGeometry(0.12, 0.42, 0.12);
+    for (const [px, pz] of [[-0.38, -0.38], [0.38, -0.38], [-0.38, 0.38], [0.38, 0.38]]) {
+      const pm = new THREE.Mesh(post, mat);
+      pm.position.set(px, 0.21, pz);
+      grp.add(pm);
+    }
+    const p = gridToWorld(x, y, 1, 1);
+    grp.position.set(p.x, BOARD_TOP + 0.03, p.z);
+    boardGroup.add(grp);
+    gates.push({ ci, x, y, mesh: grp });
+  }
+
+  // movers (walls that sink open / rise closed)
+  for (const [x, y, period, phase] of L.m) {
+    const m = new THREE.Mesh(roundedBox(1, 1), moverMat.clone());
+    const p = gridToWorld(x, y, 1, 1);
+    m.position.set(p.x, BOARD_TOP, p.z);
+    m.scale.y = 0.8;
+    m.castShadow = true;
+    boardGroup.add(m);
+    movers.push({ x, y, period, phase, open: true, mesh: m, anim: 0 });
+  }
+
+  // doors
+  for (const d of L.d) {
+    const mk = makeDoor(d);
+    boardGroup.add(mk.grp);
+    doors.push({ ci: d[0], side: d[1], pos: d[2], len: d[3], mesh: mk.grp, mat: mk.mat, flash: 0 });
+  }
+
+  // blocks
+  for (const [ci, x, y, w, h] of L.b) {
+    const mesh = new THREE.Mesh(roundedBox(w, h), blockMat(ci).clone());
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    const b = { ci, x, y, w, h, fx: x, fy: y, mesh, exited: false, pulse: 0, shake: 0 };
+    positionBlock(b);
+    boardGroup.add(mesh);
+    blocks.push(b);
+  }
+  fitCamera();
+}
+
+function positionBlock(b) {
+  const p = gridToWorld(b.fx, b.fy, b.w, b.h);
+  b.mesh.position.x = p.x;
+  b.mesh.position.z = p.z;
+  if (!b.exiting) b.mesh.position.y = BOARD_TOP + (b.pulse > 0 ? Math.sin(b.pulse * Math.PI) * 0.12 : 0);
+  if (b.shake > 0) b.mesh.position.x += Math.sin(b.shake * 40) * 0.05 * b.shake;
+}
+
+/* ============================================================
+   GRID & COLLISION LOGIC
+   ============================================================ */
+function cellBlocked(x, y, forBlock) {
+  if (x < 0 || y < 0 || x >= CW || y >= CR) return true;
+  for (const w of walls) if (w.x === x && w.y === y) return true;
+  for (const m of movers) if (m.x === x && m.y === y && !m.open) return true;
+  for (const g of gates) if (g.x === x && g.y === y && g.ci !== forBlock.ci) return true;
+  for (const b of blocks) {
+    if (b === forBlock || b.exited || b.exiting) continue;
+    if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) return true;
+  }
+  return false;
+}
+function colFree(c, b) { // column c free for block b's rows (b.fy is integer here)
+  const y0 = Math.round(b.fy);
+  for (let r = y0; r < y0 + b.h; r++) if (cellBlocked(c, r, b)) return false;
+  return true;
+}
+function rowFree(r, b) {
+  const x0 = Math.round(b.fx);
+  for (let c = x0; c < x0 + b.w; c++) if (cellBlocked(c, r, b)) return false;
+  return true;
+}
+
+/* does a matching door cover this block's span on that edge? */
+function doorFits(b, side) {
+  const horiz = (side === SIDE.TOP || side === SIDE.BOTTOM);
+  const start = horiz ? Math.round(b.fx) : Math.round(b.fy);
+  const span = horiz ? b.w : b.h;
+  for (const d of doors) {
+    if (d.ci !== b.ci || d.side !== side) continue;
+    if (start >= d.pos && start + span <= d.pos + d.len) return d;
+  }
+  return null;
+}
+
+const EXIT_OVER = 1.2;   // how far past the edge the clamp allows when a door fits
+const EXIT_TRIG = 0.45;  // overshoot that commits the exit
+
+/* reachable float range along X for block b (fy integer) */
+function rangeX(b) {
+  let c = Math.ceil(b.fx - 1e-6) + b.w;             // next new column to the right
+  while (c < CW && colFree(c, b)) c++;
+  let max = c - b.w;
+  if (c >= CW && doorFits(b, SIDE.RIGHT)) max = CW - b.w + EXIT_OVER;
+  c = Math.floor(b.fx + 1e-6) - 1;                  // next new column to the left
+  while (c >= 0 && colFree(c, b)) c--;
+  let min = c + 1;
+  if (c < 0 && doorFits(b, SIDE.LEFT)) min = -EXIT_OVER;
+  return { min, max };
+}
+function rangeY(b) {
+  let r = Math.ceil(b.fy - 1e-6) + b.h;
+  while (r < CR && rowFree(r, b)) r++;
+  let max = r - b.h;
+  if (r >= CR && doorFits(b, SIDE.BOTTOM)) max = CR - b.h + EXIT_OVER;
+  r = Math.floor(b.fy + 1e-6) - 1;
+  while (r >= 0 && rowFree(r, b)) r--;
+  let min = r + 1;
+  if (r < 0 && doorFits(b, SIDE.TOP)) min = -EXIT_OVER;
+  return { min, max };
+}
+
+/* ============================================================
+   DRAG INPUT & COLLISION
+   ============================================================ */
+const raycaster = new THREE.Raycaster();
+const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(BOARD_TOP + BLOCK_H * 0.5));
+const ndc = new THREE.Vector2();
+const hitPoint = new THREE.Vector3();
+let drag = null;          // {b, offX, offZ, axis, from:{x,y}, flashCd}
+let state = 'menu';       // menu | levels | play | paused | win | fail
+let moves = 0, undoStack = [], timeLeft = 0, levelTime = 0, curLevel = 0, playT = 0;
+
+function touchNDC(e) {
+  const t = e.changedTouches ? e.changedTouches[0] : e;
+  const r = canvas.getBoundingClientRect();
+  ndc.x = ((t.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((t.clientY - r.top) / r.height) * 2 + 1;
+}
+function castToPlane() {
+  raycaster.setFromCamera(ndc, camera);
+  return raycaster.ray.intersectPlane(dragPlane, hitPoint) ? hitPoint : null;
+}
+
+function onDown(e) {
+  initAudio();
+  if (state !== 'play') return;
+  touchNDC(e);
+  raycaster.setFromCamera(ndc, camera);
+  const meshes = blocks.filter(b => !b.exited && !b.exiting).map(b => b.mesh);
+  const hits = raycaster.intersectObjects(meshes);
+  if (!hits.length) return;
+  const mesh = hits[0].object;
+  const b = blocks.find(k => k.mesh === mesh);
+  if (!b) return;
+  const pt = castToPlane();
+  if (!pt) return;
+  drag = {
+    b,
+    offX: pt.x - b.mesh.position.x,
+    offZ: pt.z - b.mesh.position.z,
+    axis: null,
+    from: { x: b.x, y: b.y },
+    flashCd: 0
+  };
+  b.mesh.scale.y = 1.12;   // subtle "lift"
+  e.preventDefault();
+}
+
+function onMove(e) {
+  if (!drag || state !== 'play') return;
+  touchNDC(e);
+  const pt = castToPlane();
+  if (!pt) return;
+  const b = drag.b;
+  if (b.exiting) return;
+  // desired grid position from the finger (world → grid)
+  const wantFx = (pt.x - drag.offX) + CW / 2 - b.w / 2;
+  const wantFy = (pt.z - drag.offZ) + CR / 2 - b.h / 2;
+  moveDragged(b, wantFx, wantFy);
+  e.preventDefault();
+}
+
+/* one axis at a time; may switch axis when snapped to the grid */
+function moveDragged(b, wantFx, wantFy) {
+  for (let iter = 0; iter < 3; iter++) {   // allow corner turns within one event
+    const dx = wantFx - b.fx, dy = wantFy - b.fy;
+    if (!drag.axis) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 0.1) break;
+      drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }
+    if (drag.axis === 'x') {
+      const R = rangeX(b);
+      const nfx = Math.min(R.max, Math.max(R.min, wantFx));
+      blockedFeedback(b, wantFx, nfx, R);
+      b.fx = nfx;
+      if (b.fx <= -EXIT_TRIG) return startExit(b, SIDE.LEFT);
+      if (b.fx >= CW - b.w + EXIT_TRIG) return startExit(b, SIDE.RIGHT);
+      // snapped on x and finger clearly pulling on y → turn the corner
+      const nearInt = Math.abs(b.fx - Math.round(b.fx)) < 0.09;
+      if (nearInt && Math.abs(dy) > Math.abs(wantFx - b.fx) + 0.18) {
+        b.fx = Math.round(b.fx); commitCell(b);
+        drag.axis = 'y'; continue;
+      }
+    } else {
+      const R = rangeY(b);
+      const nfy = Math.min(R.max, Math.max(R.min, wantFy));
+      blockedFeedback(b, wantFy, nfy, R);
+      b.fy = nfy;
+      if (b.fy <= -EXIT_TRIG) return startExit(b, SIDE.TOP);
+      if (b.fy >= CR - b.h + EXIT_TRIG) return startExit(b, SIDE.BOTTOM);
+      const nearInt = Math.abs(b.fy - Math.round(b.fy)) < 0.09;
+      if (nearInt && Math.abs(dx) > Math.abs(wantFy - b.fy) + 0.18) {
+        b.fy = Math.round(b.fy); commitCell(b);
+        drag.axis = 'x'; continue;
+      }
+    }
+    break;
+  }
+  positionBlock(b);
+}
+
+/* register intermediate integer cell while turning corners (for collision math) */
+function commitCell(b) {
+  b.x = Math.round(b.fx); b.y = Math.round(b.fy);
+}
+
+/* red flash + shake when the player pushes into something solid */
+function blockedFeedback(b, want, got, R) {
+  if (drag.flashCd > 0) return;
+  if (Math.abs(want - got) > 0.4 && (got === R.min || got === R.max)) {
+    drag.flashCd = 0.6;
+    b.shake = 1;
+    const m = b.mesh.material;
+    m.emissive.setHex(0xff2222); m.emissiveIntensity = 0.55;
+    setTimeout(() => { m.emissive.setHex(COLORS[b.ci].hex); m.emissiveIntensity = 0.06; }, 180);
+    sfx.block();
+  }
+}
+
+function onUp(e) {
+  if (!drag) return;
+  const b = drag.b;
+  b.mesh.scale.y = 1;
+  if (!b.exiting && !b.exited) {
+    const tx = Math.min(CW - b.w, Math.max(0, Math.round(b.fx)));
+    const ty = Math.min(CR - b.h, Math.max(0, Math.round(b.fy)));
+    if (tx !== drag.from.x || ty !== drag.from.y) {
+      undoStack.push({ b, x: drag.from.x, y: drag.from.y, exited: false });
+      moves++; updateHUD();
+      b.pulse = 1;             // success pulse
+      sfx.snap();
+    }
+    b.x = tx; b.y = ty;        // snap tween handled in update()
+  }
+  drag = null;
+}
+
+canvas.addEventListener('touchstart', onDown, { passive: false });
+canvas.addEventListener('touchmove', onMove, { passive: false });
+canvas.addEventListener('touchend', onUp);
+canvas.addEventListener('touchcancel', onUp);
+canvas.addEventListener('mousedown', onDown);
+canvas.addEventListener('mousemove', onMove);
+canvas.addEventListener('mouseup', onUp);
+
+/* ============================================================
+   DOOR / EXIT LOGIC
+   ============================================================ */
+function startExit(b, side) {
+  if (b.exiting || b.exited) return;
+  const d = doorFits(b, side);
+  if (!d) return;
+  b.exiting = true;
+  b.exitSide = side;
+  b.exitT = 0;
+  b.exitFrom = { fx: b.fx, fy: b.fy };
+  undoStack.push({ b, x: drag ? drag.from.x : b.x, y: drag ? drag.from.y : b.y, exited: true });
+  moves++; updateHUD();
+  d.flash = 1;
+  const dp = d.mesh.position;
+  burst(dp.x, dp.z, COLORS[b.ci].hex, 26);
+  sfx.exit();
+  if (drag && drag.b === b) drag = null;
+  b.mesh.scale.y = 1;
+}
+
+function finishExit(b) {
+  b.exiting = false;
+  b.exited = true;
+  b.mesh.visible = false;
+  if (blocks.every(k => k.exited)) levelWon();
+}
+
+/* ============================================================
+   PARTICLES
+   ============================================================ */
+let bursts = [];
+function burst(x, z, hex, count) {
+  const n = count || 20;
+  const pos = new Float32Array(n * 3);
+  const vel = [];
+  for (let i = 0; i < n; i++) {
+    pos[i * 3] = x; pos[i * 3 + 1] = BOARD_TOP + 0.4; pos[i * 3 + 2] = z;
+    const a = Math.random() * Math.PI * 2, s = 1.5 + Math.random() * 2.5;
+    vel.push(new THREE.Vector3(Math.cos(a) * s, 2 + Math.random() * 3, Math.sin(a) * s));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ color: hex, size: 0.16, transparent: true, opacity: 1 });
+  const p = new THREE.Points(g, m);
+  scene.add(p);
+  bursts.push({ p, vel, t: 0 });
+}
+function winBurst() {
+  for (let i = 0; i < 5; i++) {
+    const ci = Math.floor(Math.random() * 6);
+    setTimeout(() => burst((Math.random() - 0.5) * CW, (Math.random() - 0.5) * CR, COLORS[ci].hex, 18), i * 130);
+  }
+}
+function updateBursts(dt) {
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    const B = bursts[i];
+    B.t += dt;
+    const arr = B.p.geometry.attributes.position.array;
+    for (let j = 0; j < B.vel.length; j++) {
+      B.vel[j].y -= 9 * dt;
+      arr[j * 3] += B.vel[j].x * dt;
+      arr[j * 3 + 1] += B.vel[j].y * dt;
+      arr[j * 3 + 2] += B.vel[j].z * dt;
+    }
+    B.p.geometry.attributes.position.needsUpdate = true;
+    B.p.material.opacity = Math.max(0, 1 - B.t / 0.8);
+    if (B.t > 0.8) {
+      scene.remove(B.p); B.p.geometry.dispose(); B.p.material.dispose();
+      bursts.splice(i, 1);
+    }
+  }
+}
+
+/* ============================================================
+   UI & LEVEL PROGRESSION
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const screens = { menu: $('screen-menu'), levels: $('screen-levels') };
+const overlays = { pause: $('ov-pause'), win: $('ov-win'), fail: $('ov-fail') };
+
+function showScreen(name) {
+  for (const k in screens) screens[k].classList.toggle('show', k === name);
+  const inGame = !name;
+  $('hud').style.display = inGame ? 'flex' : 'none';
+  $('hud-buttons').style.display = inGame ? 'flex' : 'none';
+}
+function showOverlay(name) {
+  for (const k in overlays) overlays[k].classList.toggle('show', k === name);
+}
+function fmtTime(s) {
+  s = Math.max(0, Math.ceil(s));
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+function updateHUD() {
+  $('hud-level-v').textContent = curLevel + 1;
+  $('hud-moves-v').textContent = moves;
+  $('hud-timer-v').textContent = fmtTime(timeLeft);
+  $('hud-timer').classList.toggle('danger', timeLeft <= 10 && state === 'play');
+  $('btn-undo').disabled = undoStack.length === 0;
+}
+
+function buildLevelSelect() {
+  const grid = $('levels-grid');
+  grid.innerHTML = '';
+  LEVELS.forEach((L, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'lvl-tile';
+    const locked = i + 1 > progress.unlocked;
+    if (locked) {
+      btn.classList.add('locked');
+      btn.innerHTML = '🔒';
+    } else {
+      const st = progress.stars[i] || 0;
+      btn.innerHTML = '<span class="num">' + (i + 1) + '</span>' +
+        '<span class="lvl-stars">' + '★★★'.split('').map((c, k) =>
+          k < st ? '★' : '<span class="off">★</span>').join('') + '</span>';
+      btn.addEventListener('click', () => startLevel(i));
+    }
+    grid.appendChild(btn);
+  });
+}
+
+function startLevel(i) {
+  curLevel = i;
+  buildLevel(i);
+  moves = 0; undoStack = [];
+  timeLeft = LEVELS[i].t; levelTime = LEVELS[i].t; playT = 0;
+  state = 'play';
+  drag = null;
+  showScreen(null);
+  showOverlay(null);
+  updateHUD();
+}
+
+function levelWon() {
+  if (state !== 'play') return;
+  state = 'win';
+  drag = null;
+  winBurst();
+  sfx.win();
+  const ratio = timeLeft / levelTime;
+  const stars = ratio >= 0.5 ? 3 : ratio >= 0.2 ? 2 : 1;
+  progress.stars[curLevel] = Math.max(progress.stars[curLevel] || 0, stars);
+  progress.unlocked = Math.max(progress.unlocked, Math.min(LEVELS.length, curLevel + 2));
+  saveProgress();
+  const spans = $('win-stars').children;
+  for (let i = 0; i < 3; i++) spans[i].classList.remove('on');
+  $('win-sub').textContent = 'الوقت المتبقي: ';
+  const t = document.createElement('span');
+  t.className = 'num'; t.textContent = fmtTime(timeLeft);
+  $('win-sub').appendChild(t);
+  $('btn-next').style.display = curLevel + 1 < LEVELS.length ? '' : 'none';
+  setTimeout(() => {
+    showOverlay('win');
+    for (let i = 0; i < stars; i++) spans[i].classList.add('on');
+  }, 650);
+}
+
+function levelFailed() {
+  if (state !== 'play') return;
+  state = 'fail';
+  drag = null;
+  sfx.fail();
+  showOverlay('fail');
+}
+
+function undoMove() {
+  if (!undoStack.length || state !== 'play') return;
+  const u = undoStack.pop();
+  const b = u.b;
+  if (u.exited) {
+    b.exited = false; b.exiting = false;
+    b.mesh.visible = true;
+    b.mesh.material.opacity = 1; b.mesh.material.transparent = false;
+    b.mesh.scale.set(1, 1, 1);
+  }
+  b.x = u.x; b.y = u.y; b.fx = u.x; b.fy = u.y;
+  positionBlock(b);
+  b.mesh.position.y = BOARD_TOP;
+  moves = Math.max(0, moves - 1);
+  b.pulse = 1;
+  updateHUD();
+}
+
+/* ---------- button wiring ---------- */
+$('btn-start').addEventListener('click', () => { initAudio(); buildLevelSelect(); showScreen('levels'); });
+$('btn-back-menu').addEventListener('click', () => showScreen('menu'));
+$('btn-pause').addEventListener('click', () => { if (state === 'play') { state = 'paused'; showOverlay('pause'); } });
+$('btn-resume').addEventListener('click', () => { state = 'play'; showOverlay(null); });
+$('btn-pause-restart').addEventListener('click', () => startLevel(curLevel));
+$('btn-pause-exit').addEventListener('click', () => { state = 'levels'; showOverlay(null); buildLevelSelect(); showScreen('levels'); });
+$('btn-restart').addEventListener('click', () => { if (state === 'play') startLevel(curLevel); });
+$('btn-undo').addEventListener('click', undoMove);
+$('btn-next').addEventListener('click', () => startLevel(Math.min(LEVELS.length - 1, curLevel + 1)));
+$('btn-win-replay').addEventListener('click', () => startLevel(curLevel));
+$('btn-win-exit').addEventListener('click', () => { state = 'levels'; showOverlay(null); buildLevelSelect(); showScreen('levels'); });
+$('btn-fail-retry').addEventListener('click', () => startLevel(curLevel));
+$('btn-fail-exit').addEventListener('click', () => { state = 'levels'; showOverlay(null); buildLevelSelect(); showScreen('levels'); });
+
+/* menu deco cubes */
+(function () {
+  const box = $('menu-cubes');
+  COLORS.forEach((c, i) => {
+    const d = document.createElement('div');
+    d.className = 'menu-cube';
+    d.style.background = c.css;
+    d.style.animationDelay = (i * 0.18) + 's';
+    box.appendChild(d);
+  });
+})();
+
+/* ============================================================
+   MAIN LOOP
+   ============================================================ */
+let lastT = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+
+  if (state === 'play') {
+    playT += dt;
+    timeLeft -= dt;
+    if (drag) drag.flashCd = Math.max(0, drag.flashCd - dt);
+    if (timeLeft <= 0) { timeLeft = 0; levelFailed(); }
+    if ((playT * 5 | 0) !== ((playT - dt) * 5 | 0)) updateHUD(); // ~5Hz HUD refresh
+  }
+
+  // movers: open/closed cycle (never close on top of a block)
+  for (const m of movers) {
+    if (state === 'play') {
+      const cyc = (playT + m.phase) % m.period;
+      const wantOpen = cyc < m.period / 2;
+      if (!wantOpen && m.open) {
+        let occupied = false;
+        for (const b of blocks) {
+          if (b.exited || b.exiting) continue;
+          if (b.fx < m.x + 1 && b.fx + b.w > m.x && b.fy < m.y + 1 && b.fy + b.h > m.y) { occupied = true; break; }
+        }
+        if (!occupied) m.open = false;
+      } else if (wantOpen) m.open = true;
+    }
+    const targetY = m.open ? BOARD_TOP - 0.85 : BOARD_TOP;
+    m.mesh.position.y += (targetY - m.mesh.position.y) * Math.min(1, dt * 9);
+  }
+
+  // door glow pulse + flash decay
+  for (const d of doors) {
+    d.flash = Math.max(0, d.flash - dt * 2.5);
+    d.mat.emissiveIntensity = 0.45 + Math.sin(now * 0.004) * 0.15 + d.flash * 1.4;
+  }
+
+  // blocks: snap tween, pulse/shake decay, exit animation
+  for (const b of blocks) {
+    if (b.exited) continue;
+    if (b.exiting) {
+      b.exitT = Math.min(1, b.exitT + dt / 0.38);
+      const e = 1 - Math.pow(1 - b.exitT, 3); // ease-out
+      const dir = SIDE_DIR[b.exitSide];
+      b.fx = b.exitFrom.fx + dir[0] * e * 1.7;
+      b.fy = b.exitFrom.fy + dir[1] * e * 1.7;
+      const m = b.mesh.material;
+      if (!m.transparent) m.transparent = true;
+      m.opacity = 1 - b.exitT * b.exitT;
+      const sc = 1 - 0.45 * b.exitT;
+      b.mesh.scale.set(sc, sc, sc);
+      positionBlock(b);
+      b.mesh.position.y = BOARD_TOP + Math.sin(b.exitT * Math.PI) * 0.25;
+      if (b.exitT >= 1) finishExit(b);
+      continue;
+    }
+    if (!drag || drag.b !== b) {
+      // ease back to snapped cell
+      b.fx += (b.x - b.fx) * Math.min(1, dt * 16);
+      b.fy += (b.y - b.fy) * Math.min(1, dt * 16);
+      if (Math.abs(b.fx - b.x) < 0.003) b.fx = b.x;
+      if (Math.abs(b.fy - b.y) < 0.003) b.fy = b.y;
+    }
+    b.pulse = Math.max(0, b.pulse - dt * 3.5);
+    b.shake = Math.max(0, b.shake - dt * 4);
+    positionBlock(b);
+  }
+
+  updateBursts(dt);
+  renderer.render(scene, camera);
+}
+
+/* ---------- boot ---------- */
+buildLevel(0);          // something pretty behind the menu
+sizeRenderer();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
