@@ -1,0 +1,1859 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0F1626">
+<meta name="format-detection" content="telephone=no">
+<title>فرز الألوان</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0F1626;
+  --accent:#1877F2;
+  --fg:#EAF1FF;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
+body{
+  font-family:'Cairo',system-ui,-apple-system,'Segoe UI',sans-serif;
+  color:var(--fg);
+  position:fixed;inset:0;
+  touch-action:none;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  overscroll-behavior:none;
+}
+#app{position:absolute;inset:0;overflow:hidden;}
+#game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
+
+/* ---------- top bar ---------- */
+#topbar{
+  position:absolute;top:0;left:0;right:0;z-index:5;
+  padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 8px;
+  display:flex;flex-direction:column;gap:8px;
+  pointer-events:none;
+}
+#topbar>*{pointer-events:auto;}
+.row{display:flex;align-items:center;gap:6px;}
+.row1{justify-content:space-between;padding:0 4px;}
+.lvl{font-weight:700;font-size:16px;display:flex;align-items:baseline;gap:6px;}
+.lvl b{font-weight:900;color:#9EC5FF;font-size:18px;}
+.mv{font-size:12px;font-weight:600;opacity:.55;}
+.iconbtn{
+  width:34px;height:34px;flex:0 0 34px;border-radius:11px;border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;
+  color:var(--fg);transition:transform .12s ease,background .15s;
+}
+.iconbtn:active{transform:scale(.9);}
+.iconbtn svg{width:18px;height:18px;display:block;}
+.btn{
+  flex:1 1 0;min-width:0;
+  padding:10px 3px;border-radius:13px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.065);
+  color:var(--fg);font-family:inherit;font-weight:700;font-size:12.5px;line-height:1.15;
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  transition:transform .12s ease,background .15s,opacity .18s,border-color .15s;
+}
+.btn:active{transform:scale(.94);}
+.btn.dis{opacity:.3;}
+.btn .n{
+  font-size:10.5px;font-weight:900;background:rgba(255,255,255,.16);
+  border-radius:7px;padding:1px 5px;min-width:18px;text-align:center;
+}
+.btn.accent{background:rgba(24,119,242,.20);border-color:rgba(24,119,242,.48);}
+.btn.accent .n{background:rgba(24,119,242,.45);}
+
+/* ---------- overlays ---------- */
+.overlay{
+  position:absolute;inset:0;z-index:10;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(8,12,22,.74);
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
+  opacity:0;pointer-events:none;transition:opacity .34s ease;
+}
+.overlay.show{opacity:1;pointer-events:auto;}
+/* the win screen sits low and stays light so the finished board and confetti show */
+#scWin{
+  background:rgba(8,12,22,.26);
+  -webkit-backdrop-filter:none;backdrop-filter:none;
+  align-items:flex-end;
+  padding-bottom:calc(env(safe-area-inset-bottom,0px) + 26px);
+}
+.card{
+  width:min(86%,360px);
+  background:linear-gradient(180deg,#1A2438 0%,#111A2B 100%);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:26px;padding:28px 20px 22px;text-align:center;
+  box-shadow:0 26px 64px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.07);
+}
+.title{
+  font-size:34px;font-weight:900;letter-spacing:.5px;margin-bottom:6px;
+  background:linear-gradient(180deg,#FFFFFF 0%,#8FBBFF 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.big{font-size:30px;font-weight:900;margin-bottom:6px;color:#FFE9A8;}
+.sub{font-size:14px;font-weight:600;opacity:.72;margin-bottom:20px;}
+.sub b{font-weight:900;color:#9EC5FF;}
+.cbtns{display:flex;gap:10px;}
+.cbtn{
+  flex:1;padding:14px 8px;border-radius:16px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.07);color:var(--fg);
+  font-family:inherit;font-weight:800;font-size:15px;
+  transition:transform .12s ease,filter .15s;
+}
+.cbtn:active{transform:scale(.95);}
+.cbtn.primary{
+  background:linear-gradient(180deg,#3B8CF7 0%,var(--accent) 100%);
+  border-color:rgba(255,255,255,.18);
+  box-shadow:0 8px 20px rgba(24,119,242,.35);
+}
+.cbtn.wide{width:100%;padding:16px;font-size:17px;}
+.hintline{font-size:12px;opacity:.5;margin-top:16px;line-height:1.7;}
+
+#toast{
+  position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 24px);
+  background:rgba(22,31,50,.94);border:1px solid rgba(255,255,255,.12);
+  padding:9px 18px;border-radius:22px;font-size:13px;font-weight:700;
+  opacity:0;transition:opacity .25s ease;z-index:20;pointer-events:none;white-space:nowrap;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+#toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <header id="topbar">
+    <div class="row row1">
+      <div class="lvl">المستوى <b id="lvlNum" dir="ltr">1</b></div>
+      <div class="row" style="gap:8px">
+        <div class="mv">الحركات: <span id="mvNum" dir="ltr">0</span></div>
+        <button class="iconbtn" id="btnMute" aria-label="الصوت">
+          <svg id="icSound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="4,9 4,15 8,15 13,19 13,5 8,9" fill="currentColor" stroke="none"></polygon>
+            <path id="wave1" d="M16.5 8.5a5 5 0 0 1 0 7"></path>
+            <path id="wave2" d="M19 6a8.5 8.5 0 0 1 0 12"></path>
+            <line id="slash" x1="4" y1="20" x2="20" y2="4" style="display:none"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="row row2">
+      <button class="btn" id="btnUndo">تراجع</button>
+      <button class="btn" id="btnRestart">إعادة</button>
+      <button class="btn accent" id="btnHint">تلميح <span class="n" id="hintN" dir="ltr">3</span></button>
+      <button class="btn" id="btnExtra">أنبوب إضافي</button>
+    </div>
+  </header>
+
+  <div class="overlay show" id="scStart">
+    <div class="card">
+      <div class="title">فرز الألوان</div>
+      <div class="sub">المستوى <b id="startLvl" dir="ltr">1</b></div>
+      <button class="cbtn primary wide" id="btnPlay">ابدأ اللعب</button>
+      <div class="hintline">اضغط على أنبوب لرفع السائل، ثم اضغط على أنبوب آخر لصبّه.<br>رتّب كل لون في أنبوب واحد.</div>
+    </div>
+  </div>
+
+  <div class="overlay" id="scWin">
+    <div class="card">
+      <div class="big">أحسنت!</div>
+      <div class="sub">عدد الحركات: <b id="winMoves" dir="ltr">0</b></div>
+      <div class="cbtns">
+        <button class="cbtn primary" id="btnNext">التالي</button>
+        <button class="cbtn" id="btnAgain">إعادة</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* =======================================================================
+   فرز الألوان — Water Sort Puzzle
+   Single file, Canvas 2D, no libraries.
+   ======================================================================= */
+
+var CAP = 4;                 /* liquid units per tube */
+var LS  = 'water_sort_';
+
+/* ---------------- palette (colorblind-separable hues) ---------------- */
+var PALETTE = [
+  '#2F7DF6', /* blue    */
+  '#F5C518', /* yellow  */
+  '#E0453C', /* red     */
+  '#22D3EE', /* cyan    */
+  '#A855F7', /* purple  */
+  '#FB923C', /* orange  */
+  '#34D399', /* mint    */
+  '#FF6FB5', /* pink    */
+  '#E9EEF6', /* silver  */
+  '#7C4A21', /* brown   */
+  '#BEF264', /* lime    */
+  '#64748B'  /* slate   */
+];
+
+function hex2rgb(h){
+  var n = parseInt(h.slice(1),16);
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function mix(hex, target, t){
+  var a = hex2rgb(hex), b = hex2rgb(target);
+  var r = Math.round(a[0]+(b[0]-a[0])*t);
+  var g = Math.round(a[1]+(b[1]-a[1])*t);
+  var bl= Math.round(a[2]+(b[2]-a[2])*t);
+  return 'rgb('+r+','+g+','+bl+')';
+}
+var COLORS = [];
+for (var ci=0; ci<PALETTE.length; ci++){
+  COLORS.push({
+    base : PALETTE[ci],
+    dark : mix(PALETTE[ci],'#000000',0.30),
+    light: mix(PALETTE[ci],'#FFFFFF',0.38),
+    glow : mix(PALETTE[ci],'#FFFFFF',0.55)
+  });
+}
+
+/* ---------------- tiny utils ---------------- */
+var nowFn = (window.performance && performance.now)
+  ? function(){ return performance.now(); }
+  : function(){ return Date.now(); };
+
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function easeOutCubic(t){ var u=1-t; return 1-u*u*u; }
+function easeInOutCubic(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+function smoothstep(t){ t=clamp(t,0,1); return t*t*(3-2*t); }
+
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    var t = Math.imul(a ^ (a>>>15), 1 | a);
+    t = (t + Math.imul(t ^ (t>>>7), 61 | t)) ^ t;
+    return ((t ^ (t>>>14)) >>> 0) / 4294967296;
+  };
+}
+function seedFor(level){
+  var h = 2166136261>>>0, s = 'watersort|' + level;
+  for (var i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h,16777619); }
+  return h>>>0;
+}
+
+/* =======================================================================
+   BOARD MODEL
+   ======================================================================= */
+function isComplete(t){
+  if (t.length !== CAP) return false;
+  for (var i=1;i<CAP;i++) if (t[i]!==t[0]) return false;
+  return true;
+}
+function isSolved(tt){
+  for (var i=0;i<tt.length;i++){
+    var t = tt[i];
+    if (t.length === 0) continue;
+    if (!isComplete(t)) return false;
+  }
+  return true;
+}
+function topRun(t){
+  if (!t.length) return 0;
+  var c = t[t.length-1], n = 1;
+  for (var k=t.length-2;k>=0 && t[k]===c;k--) n++;
+  return n;
+}
+function uniformCol(b,c){
+  for (var i=0;i<b.length;i++) if (b[i]!==c) return false;
+  return true;
+}
+function cloneState(tt){
+  var out = new Array(tt.length);
+  for (var i=0;i<tt.length;i++) out[i] = tt[i].slice();
+  return out;
+}
+function applyMove(tt, mv){
+  var nt = cloneState(tt), a = nt[mv[0]], b = nt[mv[1]];
+  for (var k=0;k<mv[2];k++) b.push(a.pop());
+  return nt;
+}
+function partialCount(tt){
+  var n=0;
+  for (var i=0;i<tt.length;i++){ var L=tt[i].length; if (L>0 && L<CAP) n++; }
+  return n;
+}
+/* number of colour bands on the board — the mixing / difficulty measure */
+function runsOf(tt){
+  var n=0;
+  for (var i=0;i<tt.length;i++){
+    var t = tt[i];
+    for (var j=0;j<t.length;j++) if (j===0 || t[j]!==t[j-1]) n++;
+  }
+  return n;
+}
+/* a tube can only act as a reverse-pour source while it is uniform or has a
+   top run of 2+; keeping enough of these alive is what stops the scramble
+   walking itself into a dead end */
+function aliveTube(t){
+  if (!t.length) return false;
+  if (topRun(t) >= 2) return true;
+  for (var i=1;i<t.length;i++) if (t[i]!==t[0]) return false;
+  return true;
+}
+/* the classic Water Sort opening: every tube either full or empty */
+function shapeOK(tt){
+  if (partialCount(tt) !== 0) return false;
+  if (isSolved(tt)) return false;
+  for (var i=0;i<tt.length;i++) if (isComplete(tt[i])) return false;
+  return true;
+}
+
+/* ---------------- state encoding ---------------- */
+var TMP_SORT = [];
+function encTube(a){
+  var s='';
+  for (var i=0;i<a.length;i++) s += String.fromCharCode(65+a[i]);
+  return s;
+}
+function rawKey(tt){
+  var s='';
+  for (var i=0;i<tt.length;i++){ if(i) s+='|'; s+=encTube(tt[i]); }
+  return s;
+}
+function canonKey(tt){
+  TMP_SORT.length = 0;
+  for (var i=0;i<tt.length;i++) TMP_SORT.push(encTube(tt[i]));
+  TMP_SORT.sort();
+  return TMP_SORT.join('|');
+}
+function decodeRaw(s){
+  var parts = s.split('|'), out = new Array(parts.length);
+  for (var i=0;i<parts.length;i++){
+    var p = parts[i], a = new Array(p.length);
+    for (var j=0;j<p.length;j++) a[j] = p.charCodeAt(j)-65;
+    out[i] = a;
+  }
+  return out;
+}
+
+/* =======================================================================
+   MOVE GENERATION (solver side, aggressively pruned)
+   ======================================================================= */
+function genMoves(t){
+  var n = t.length, out = [], srcSeen = {};
+  for (var i=0;i<n;i++){
+    var a = t[i];
+    if (a.length === 0) continue;
+    if (isComplete(a)) continue;                 /* never break a finished tube */
+    var sk = a.join(',');
+    if (srcSeen[sk]) continue;                   /* identical sources are equivalent */
+    srcSeen[sk] = 1;
+
+    var c = a[a.length-1];
+    var run = topRun(a);
+    var uniformSrc = (run === a.length);
+    var emptyUsed = false, tgtSeen = {};
+
+    for (var j=0;j<n;j++){
+      if (j===i) continue;
+      var b = t[j];
+      if (b.length >= CAP) continue;
+      if (b.length === 0){
+        if (uniformSrc) continue;                /* pointless: same state, relabelled */
+        if (emptyUsed) continue;                 /* all empty tubes are equivalent */
+        emptyUsed = true;
+      } else {
+        if (b[b.length-1] !== c) continue;
+        var bk = b.join(',');
+        if (tgtSeen[bk]) continue;
+        tgtSeen[bk] = 1;
+      }
+      var amt = Math.min(run, CAP-b.length);
+      if (amt <= 0) continue;
+      out.push([i,j,amt,0]);
+    }
+  }
+  return out;
+}
+function orderMoves(t){
+  var mv = genMoves(t);
+  for (var i=0;i<mv.length;i++){
+    var m = mv[i], a = t[m[0]], b = t[m[1]], c = a[a.length-1], s = 0;
+    if (b.length + m[2] === CAP && uniformCol(b,c)) s += 120;  /* finishes a tube */
+    if (m[2] === a.length) s += 70;                            /* empties the source */
+    if (b.length > 0) s += 18;                                 /* merging beats spilling */
+    if (b.length === 0 && a.length === CAP) s -= 25;
+    s += m[2]*3;
+    m[3] = s;
+  }
+  mv.sort(function(x,y){ return y[3]-x[3]; });
+  return mv;
+}
+
+/* =======================================================================
+   SOLVERS — both time-sliced so the main thread never stalls
+   ======================================================================= */
+function bfsInit(tt){
+  var v = {};
+  v[canonKey(tt)] = 1;
+  return {
+    q:[rawKey(tt)], prev:[-1], mf:[-1], mt:[-1], ma:[0],
+    head:0, visited:v, found: isSolved(tt) ? 0 : -1
+  };
+}
+function bfsStep(s, maxStates, budgetMs){
+  if (s.found >= 0) return 'found';
+  var t0 = nowFn(), iter = 0;
+  var vis = s.visited;
+  while (s.head < s.q.length){
+    if (((iter++) & 15) === 0 && nowFn()-t0 > budgetMs) return 'running';
+    if (s.q.length > maxStates) return 'capped';
+    var idx = s.head++;
+    var tt = decodeRaw(s.q[idx]);
+    var mvs = genMoves(tt);
+    for (var i=0;i<mvs.length;i++){
+      var mv = mvs[i];
+      var nt = applyMove(tt, mv);
+      var ck = canonKey(nt);
+      if (vis[ck]) continue;
+      vis[ck] = 1; s.vn++;
+      s.q.push(rawKey(nt)); s.prev.push(idx);
+      s.mf.push(mv[0]); s.mt.push(mv[1]); s.ma.push(mv[2]);
+      if (isSolved(nt)){ s.found = s.q.length-1; return 'found'; }
+    }
+  }
+  return 'exhausted';
+}
+function bfsPath(s){
+  if (s.found < 0) return null;
+  var path = [], i = s.found;
+  while (i > 0){ path.push([s.mf[i], s.mt[i], s.ma[i]]); i = s.prev[i]; }
+  path.reverse();
+  return path;
+}
+
+var DFS_MAX_DEPTH = 240;
+function dfsInit(tt){
+  var root = { tubes: cloneState(tt), moves: orderMoves(tt), i:0, mv:null };
+  var v = {}; v[canonKey(tt)] = 1;
+  return { stack:[root], visited:v, nodes:0, sol:null };
+}
+function dfsStep(s, maxNodes, budgetMs){
+  var t0 = nowFn(), iter = 0;
+  while (s.stack.length){
+    if (((iter++) & 15) === 0 && nowFn()-t0 > budgetMs) return 'running';
+    if (s.nodes > maxNodes) return 'capped';
+    var fr = s.stack[s.stack.length-1];
+    if (fr.i >= fr.moves.length){ s.stack.pop(); continue; }
+    var mv = fr.moves[fr.i++];
+    var nt = applyMove(fr.tubes, mv);
+    var ck = canonKey(nt);
+    if (s.visited[ck]) continue;
+    s.visited[ck] = 1; s.nodes++;
+    if (isSolved(nt)){
+      var path = [];
+      for (var i=1;i<s.stack.length;i++) path.push(s.stack[i].mv);
+      path.push(mv);
+      s.sol = path;
+      return 'found';
+    }
+    if (s.stack.length >= DFS_MAX_DEPTH) continue;
+    s.stack.push({ tubes:nt, moves:orderMoves(nt), i:0, mv:mv });
+  }
+  return 'exhausted';
+}
+
+/* Synchronous, hard-budgeted BFS used during generation (triviality check). */
+function quickBFS(tt, maxStates, budgetMs){
+  var s = bfsInit(tt), t0 = nowFn(), r;
+  for (;;){
+    r = bfsStep(s, maxStates, 4);
+    if (r === 'found') return bfsPath(s);
+    if (r === 'capped' || r === 'exhausted') return null;
+    if (nowFn()-t0 > budgetMs) return null;
+  }
+}
+
+/* Chunked job: BFS first (optimal), DFS fallback (any solution). */
+function makeSolveJob(tt){
+  return {
+    phase : 'bfs',
+    bfs   : bfsInit(tt),
+    dfs   : null,
+    done  : isSolved(tt),
+    result: isSolved(tt) ? [] : null,
+    step  : function(budgetMs){
+      if (this.done) return true;
+      if (this.phase === 'bfs'){
+        var r = bfsStep(this.bfs, 55000, budgetMs);
+        if (r === 'found'){ this.result = bfsPath(this.bfs); this.done = true; }
+        else if (r === 'capped' || r === 'exhausted'){
+          this.phase = 'dfs';
+          this.dfs = dfsInit(tt);
+          this.bfs = null;
+        }
+      } else {
+        var d = dfsStep(this.dfs, 220000, budgetMs);
+        if (d === 'found'){ this.result = this.dfs.sol; this.done = true; }
+        else if (d === 'capped' || d === 'exhausted'){ this.result = null; this.done = true; }
+      }
+      return this.done;
+    }
+  };
+}
+
+/* =======================================================================
+   LEVEL GENERATION — reverse-legal pours from the SOLVED state.
+   Every generated board is solvable by construction; the recorded reverse
+   walk, played backwards, is a guaranteed forward solution.
+   ======================================================================= */
+function levelConfig(level){
+  var colors, empties;
+  if (level <= 10){ colors = 3; empties = 2; }
+  else if (level <= 30){ colors = (level <= 20) ? 4 : 5; empties = 2; }
+  else if (level <= 60){ colors = (level <= 45) ? 6 : 7; empties = 2; }
+  else if (level <= 100){ colors = (level <= 80) ? 8 : 9; empties = 1; }
+  else { colors = (level <= 140) ? 10 : (level <= 180 ? 11 : 12); empties = 1; }
+
+  /* how far the reverse walk fragments the board before it is closed back up */
+  var base = (empties >= 2) ? (colors*6 - 4) : (colors*4 - 6);
+  var spread = Math.round(base * (1 + Math.min(0.55, level/360)));
+  return { colors:colors, empties:empties, spread:clamp(spread, 10, 260) };
+}
+
+/* Reverse move: take m units of colour c off the top of B, drop them on A.
+   Constraints guarantee the mirrored forward pour A->B is legal and moves
+   exactly m units:
+     - A is empty or A's top colour != c   (so A's run becomes exactly m)
+     - m < run(B), or m == len(B)          (so B stays a legal pour target)   */
+function revCandidates(t, out){
+  out.length = 0;
+  var n = t.length;
+  for (var b=0;b<n;b++){
+    var B = t[b];
+    if (B.length === 0) continue;
+    var c = B[B.length-1];
+    var run = topRun(B);
+    var maxM = (run === B.length) ? run : run-1;
+    if (maxM < 1) continue;
+    for (var a=0;a<n;a++){
+      if (a === b) continue;
+      var A = t[a];
+      if (A.length > 0 && A[A.length-1] === c) continue;
+      var room = CAP - A.length;
+      if (room < 1) continue;
+      var mm = Math.min(maxM, room);
+      for (var m=1;m<=mm;m++){ out.push(b,a,m); }
+    }
+  }
+  return out.length/3;
+}
+function doReverse(t, b, a, m){
+  var B = t[b], A = t[a];
+  for (var k=0;k<m;k++) A.push(B.pop());
+}
+function undoReverse(t, b, a, m){
+  var B = t[b], A = t[a];
+  for (var k=0;k<m;k++) B.push(A.pop());
+}
+
+/* --- phase 1: spread ---------------------------------------------------
+   Fragment the board as hard as possible while keeping at least three tubes
+   able to act as reverse sources, so the walk does not strand itself.      */
+var SPREAD_BUF = [], SPREAD_POOL = [];
+function spreadWalk(t, rng, steps, rev){
+  for (var s=0;s<steps;s++){
+    var cnt = revCandidates(t, SPREAD_BUF);
+    if (!cnt) return;
+    var bestKey = -1e9;
+    SPREAD_POOL.length = 0;
+    for (var i=0;i<cnt;i++){
+      var b = SPREAD_BUF[i*3], a = SPREAD_BUF[i*3+1], m = SPREAD_BUF[i*3+2];
+      doReverse(t, b, a, m);
+      var av = 0;
+      for (var q=0;q<t.length;q++) if (aliveTube(t[q])) av++;
+      var fr = runsOf(t);
+      undoReverse(t, b, a, m);
+      var key = (av > 3 ? 3 : av)*1000 + fr;
+      if (key > bestKey){ bestKey = key; SPREAD_POOL.length = 0; SPREAD_POOL.push(i); }
+      else if (key === bestKey) SPREAD_POOL.push(i);
+    }
+    var j = SPREAD_POOL[(rng()*SPREAD_POOL.length)|0];
+    var mb = SPREAD_BUF[j*3], ma = SPREAD_BUF[j*3+1], mm2 = SPREAD_BUF[j*3+2];
+    doReverse(t, mb, ma, mm2);
+    rev.push([mb, ma, mm2]);
+  }
+}
+
+/* --- phase 2: gather ---------------------------------------------------
+   Best-first search over further reverse pours until the board sits on the
+   classic opening shape (every tube full or empty, nothing pre-solved).    */
+function gatherSearch(startTubes, maxNodes, budgetMs){
+  var seen = {};
+  seen[rawKey(startTubes)] = 1;
+  var frontier = [{
+    t: cloneState(startTubes), path: [],
+    pc: partialCount(startTubes), fr: runsOf(startTubes)
+  }];
+  var nodes = 0, local = [], t0 = nowFn(), spins = 0;
+  while (frontier.length && nodes < maxNodes){
+    if (((spins++) & 7) === 0 && nowFn()-t0 > budgetMs) return null;
+    var bi = 0;
+    for (var i=1;i<frontier.length;i++){
+      var x = frontier[i], y = frontier[bi];
+      if (x.pc < y.pc || (x.pc === y.pc && x.fr > y.fr)) bi = i;
+    }
+    var cur = frontier.splice(bi,1)[0];
+    var cnt = revCandidates(cur.t, local);
+    for (var k=0;k<cnt;k++){
+      var b = local[k*3], a = local[k*3+1], m = local[k*3+2];
+      var nt = cloneState(cur.t);
+      doReverse(nt, b, a, m);
+      var rk = rawKey(nt);
+      if (seen[rk]) continue;
+      seen[rk] = 1; nodes++;
+      var np = cur.path.concat([[b,a,m]]);
+      if (shapeOK(nt)) return { tubes:nt, path:np };
+      if (np.length > 14) continue;
+      frontier.push({ t:nt, path:np, pc:partialCount(nt), fr:runsOf(nt) });
+    }
+    if (frontier.length > 400){
+      frontier.sort(function(p,q){ return (p.pc-q.pc) || (q.fr-p.fr); });
+      frontier.length = 250;
+    }
+  }
+  return null;
+}
+
+function generateLevel(level){
+  var cfg = levelConfig(level);
+  var rng = mulberry32(seedFor(level));
+  var t0  = nowFn();
+
+  /* colour subset — deterministic per level, varied between levels */
+  var poolSize = Math.min(PALETTE.length, cfg.colors+3);
+  var idxs = [], i;
+  for (i=0;i<poolSize;i++) idxs.push(i);
+  for (i=poolSize-1;i>0;i--){
+    var j = (rng()*(i+1))|0, tv = idxs[i]; idxs[i] = idxs[j]; idxs[j] = tv;
+  }
+
+  var maxFrag = cfg.colors*CAP;
+  var goodFrag = Math.round(maxFrag*0.80);
+  var best = null, bestFrag = -1, loose = null;
+
+  for (var attempt=0; attempt<8; attempt++){
+    /* 1. start from the SOLVED board */
+    var tubes = [];
+    for (var c=0;c<cfg.colors;c++){
+      var col = [];
+      for (var u=0;u<CAP;u++) col.push(idxs[c]);
+      tubes.push(col);
+    }
+    for (var e=0;e<cfg.empties;e++) tubes.push([]);
+
+    /* 2. scramble with reverse-legal pours */
+    var rev = [];
+    spreadWalk(tubes, rng, cfg.spread, rev);
+    if (!loose && !isSolved(tubes)) loose = { tubes: cloneState(tubes), rev: rev.slice() };
+
+    /* 3. close the board onto the classic opening shape */
+    var cand = null;
+    if (shapeOK(tubes)) cand = { tubes: cloneState(tubes), rev: rev.slice() };
+    else {
+      var g = gatherSearch(tubes, 4000, 14);
+      if (g) cand = { tubes: g.tubes, rev: rev.concat(g.path) };
+    }
+
+    if (cand){
+      var frag = runsOf(cand.tubes);
+      if (frag > bestFrag){
+        /* 4. small boards are cheap to solve outright — reject trivial ones
+              and keep the optimal path for the hint system */
+        var opt = (cfg.colors <= 5) ? quickBFS(cand.tubes, 22000, 9) : null;
+        if (!(opt && opt.length < 6)){
+          bestFrag = frag;
+          cand.opt = opt;
+          best = cand;
+        }
+      }
+      if (bestFrag >= goodFrag) break;
+    }
+    if (nowFn()-t0 > 34) break;
+  }
+
+  var chosen = best || loose;
+  if (!chosen){
+    /* pathological fallback: hand back a solved-but-shuffled board */
+    var f = [];
+    for (var q=0;q<cfg.colors;q++){
+      var fc = [];
+      for (var w=0;w<CAP;w++) fc.push(idxs[q]);
+      f.push(fc);
+    }
+    for (var z=0;z<cfg.empties;z++) f.push([]);
+    return { tubes:f, path:[], colors:cfg.colors, empties:cfg.empties };
+  }
+
+  /* the reverse walk, played backwards, is a guaranteed forward solution */
+  var path = chosen.opt;
+  if (!path){
+    path = [];
+    for (var r=chosen.rev.length-1;r>=0;r--){
+      path.push([chosen.rev[r][1], chosen.rev[r][0], chosen.rev[r][2]]);
+    }
+  }
+  return { tubes: chosen.tubes, path: path, colors: cfg.colors, empties: cfg.empties };
+}
+
+/* =======================================================================
+   AUDIO — WebAudio only, created on the first user tap
+   ======================================================================= */
+var AC = null, master = null, noiseBuf = null, muted = false;
+function ensureAudio(){
+  if (AC || muted) return;
+  try {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    AC = new Ctx();
+    master = AC.createGain();
+    master.gain.value = 0.85;
+    master.connect(AC.destination);
+    var len = Math.floor(AC.sampleRate*0.5);
+    noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
+    var d = noiseBuf.getChannelData(0);
+    for (var i=0;i<len;i++) d[i] = Math.random()*2-1;
+  } catch(e){ AC = null; }
+}
+function audioOK(){
+  if (muted || !AC) return false;
+  if (AC.state === 'suspended'){ try{ AC.resume(); }catch(e){} }
+  return true;
+}
+function tone(freq, dur, type, vol, slideTo){
+  if (!audioOK()) return;
+  var t = AC.currentTime;
+  var o = AC.createOscillator(), g = AC.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t+dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t+dur+0.02);
+}
+function sfxBlip(up){
+  tone(up ? 620 : 480, 0.10, 'sine', 0.07, up ? 880 : 360);
+}
+function sfxPour(){
+  if (!audioOK() || !noiseBuf) return;
+  var t = AC.currentTime;
+  var src = AC.createBufferSource(); src.buffer = noiseBuf;
+  var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+  bp.frequency.setValueAtTime(520, t);
+  bp.frequency.exponentialRampToValueAtTime(1500, t+0.34);
+  var g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.075, t+0.07);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+0.42);
+  src.connect(bp); bp.connect(g); g.connect(master);
+  src.start(t); src.stop(t+0.46);
+}
+function sfxDing(){
+  tone(1174.7, 0.55, 'sine', 0.075);
+  tone(1760.0, 0.42, 'sine', 0.038);
+}
+function sfxShake(){ tone(180, 0.09, 'triangle', 0.05, 130); }
+function sfxWin(){
+  var n = [523.25, 659.25, 783.99, 1046.5];
+  for (var i=0;i<n.length;i++){
+    (function(f,k){ setTimeout(function(){ tone(f, 0.45, 'sine', 0.07); }, k*110); })(n[i], i);
+  }
+}
+
+/* =======================================================================
+   DOM
+   ======================================================================= */
+var canvas   = document.getElementById('game');
+var ctx      = canvas.getContext('2d');
+var topbar   = document.getElementById('topbar');
+var elLvl    = document.getElementById('lvlNum');
+var elMv     = document.getElementById('mvNum');
+var elHintN  = document.getElementById('hintN');
+var elStart  = document.getElementById('scStart');
+var elWin    = document.getElementById('scWin');
+var elStartL = document.getElementById('startLvl');
+var elWinMv  = document.getElementById('winMoves');
+var elToast  = document.getElementById('toast');
+var btnUndo  = document.getElementById('btnUndo');
+var btnRest  = document.getElementById('btnRestart');
+var btnHint  = document.getElementById('btnHint');
+var btnExtra = document.getElementById('btnExtra');
+var btnMute  = document.getElementById('btnMute');
+var btnPlay  = document.getElementById('btnPlay');
+var btnNext  = document.getElementById('btnNext');
+var btnAgain = document.getElementById('btnAgain');
+var icWave1  = document.getElementById('wave1');
+var icWave2  = document.getElementById('wave2');
+var icSlash  = document.getElementById('slash');
+
+/* =======================================================================
+   GAME STATE
+   ======================================================================= */
+var scene = 'start';                 /* start | play | win */
+var level = 1;                       /* the level on screen right now        */
+var resume = 1;                      /* the level a fresh session opens on   */
+var totalCompleted = 0, bestLevel = 1;
+var tubes = [], done = [], moveCount = 0, history = [];
+var selected = -1, queue = [];
+var hintsLeft = 3, extraUsed = false;
+var hintPath = null, hintIdx = 0, hintFrom = -1, hintTo = -1, hintT = 0, hintPending = false;
+var solveJob = null, solveAnchor = -1;
+var anim = null;                     /* active pour animation */
+
+/* per-tube animation channels */
+var aLift = [], aShake = [], aPop = [];
+
+function resetTubeAnims(){
+  var n = tubes.length;
+  aLift  = new Float32Array(n);
+  aShake = new Float32Array(n);
+  aPop   = new Float32Array(n);
+  for (var i=0;i<n;i++) aPop[i] = 99;
+}
+
+/* =======================================================================
+   LAYOUT / GEOMETRY
+   ======================================================================= */
+var W = 0, H = 0, DPR = 1;
+var tw = 40, th = 128, wall = 4, innerW = 32, innerTop = 0, innerBot = 0, layerH = 24;
+var outerPath = null, innerPath = null;
+var slots = [];
+var spriteW = 0, spriteH = 0, shadowSprite = null, glassSprite = null;
+var bgGlow = null, bgVign = null;
+
+function roundedPath(p, x, y, w, h, rt, rb){
+  p.moveTo(x+rt, y);
+  p.lineTo(x+w-rt, y);
+  p.quadraticCurveTo(x+w, y, x+w, y+rt);
+  p.lineTo(x+w, y+h-rb);
+  p.quadraticCurveTo(x+w, y+h, x+w-rb, y+h);
+  p.lineTo(x+rb, y+h);
+  p.quadraticCurveTo(x, y+h, x, y+h-rb);
+  p.lineTo(x, y+rt);
+  p.quadraticCurveTo(x, y, x+rt, y);
+  p.closePath();
+}
+
+function layout(){
+  W = canvas.clientWidth  || 360;
+  H = canvas.clientHeight || 640;
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width  = Math.max(1, Math.round(W*DPR));
+  canvas.height = Math.max(1, Math.round(H*DPR));
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+
+  var topH = topbar.getBoundingClientRect().height || 90;
+  var areaY = topH + 10;
+  var areaH = Math.max(140, H - areaY - 34);
+
+  var n = Math.max(1, tubes.length);
+  var rows = (n <= 6) ? 1 : 2;
+  var per  = Math.ceil(n/rows);
+  var sidePad = Math.max(8, W*0.028);
+  var slotW = (W - sidePad*2) / per;
+
+  var rowGap = (rows > 1) ? clamp(areaH*0.05, 12, 40) : 0;
+  var maxRowH = (areaH - rowGap*(rows-1)) / rows;
+
+  tw = Math.min(slotW*0.84, 92);
+  th = Math.min(tw*3.55, maxRowH*0.96);
+  tw = Math.max(18, Math.min(tw, th/2.95));
+
+  wall     = Math.max(2, tw*0.085);
+  innerW   = tw - wall*2;
+  innerTop = -th/2 + wall*1.5;
+  innerBot =  th/2 - wall*1.0;
+  layerH   = (innerBot - innerTop) / CAP;
+
+  outerPath = new Path2D();
+  roundedPath(outerPath, -tw/2, -th/2, tw, th, tw*0.20, tw*0.44);
+  innerPath = new Path2D();
+  roundedPath(innerPath, -innerW/2, innerTop-5, innerW, (innerBot-innerTop)+5, innerW*0.10, innerW*0.44);
+
+  /* slot centres — rows kept as one visual group, hit boxes tile the area */
+  var groupH  = rows*th + rowGap*(rows-1);
+  var groupTop = areaY + (areaH - groupH)/2;
+  var hitHH = (rows > 1) ? (th + rowGap)/2 : Math.min(areaH/2, th/2 + 80);
+
+  slots.length = 0;
+  for (var r=0;r<rows;r++){
+    var cnt = (r < rows-1) ? per : (n - per*(rows-1));
+    if (cnt <= 0) continue;
+    var cy = groupTop + th/2 + r*(th + rowGap);
+    var x0 = (W - cnt*slotW)/2 + slotW/2;
+    for (var k=0;k<cnt;k++){
+      slots.push({ x:x0 + k*slotW, y:cy, hw:slotW/2, hh:hitHH });
+    }
+  }
+  while (slots.length < n) slots.push({ x:W/2, y:areaY+areaH/2, hw:slotW/2, hh:hitHH });
+
+  buildSprites();
+  buildBackground(groupTop + groupH/2);
+  dirty = true;
+}
+
+function buildSprites(){
+  var pad = Math.ceil(tw*0.55) + 10;
+  spriteW = Math.ceil(tw + pad*2);
+  spriteH = Math.ceil(th + pad*2);
+
+  /* --- soft drop shadow, drawn beneath the liquid --- */
+  shadowSprite = document.createElement('canvas');
+  shadowSprite.width  = Math.max(1, Math.round(spriteW*DPR));
+  shadowSprite.height = Math.max(1, Math.round(spriteH*DPR));
+  var gs = shadowSprite.getContext('2d');
+  gs.setTransform(DPR,0,0,DPR,0,0);
+  gs.translate(spriteW/2, spriteH/2);
+  gs.save();
+  gs.shadowColor  = 'rgba(0,0,0,0.55)';
+  gs.shadowBlur   = tw*0.55;
+  gs.shadowOffsetY= tw*0.20;
+  gs.fillStyle    = 'rgba(10,16,28,0.80)';
+  gs.fill(outerPath);
+  gs.restore();
+  /* tinted interior so empty tubes read as glass, not holes */
+  var gi = gs.createLinearGradient(-tw/2,0,tw/2,0);
+  gi.addColorStop(0,   'rgba(150,185,255,0.20)');
+  gi.addColorStop(0.34,'rgba(120,155,225,0.085)');
+  gi.addColorStop(0.80,'rgba(120,155,225,0.075)');
+  gi.addColorStop(1,   'rgba(180,210,255,0.15)');
+  gs.fillStyle = gi;
+  gs.fill(outerPath);
+
+  /* --- glass overlay, drawn on top of the liquid --- */
+  glassSprite = document.createElement('canvas');
+  glassSprite.width  = Math.max(1, Math.round(spriteW*DPR));
+  glassSprite.height = Math.max(1, Math.round(spriteH*DPR));
+  var g = glassSprite.getContext('2d');
+  g.setTransform(DPR,0,0,DPR,0,0);
+  g.translate(spriteW/2, spriteH/2);
+
+  g.save();
+  g.clip(outerPath);
+  /* left highlight streak */
+  var hs = g.createLinearGradient(-tw*0.42,0,-tw*0.10,0);
+  hs.addColorStop(0,'rgba(255,255,255,0.00)');
+  hs.addColorStop(0.45,'rgba(255,255,255,0.30)');
+  hs.addColorStop(1,'rgba(255,255,255,0.00)');
+  g.fillStyle = hs;
+  g.fillRect(-tw*0.44, -th/2 + tw*0.20, tw*0.34, th - tw*0.55);
+  /* right reflection */
+  g.fillStyle = 'rgba(255,255,255,0.09)';
+  g.fillRect(tw*0.24, -th/2 + tw*0.26, tw*0.10, th - tw*0.70);
+  /* top rim sheen */
+  var rs = g.createLinearGradient(0,-th/2,0,-th/2+tw*0.5);
+  rs.addColorStop(0,'rgba(255,255,255,0.22)');
+  rs.addColorStop(1,'rgba(255,255,255,0.00)');
+  g.fillStyle = rs;
+  g.fillRect(-tw/2, -th/2, tw, tw*0.5);
+  g.restore();
+
+  g.lineWidth   = Math.max(1.2, tw*0.042);
+  g.strokeStyle = 'rgba(226,238,255,0.34)';
+  g.stroke(outerPath);
+  g.lineWidth   = Math.max(1, tw*0.018);
+  g.strokeStyle = 'rgba(255,255,255,0.13)';
+  g.stroke(innerPath);
+}
+
+function buildBackground(focusY){
+  var cx = W/2, cy = focusY || H*0.56;
+  bgGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W,H)*0.62);
+  bgGlow.addColorStop(0,   'rgba(58,102,178,0.52)');
+  bgGlow.addColorStop(0.42,'rgba(32,58,110,0.24)');
+  bgGlow.addColorStop(1,   'rgba(15,22,38,0.00)');
+
+  bgVign = ctx.createRadialGradient(cx, H*0.5, Math.min(W,H)*0.30, cx, H*0.5, Math.max(W,H)*0.80);
+  bgVign.addColorStop(0,'rgba(0,0,0,0)');
+  bgVign.addColorStop(1,'rgba(0,0,0,0.45)');
+}
+
+/* =======================================================================
+   AMBIENT DUST
+   ======================================================================= */
+var DUST = 30;
+var dX = new Float32Array(DUST), dY = new Float32Array(DUST),
+    dR = new Float32Array(DUST), dV = new Float32Array(DUST),
+    dA = new Float32Array(DUST), dP = new Float32Array(DUST);
+var dustReady = false;
+function initDust(){
+  for (var i=0;i<DUST;i++){
+    dX[i] = Math.random()*Math.max(1,W);
+    dY[i] = Math.random()*Math.max(1,H);
+    dR[i] = 0.7 + Math.random()*1.9;
+    dV[i] = 6 + Math.random()*16;
+    dA[i] = 0.05 + Math.random()*0.16;
+    dP[i] = Math.random()*Math.PI*2;
+  }
+  dustReady = true;
+}
+
+/* =======================================================================
+   PARTICLE POOL (sparkles + confetti)
+   ======================================================================= */
+var PN = 200;
+var pX=new Float32Array(PN), pY=new Float32Array(PN), pVX=new Float32Array(PN), pVY=new Float32Array(PN),
+    pL=new Float32Array(PN), pM=new Float32Array(PN), pS=new Float32Array(PN),
+    pRot=new Float32Array(PN), pVR=new Float32Array(PN);
+var pC=new Int16Array(PN), pT=new Uint8Array(PN);
+var pCur = 0;
+function spawnP(type,x,y,vx,vy,life,size,col){
+  var i = pCur; pCur = (pCur+1)%PN;
+  pT[i]=type; pX[i]=x; pY[i]=y; pVX[i]=vx; pVY[i]=vy;
+  pL[i]=life; pM[i]=life; pS[i]=size; pC[i]=col;
+  pRot[i]=Math.random()*6.28; pVR[i]=(Math.random()-0.5)*10;
+}
+function anyParticles(){
+  for (var i=0;i<PN;i++) if (pL[i] > 0) return true;
+  return false;
+}
+function burstSparkles(x,y,col){
+  for (var i=0;i<16;i++){
+    var a = (i/16)*6.283 + Math.random()*0.4;
+    var sp = 60 + Math.random()*150;
+    spawnP(0, x, y, Math.cos(a)*sp, Math.sin(a)*sp - 40, 0.55+Math.random()*0.35, 1.6+Math.random()*2.4, col);
+  }
+}
+function burstConfetti(){
+  for (var i=0;i<70;i++){
+    var x = W*0.5 + (Math.random()-0.5)*W*0.85;
+    var y = H*0.30 + (Math.random()-0.5)*H*0.16;
+    spawnP(1, x, y, (Math.random()-0.5)*260, -80 - Math.random()*220,
+           1.6+Math.random()*1.1, 4+Math.random()*5, (Math.random()*PALETTE.length)|0);
+  }
+}
+
+/* =======================================================================
+   INPUT
+   ======================================================================= */
+var touchMode = false;
+var lastInput = 0;
+var ambAmp = 1;
+var IDLE_MS = 11000;
+
+function wake(){ lastInput = nowFn(); dirty = true; }
+
+function bindTap(el, fn){
+  var hadTouch = false;
+  el.addEventListener('touchstart', function(e){
+    hadTouch = true; e.preventDefault(); e.stopPropagation();
+    ensureAudio(); wake(); fn();
+  }, {passive:false});
+  el.addEventListener('touchend', function(e){ e.preventDefault(); e.stopPropagation(); }, {passive:false});
+  el.addEventListener('mousedown', function(e){
+    if (hadTouch) return;
+    e.preventDefault(); ensureAudio(); wake(); fn();
+  });
+}
+
+canvas.addEventListener('touchstart', function(e){
+  touchMode = true; e.preventDefault();
+  var t = e.changedTouches[0], r = canvas.getBoundingClientRect();
+  onPointer(t.clientX - r.left, t.clientY - r.top);
+}, {passive:false});
+canvas.addEventListener('touchmove', function(e){ e.preventDefault(); }, {passive:false});
+canvas.addEventListener('touchend',  function(e){ e.preventDefault(); }, {passive:false});
+canvas.addEventListener('touchcancel', function(e){ e.preventDefault(); }, {passive:false});
+canvas.addEventListener('mousedown', function(e){
+  if (touchMode) return;
+  var r = canvas.getBoundingClientRect();
+  onPointer(e.clientX - r.left, e.clientY - r.top);
+});
+document.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+document.addEventListener('dblclick', function(e){ e.preventDefault(); }, {passive:false});
+window.addEventListener('touchmove', function(e){
+  if (e.touches.length > 1) e.preventDefault();
+}, {passive:false});
+
+function onPointer(x,y){
+  ensureAudio(); wake();
+  if (scene !== 'play') return;
+  for (var i=0;i<slots.length && i<tubes.length;i++){
+    var s = slots[i];
+    var hw = Math.max(s.hw, 24);
+    if (Math.abs(x-s.x) <= hw && Math.abs(y-s.y) <= s.hh){ onTapTube(i); return; }
+  }
+}
+
+/* =======================================================================
+   GAME ACTIONS
+   ======================================================================= */
+function canPour(from, to){
+  if (from === to) return false;
+  var a = tubes[from], b = tubes[to];
+  if (!a.length) return false;
+  if (b.length >= CAP) return false;
+  if (b.length === 0) return true;
+  return b[b.length-1] === a[a.length-1];
+}
+
+function shakeTube(i){ aShake[i] = 0.34; sfxShake(); dirty = true; }
+
+function onTapTube(i){
+  if (scene !== 'play') return;
+  if (anim){ if (queue.length < 2) queue.push(i); return; }
+  hintFrom = hintTo = -1; hintT = 0;
+
+  if (selected === -1){
+    if (tubes[i].length === 0 || isComplete(tubes[i])){ shakeTube(i); return; }
+    selected = i; sfxBlip(true); dirty = true;
+  } else if (selected === i){
+    selected = -1; sfxBlip(false); dirty = true;
+  } else if (canPour(selected, i)){
+    var from = selected; selected = -1;
+    doPour(from, i);
+  } else {
+    shakeTube(i); selected = -1; dirty = true;
+  }
+}
+
+function startPourAnim(from, to, amt, col, srcArr, srcStart, dstStart, isUndo){
+  anim = {
+    from:from, to:to, amt:amt, col:col,
+    srcArr:srcArr, srcStart:srcStart, dstStart:dstStart,
+    t:0, dur: isUndo ? 0.34 : 0.46,
+    lipSide: (slots[to].x <= slots[from].x) ? -1 : 1,
+    poured:false, undo:!!isUndo
+  };
+  aLift[from] = 0;
+  dirty = true;
+}
+
+function doPour(from, to){
+  var a = tubes[from];
+  var c = a[a.length-1];
+  var amt = Math.min(topRun(a), CAP - tubes[to].length);
+  var srcArr = a.slice(), srcStart = a.length, dstStart = tubes[to].length;
+  for (var k=0;k<amt;k++) tubes[to].push(a.pop());
+
+  history.push([from, to, amt]);
+  moveCount++;
+
+  if (hintPath && hintIdx < hintPath.length &&
+      hintPath[hintIdx][0] === from && hintPath[hintIdx][1] === to){
+    hintIdx++;
+  } else {
+    hintPath = null; hintIdx = 0;
+  }
+  updateHUD();
+  startPourAnim(from, to, amt, c, srcArr, srcStart, dstStart, false);
+}
+
+function doUndo(){
+  if (scene !== 'play') return;
+  if (anim){ if (queue.length < 2) queue.push(-1); return; }
+  if (!history.length) return;
+  selected = -1;
+  hintFrom = hintTo = -1;
+  var h = history.pop();
+  var from = h[1], to = h[0], amt = h[2];
+  var a = tubes[from];
+  var c = a[a.length-1];
+  var srcArr = a.slice(), srcStart = a.length, dstStart = tubes[to].length;
+  for (var k=0;k<amt;k++) tubes[to].push(a.pop());
+  moveCount = Math.max(0, moveCount-1);
+  hintPath = null; hintIdx = 0;
+  updateHUD();
+  startPourAnim(from, to, amt, c, srcArr, srcStart, dstStart, true);
+}
+
+function finishAnim(){
+  var to = anim.to;
+  var wasDone = done[to];
+  anim = null;
+  for (var i=0;i<tubes.length;i++) done[i] = isComplete(tubes[i]);
+
+  if (!wasDone && done[to]){
+    aPop[to] = 0;
+    burstSparkles(slots[to].x, slots[to].y - th*0.25, tubes[to][0]);
+    sfxDing();
+  }
+  dirty = true;
+
+  if (isSolved(tubes)){ startWin(); return; }
+
+  while (queue.length){
+    var q = queue.shift();
+    if (q === -1){ doUndo(); return; }
+    onTapTube(q);
+    if (anim) return;
+  }
+}
+
+/* =======================================================================
+   HINTS
+   ======================================================================= */
+function startSolve(){
+  solveJob = makeSolveJob(cloneState(tubes));
+  solveAnchor = moveCount;
+}
+function hintMoveValid(mv){
+  if (!mv) return false;
+  if (mv[0] >= tubes.length || mv[1] >= tubes.length) return false;
+  return canPour(mv[0], mv[1]);
+}
+function showHintMove(mv){
+  hintFrom = mv[0]; hintTo = mv[1]; hintT = 3.6;
+  selected = -1;
+  dirty = true;
+}
+function requestHint(){
+  if (scene !== 'play' || anim) return;
+  if (hintsLeft <= 0){ toast('لا توجد تلميحات متبقية'); return; }
+
+  if (hintPath && hintIdx < hintPath.length && hintMoveValid(hintPath[hintIdx])){
+    hintsLeft--; save(); updateHUD();
+    showHintMove(hintPath[hintIdx]);
+    sfxBlip(true);
+    return;
+  }
+  hintPath = null; hintIdx = 0;
+  hintPending = true;
+  startSolve();
+  toast('جاري البحث عن أفضل حركة…');
+}
+function onSolveDone(job){
+  var stale = (solveAnchor !== moveCount);   /* board moved on while solving */
+  if (!stale && job.result && job.result.length){
+    hintPath = job.result; hintIdx = 0;
+  }
+  if (!hintPending) return;
+  hintPending = false;
+  if (stale){ toast(''); return; }
+  if (hintPath && hintMoveValid(hintPath[0])){
+    hintsLeft--; save(); updateHUD();
+    showHintMove(hintPath[0]);
+    sfxBlip(true);
+    toast('');
+  } else {
+    toast('لم يتم العثور على تلميح');
+  }
+}
+
+function addExtraTube(){
+  if (scene !== 'play' || anim) return;
+  if (extraUsed){ toast('تم استخدام الأنبوب الإضافي'); return; }
+  extraUsed = true;
+  tubes.push([]);
+  done.push(false);
+  resizeAnimArrays();
+  hintPath = null; hintIdx = 0; hintFrom = hintTo = -1;
+  layout(); updateHUD(); save();
+  startSolve();
+  sfxBlip(true);
+  toast('تمت إضافة أنبوب');
+}
+function resizeAnimArrays(){
+  var n = tubes.length;
+  var l = new Float32Array(n), s = new Float32Array(n), p = new Float32Array(n);
+  for (var i=0;i<n;i++){
+    l[i] = i < aLift.length  ? aLift[i]  : 0;
+    s[i] = i < aShake.length ? aShake[i] : 0;
+    p[i] = i < aPop.length   ? aPop[i]   : 99;
+  }
+  aLift = l; aShake = s; aPop = p;
+}
+
+/* =======================================================================
+   LEVEL FLOW
+   ======================================================================= */
+function startLevel(n, keepHelpers){
+  level = n; resume = n;
+  var gen = generateLevel(n);
+  tubes = gen.tubes;
+  if (!keepHelpers){ hintsLeft = 3; extraUsed = false; }
+  if (extraUsed) tubes.push([]);
+
+  done = [];
+  for (var i=0;i<tubes.length;i++) done.push(isComplete(tubes[i]));
+
+  moveCount = 0; history.length = 0; selected = -1; queue.length = 0;
+  anim = null;
+  hintPath = gen.path; hintIdx = 0;
+  hintFrom = hintTo = -1; hintT = 0; hintPending = false;
+
+  resetTubeAnims();
+  scene = 'play';
+  elWin.classList.remove('show');
+  elStart.classList.remove('show');
+  layout();
+  if (!dustReady) initDust();
+  updateHUD();
+  save();
+  startSolve();
+  wake();
+}
+
+function startWin(){
+  scene = 'win';
+  selected = -1;
+  for (var i=0;i<tubes.length;i++) aPop[i] = -i*0.075;
+  burstConfetti();
+  sfxWin();
+  if (level >= bestLevel){ bestLevel = level+1; totalCompleted++; }
+  elWinMv.textContent = String(moveCount);
+  setTimeout(function(){
+    if (scene === 'win') elWin.classList.add('show');
+  }, 900);
+  /* the board on screen stays the level just cleared; only the resume point moves on */
+  hintsLeft = 3; extraUsed = false;
+  resume = level + 1;
+  save();
+  wake();
+}
+
+function restartLevel(){ startLevel(level, true); }
+
+/* =======================================================================
+   HUD / STORAGE
+   ======================================================================= */
+var toastTimer = 0;
+function toast(msg){
+  if (toastTimer) clearTimeout(toastTimer);
+  if (!msg){ elToast.classList.remove('show'); return; }
+  elToast.textContent = msg;
+  elToast.classList.add('show');
+  toastTimer = setTimeout(function(){ elToast.classList.remove('show'); }, 1700);
+}
+function updateHUD(){
+  elLvl.textContent   = String(level);
+  elMv.textContent    = String(moveCount);
+  elHintN.textContent = String(hintsLeft);
+  btnUndo.classList.toggle('dis', history.length === 0);
+  btnHint.classList.toggle('dis', hintsLeft === 0);
+  btnExtra.classList.toggle('dis', extraUsed);
+}
+function save(){
+  try {
+    localStorage.setItem(LS+'level', String(resume));
+    localStorage.setItem(LS+'best', String(bestLevel));
+    localStorage.setItem(LS+'completed', String(totalCompleted));
+    localStorage.setItem(LS+'hints', String(hintsLeft));
+    localStorage.setItem(LS+'extra', extraUsed ? '1' : '0');
+    localStorage.setItem(LS+'mute', muted ? '1' : '0');
+  } catch(e){}
+}
+function load(){
+  try {
+    var v = parseInt(localStorage.getItem(LS+'level'),10);
+    if (v > 0) level = v;
+    resume = level;
+    var b = parseInt(localStorage.getItem(LS+'best'),10);
+    bestLevel = (b > 0) ? b : level;
+    var c = parseInt(localStorage.getItem(LS+'completed'),10);
+    totalCompleted = (c >= 0 && !isNaN(c)) ? c : 0;
+    var h = parseInt(localStorage.getItem(LS+'hints'),10);
+    hintsLeft = (!isNaN(h) && h>=0 && h<=3) ? h : 3;
+    extraUsed = localStorage.getItem(LS+'extra') === '1';
+    muted     = localStorage.getItem(LS+'mute') === '1';
+  } catch(e){}
+  applyMuteIcon();
+}
+function applyMuteIcon(){
+  icWave1.style.display = muted ? 'none' : '';
+  icWave2.style.display = muted ? 'none' : '';
+  icSlash.style.display = muted ? '' : 'none';
+}
+
+/* =======================================================================
+   RENDERING
+   ======================================================================= */
+var dirty = true;
+
+function drawLiquid(arr, level4, dimmed, phase, wob){
+  if (level4 <= 0.002 || !arr.length) return;
+  var fullN = Math.floor(level4 + 1e-6);
+  var frac  = level4 - fullN;
+  var n = Math.min(arr.length, frac > 0.004 ? fullN+1 : fullN);
+  if (n <= 0) return;
+
+  ctx.save();
+  ctx.clip(innerPath);
+  if (dimmed) ctx.globalAlpha = 0.70;
+
+  var x0 = -innerW/2, x1 = innerW/2;
+  var edge = Math.max(1.5, layerH*0.09);
+  var line = Math.max(1.0, layerH*0.06);
+
+  /* consecutive same-coloured units read as one solid band — no seams */
+  var i = 0;
+  while (i < n){
+    var c = arr[i], j = i;
+    while (j+1 < n && arr[j+1] === c) j++;
+
+    var isSurface = (j === n-1);
+    var topUnits  = (isSurface && frac > 0.004) ? (j + frac) : (j + 1);
+    var yb = innerBot - i*layerH;
+    var yt = innerBot - topUnits*layerH;
+    var col = COLORS[c];
+
+    if (isSurface && wob > 0.03){
+      ctx.beginPath();
+      ctx.moveTo(x0, yb);
+      ctx.lineTo(x0, yt);
+      var SEG = 8, k, t, xx;
+      for (k=0;k<=SEG;k++){
+        t = k/SEG; xx = x0 + innerW*t;
+        ctx.lineTo(xx, yt + Math.sin(phase + t*4.712)*wob);
+      }
+      ctx.lineTo(x1, yb);
+      ctx.closePath();
+      ctx.fillStyle = col.base;
+      ctx.fill();
+      ctx.beginPath();
+      for (k=0;k<=SEG;k++){
+        t = k/SEG; xx = x0 + innerW*t;
+        var yy = yt + Math.sin(phase + t*4.712)*wob;
+        if (k===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
+      }
+      ctx.strokeStyle = col.light;
+      ctx.lineWidth = line*1.4;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = col.base;
+      ctx.fillRect(x0, yt, innerW, yb-yt);
+      ctx.fillStyle = col.light;      /* lighter surface line at the band top */
+      ctx.fillRect(x0, yt, innerW, line);
+    }
+    ctx.fillStyle = col.dark;         /* darker edge along the band bottom */
+    ctx.fillRect(x0, yb-edge, innerW, edge);
+    i = j+1;
+  }
+  ctx.restore();
+}
+
+/* selection rise, kept near 20px whatever the tube size */
+function liftPx(){ return clamp(tw*0.36, 16, 26); }
+
+function renderTube(arr, fillLevel, dimmed, glow, phase){
+  ctx.drawImage(shadowSprite, -spriteW/2, -spriteH/2, spriteW, spriteH);
+  var wob = dimmed ? 0 : layerH*0.038*ambAmp;
+  drawLiquid(arr, fillLevel, dimmed, phase, wob);
+  ctx.globalAlpha = dimmed ? 0.82 : 1;
+  ctx.drawImage(glassSprite, -spriteW/2, -spriteH/2, spriteW, spriteH);
+  ctx.globalAlpha = 1;
+  if (glow > 0.01){
+    ctx.save();
+    ctx.shadowColor = 'rgba(24,119,242,0.95)';
+    ctx.shadowBlur  = 16*glow;
+    ctx.lineWidth   = Math.max(1.6, tw*0.055);
+    ctx.strokeStyle = 'rgba(140,190,255,' + (0.35+0.5*glow) + ')';
+    ctx.stroke(outerPath);
+    ctx.stroke(outerPath);
+    ctx.restore();
+  }
+}
+
+function drawHintRing(i, pulse, isSrc){
+  var s = slots[i];
+  ctx.save();
+  ctx.translate(s.x, s.y - (aLift[i]||0)*liftPx());
+  ctx.lineWidth = Math.max(2, tw*0.07);
+  ctx.strokeStyle = isSrc
+    ? 'rgba(24,119,242,' + (0.45+0.45*pulse) + ')'
+    : 'rgba(255,214,120,' + (0.45+0.45*pulse) + ')';
+  ctx.shadowColor = isSrc ? 'rgba(24,119,242,0.9)' : 'rgba(255,200,90,0.9)';
+  ctx.shadowBlur = 14;
+  ctx.stroke(outerPath);
+  ctx.restore();
+
+  if (!isSrc){
+    var ay = s.y - th/2 - 12 - pulse*5;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,214,120,' + (0.55+0.4*pulse) + ')';
+    ctx.beginPath();
+    ctx.moveTo(s.x, ay + 10);
+    ctx.lineTo(s.x - 8, ay);
+    ctx.lineTo(s.x + 8, ay);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+var timeT = 0;
+
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,W,H);
+
+  /* background */
+  ctx.fillStyle = '#0F1626';
+  ctx.fillRect(0,0,W,H);
+  if (bgGlow){ ctx.fillStyle = bgGlow; ctx.fillRect(0,0,W,H); }
+
+  /* dust */
+  if (dustReady && ambAmp > 0.02){
+    ctx.fillStyle = '#BFD6FF';
+    for (var d=0;d<DUST;d++){
+      ctx.globalAlpha = dA[d]*ambAmp;
+      ctx.beginPath();
+      ctx.arc(dX[d] + Math.sin(dP[d])*6, dY[d], dR[d], 0, 6.283);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (bgVign){ ctx.fillStyle = bgVign; ctx.fillRect(0,0,W,H); }
+
+  /* tubes */
+  for (var i=0;i<tubes.length;i++){
+    if (anim && i === anim.from) continue;
+    var s = slots[i];
+    if (!s) continue;
+
+    var lift = aLift[i]*liftPx();
+    var shx = 0;
+    if (aShake[i] > 0){
+      var sp = aShake[i]/0.34;
+      shx = Math.sin(aShake[i]*70)*tw*0.16*sp;
+    }
+    var scale = 1;
+    if (aPop[i] >= 0 && aPop[i] < 0.46){
+      scale = 1 + 0.17*Math.sin(Math.PI*(aPop[i]/0.46));
+    }
+
+    var fill = tubes[i].length;
+    if (anim && i === anim.to){
+      var q = pourProgress();
+      fill = anim.dstStart + anim.amt*q;
+    }
+
+    ctx.save();
+    ctx.translate(s.x + shx, s.y - lift);
+    if (scale !== 1) ctx.scale(scale, scale);
+    /* dimming marks a finished tube mid-game; on the win screen everything is
+       finished, so keep the board bright for the celebration */
+    renderTube(tubes[i], fill, done[i] && scene !== 'win',
+               (selected === i ? aLift[i] : 0), timeT*2.1 + i*0.9);
+    ctx.restore();
+  }
+
+  /* hint highlights */
+  if (hintT > 0 && hintFrom >= 0 && hintTo >= 0 && !anim){
+    var pulse = 0.5 + 0.5*Math.sin(timeT*6.5);
+    drawHintRing(hintFrom, pulse, true);
+    drawHintRing(hintTo, pulse, false);
+  }
+
+  /* pouring tube + stream */
+  if (anim) drawPour();
+
+  /* particles */
+  drawParticles();
+}
+
+function pourProgress(){
+  if (!anim) return 0;
+  var p = anim.t/anim.dur;
+  return smoothstep((p-0.30)/0.50);
+}
+
+function drawPour(){
+  var p = clamp(anim.t/anim.dur, 0, 1);
+  var a;
+  if (p < 0.30)      a = easeOutCubic(p/0.30);
+  else if (p < 0.80) a = 1;
+  else               a = 1 - easeInOutCubic((p-0.80)/0.20);
+
+  var sf = slots[anim.from], st = slots[anim.to];
+  var side = anim.lipSide;
+  var lipLX = side*tw/2, lipLY = -th/2;
+
+  var restX = sf.x + lipLX, restY = sf.y + lipLY;
+  var tgtX  = st.x - side*tw*0.12;
+  var tgtY  = st.y - th/2 - th*0.17;
+
+  var px = restX + (tgtX-restX)*a;
+  var py = restY + (tgtY-restY)*a - Math.sin(a*Math.PI)*th*0.16;
+  var ang = side*1.13*a;
+
+  var q = pourProgress();
+  var srcFill = anim.srcStart - anim.amt*q;
+
+  /* stream */
+  if (q > 0.001 && q < 0.999){
+    var dstFill = anim.dstStart + anim.amt*q;
+    var ex = st.x;
+    var ey = st.y + innerBot - dstFill*layerH;
+    var head = clamp(q*3.2, 0, 1);
+    var tail = clamp((q-0.70)/0.30, 0, 1);
+    var col  = COLORS[anim.col];
+    var wdt  = Math.max(3, tw*0.20);
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    strokeStream(px, py, ex, ey, tail, head, wdt, col.base);
+    strokeStream(px, py, ex, ey, tail, head, Math.max(1.2, wdt*0.34), col.light);
+    ctx.restore();
+
+    if (head > 0.98 && tail < 0.9){
+      ctx.save();
+      ctx.globalAlpha = 0.45*(1-tail);
+      ctx.fillStyle = col.light;
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, innerW*0.36, Math.max(2, layerH*0.16), 0, 0, 6.283);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /* the tilted tube itself, above everything */
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(ang);
+  ctx.translate(-lipLX, -lipLY);
+  renderTube(anim.srcArr, srcFill, false, 0, timeT*2.1);
+  ctx.restore();
+}
+
+function strokeStream(x0,y0,x1,y1,tail,head,w,color){
+  var cx = x0 + (x1-x0)*0.55, cy = y0 + (y1-y0)*0.10;
+  ctx.beginPath();
+  var N = 16, started = false;
+  for (var i=0;i<=N;i++){
+    var t = i/N;
+    if (t < tail || t > head) continue;
+    var mt = 1-t;
+    var x = mt*mt*x0 + 2*mt*t*cx + t*t*x1;
+    var y = mt*mt*y0 + 2*mt*t*cy + t*t*y1;
+    if (!started){ ctx.moveTo(x,y); started = true; } else ctx.lineTo(x,y);
+  }
+  if (!started) return;
+  ctx.lineWidth = w;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+}
+
+function drawParticles(){
+  for (var i=0;i<PN;i++){
+    if (pL[i] <= 0) continue;
+    var k = pL[i]/pM[i];
+    var col = COLORS[pC[i]] || COLORS[0];
+    if (pT[i] === 0){
+      ctx.globalAlpha = clamp(k,0,1);
+      ctx.fillStyle = col.glow;
+      ctx.beginPath();
+      ctx.arc(pX[i], pY[i], pS[i]*k, 0, 6.283);
+      ctx.fill();
+    } else {
+      ctx.globalAlpha = clamp(k*1.4,0,1);
+      ctx.save();
+      ctx.translate(pX[i], pY[i]);
+      ctx.rotate(pRot[i]);
+      ctx.fillStyle = col.base;
+      ctx.fillRect(-pS[i]*0.5, -pS[i]*0.35, pS[i], pS[i]*0.7);
+      ctx.restore();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* =======================================================================
+   UPDATE
+   ======================================================================= */
+function anythingAnimating(){
+  if (anim) return true;
+  if (hintT > 0) return true;
+  if (ambAmp > 0.02) return true;
+  for (var i=0;i<tubes.length;i++){
+    if (aShake[i] > 0) return true;
+    if (aPop[i] > -10 && aPop[i] < 0.46) return true;
+    var target = (selected === i) ? 1 : 0;
+    if (Math.abs(aLift[i] - target) > 0.002) return true;
+  }
+  if (anyParticles()) return true;
+  if (solveJob && !solveJob.done) return true;
+  return false;
+}
+
+function update(dt){
+  timeT += dt;
+
+  /* ambient settle so the game idles at ~zero CPU */
+  var idle = nowFn() - lastInput;
+  var targetAmb = (idle < IDLE_MS) ? 1 : 0;
+  ambAmp += (targetAmb - ambAmp) * Math.min(1, dt*2.4);
+  if (ambAmp < 0.02 && targetAmb === 0) ambAmp = 0;
+
+  /* dust */
+  if (dustReady && ambAmp > 0.02){
+    for (var d=0;d<DUST;d++){
+      dY[d] -= dV[d]*dt*ambAmp;
+      dP[d] += dt*0.7;
+      if (dY[d] < -6){ dY[d] = H+6; dX[d] = Math.random()*W; }
+    }
+  }
+
+  /* per tube channels */
+  for (var i=0;i<tubes.length;i++){
+    var target = (selected === i && !anim) ? 1 : 0;
+    aLift[i] += (target - aLift[i]) * Math.min(1, dt*14);
+    if (Math.abs(aLift[i]-target) < 0.002) aLift[i] = target;
+    if (aShake[i] > 0){ aShake[i] -= dt; if (aShake[i] < 0) aShake[i] = 0; }
+    if (aPop[i] < 0.46) aPop[i] += dt;
+  }
+
+  /* pour animation */
+  if (anim){
+    anim.t += dt;
+    if (!anim.poured && anim.t/anim.dur >= 0.30){ anim.poured = true; if (!anim.undo) sfxPour(); }
+    if (anim.t >= anim.dur) finishAnim();
+  }
+
+  if (hintT > 0){ hintT -= dt; if (hintT <= 0){ hintT = 0; hintFrom = hintTo = -1; } }
+
+  /* particles */
+  for (var p=0;p<PN;p++){
+    if (pL[p] <= 0) continue;
+    pL[p] -= dt;
+    if (pT[p] === 0){
+      pVY[p] += 420*dt;
+      pVX[p] *= (1 - Math.min(1, dt*2.4));
+    } else {
+      pVY[p] += 520*dt;
+      pVX[p] *= (1 - Math.min(1, dt*0.6));
+      pRot[p] += pVR[p]*dt;
+    }
+    pX[p] += pVX[p]*dt;
+    pY[p] += pVY[p]*dt;
+  }
+
+  /* time-sliced solver */
+  if (solveJob && !solveJob.done){
+    solveJob.step(hintPending ? 9 : 5);
+    if (solveJob.done){
+      var j = solveJob; solveJob = null;
+      onSolveDone(j);
+    }
+  }
+}
+
+/* =======================================================================
+   MAIN LOOP
+   ======================================================================= */
+var rafId = 0, lastTs = 0, lastDraw = 0, running = false;
+
+function frame(ts){
+  rafId = requestAnimationFrame(frame);
+  var dt = (ts - lastTs)/1000;
+  lastTs = ts;
+  if (!isFinite(dt) || dt < 0) dt = 0;
+  if (dt > 0.05) dt = 0.05;
+
+  update(dt);
+
+  var busy = anythingAnimating();
+  if (dirty || busy){
+    var heavy = !!anim || hintT > 0 || anyParticles();
+    if (heavy || dirty || (ts - lastDraw) > 32){
+      draw();
+      lastDraw = ts;
+      dirty = false;
+    }
+  }
+}
+function startLoop(){
+  if (running) return;
+  running = true;
+  lastTs = nowFn();
+  rafId = requestAnimationFrame(frame);
+}
+function stopLoop(){
+  if (!running) return;
+  running = false;
+  cancelAnimationFrame(rafId);
+}
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden){ stopLoop(); }
+  else { lastTs = nowFn(); dirty = true; wake(); startLoop(); }
+});
+
+/* =======================================================================
+   RESIZE
+   ======================================================================= */
+var resizePending = false;
+function requestLayout(){
+  if (resizePending) return;
+  resizePending = true;
+  requestAnimationFrame(function(){
+    resizePending = false;
+    layout();
+    if (dustReady){
+      for (var i=0;i<DUST;i++){
+        if (dX[i] > W) dX[i] = Math.random()*W;
+        if (dY[i] > H) dY[i] = Math.random()*H;
+      }
+    }
+    wake();
+  });
+}
+window.addEventListener('resize', requestLayout);
+window.addEventListener('orientationchange', function(){ setTimeout(requestLayout, 120); });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', requestLayout);
+
+/* =======================================================================
+   BUTTONS
+   ======================================================================= */
+bindTap(btnUndo,  function(){ doUndo(); });
+bindTap(btnRest,  function(){ restartLevel(); });
+bindTap(btnHint,  function(){ requestHint(); });
+bindTap(btnExtra, function(){ addExtraTube(); });
+bindTap(btnMute,  function(){
+  muted = !muted;
+  applyMuteIcon();
+  if (!muted) ensureAudio();
+  if (master) master.gain.value = muted ? 0 : 0.85;
+  save();
+  toast(muted ? 'الصوت مغلق' : 'الصوت مفتوح');
+});
+bindTap(btnPlay,  function(){ startLevel(resume, true); });
+bindTap(btnNext,  function(){ startLevel(level+1, false); });
+bindTap(btnAgain, function(){ startLevel(level, false); });
+
+/* =======================================================================
+   BOOT
+   ======================================================================= */
+function boot(){
+  load();
+  elStartL.textContent = String(resume);
+  tubes = []; done = [];
+  resetTubeAnims();
+  layout();
+  initDust();
+  updateHUD();
+  wake();
+  startLoop();
+  /* keep the start screen fully static until the first tap */
+  dirty = true;
+}
+boot();
+
+/* relayout once webfonts land (top bar height can change) */
+if (document.fonts && document.fonts.ready){
+  document.fonts.ready.then(function(){ requestLayout(); });
+}
+
+})();
+</script>
+</body>
+</html>
