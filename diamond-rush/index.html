@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0F1626">
+<meta name="format-detection" content="telephone=no">
+<title>سباق الألماس</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   سباق الألماس — Diamond Rush
+   3D endless lane runner with math gates. Three.js r128, no assets, one file.
+   ========================================================================== */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#0F1626;}
+body{
+  font-family:'Cairo','Segoe UI',sans-serif;color:#EAF1FF;
+  position:fixed;inset:0;touch-action:none;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+}
+#app{position:absolute;inset:0;overflow:hidden;background:#0F1626;}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;}
+
+/* Western digits inside an RTL document */
+.num{direction:ltr;unicode-bidi:isolate;font-feature-settings:"lnum" 1;}
+
+/* #ui is sized by JS onto the portrait play-viewport (letterboxed if wide) */
+#ui{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;overflow:hidden;}
+button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer;}
+.hide{display:none !important;}
+
+/* ---- speed streaks at the screen edges, opacity driven by speed --------- */
+#streaks{
+  position:absolute;inset:0;pointer-events:none;opacity:0;z-index:2;
+  background:
+    linear-gradient(90deg,rgba(143,205,255,.5) 0%,rgba(143,205,255,0) 18%),
+    linear-gradient(270deg,rgba(143,205,255,.5) 0%,rgba(143,205,255,0) 18%);
+  mix-blend-mode:screen;
+}
+/* full-screen colour flash when a gate is crossed */
+#flash{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:3;}
+
+/* ------------------------------------------------------------------ HUD -- */
+#hud{
+  position:absolute;left:0;right:0;top:0;z-index:6;
+  padding:calc(env(safe-area-inset-top,0px) + 6px) 10px 8px;
+  display:flex;flex-direction:column;gap:6px;
+  /* the HUD is deliberately confined to the top ~13% — gates rise into view
+     around 34% down the screen and must never be covered */
+  background:linear-gradient(180deg,rgba(9,14,26,.9),rgba(9,14,26,.45) 65%,rgba(9,14,26,0));
+}
+.hrow{display:flex;align-items:center;gap:8px;direction:ltr;}
+.iconbtn{
+  pointer-events:auto;width:36px;height:36px;flex:0 0 36px;border-radius:11px;
+  background:rgba(22,32,56,.9);border:1.5px solid rgba(24,119,242,.55);
+  font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;
+}
+.iconbtn:active{transform:scale(.93);}
+#lives{display:flex;gap:4px;align-items:center;height:36px;}
+.life{width:16px;height:16px;background:#FF4757;transform:rotate(45deg);border-radius:3px;
+  box-shadow:0 0 8px rgba(255,71,87,.5);transition:opacity .2s,transform .2s;}
+.life.off{opacity:.25;transform:rotate(45deg) scale(.7);background:#54607F;box-shadow:none;}
+
+#dcount{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:36px;
+}
+#dIcon{width:19px;height:19px;background:linear-gradient(160deg,#CFF6FF,#3FB6E8);
+  transform:rotate(45deg);border-radius:3px;box-shadow:0 0 10px rgba(120,225,255,.7);}
+#dVal{font-size:27px;font-weight:900;letter-spacing:-.5px;color:#EAFBFF;
+  text-shadow:0 2px 0 rgba(6,20,45,.7),0 0 16px rgba(120,225,255,.5);}
+#dVal.bump{animation:bump .22s ease-out;}
+@keyframes bump{0%{transform:scale(1);}45%{transform:scale(1.28);}100%{transform:scale(1);}}
+
+#pbar{height:5px;border-radius:3px;background:rgba(255,255,255,.13);overflow:hidden;}
+#pfill{height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#1877F2,#5EEAD4);}
+
+/* active power-up pips */
+#pups{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 92px);
+  z-index:6;display:flex;gap:6px;justify-content:center;pointer-events:none;}
+.pup{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:11px;
+  background:rgba(15,22,38,.85);border:1.5px solid rgba(94,234,212,.5);font-size:11px;font-weight:900;}
+.pup i{font-style:normal;font-size:13px;}
+
+/* --------------------------------------------------------------- SCREENS -- */
+.screen{position:absolute;inset:0;z-index:20;pointer-events:auto;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:14px;}
+.dim{background:rgba(6,10,20,.82);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);}
+.panel{
+  width:100%;max-width:330px;border-radius:22px;padding:20px 18px;
+  background:linear-gradient(180deg,#182444,#0F1626);
+  border:1.5px solid rgba(24,119,242,.34);box-shadow:0 18px 44px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;align-items:center;gap:13px;
+  animation:pop .28s cubic-bezier(.2,1.5,.4,1);
+}
+@keyframes pop{from{transform:scale(.86);opacity:0;}to{transform:scale(1);opacity:1;}}
+.ptitle{font-size:25px;font-weight:900;letter-spacing:-.5px;text-align:center;}
+.psub{font-size:13px;font-weight:700;opacity:.7;text-align:center;line-height:1.6;}
+.btn{
+  pointer-events:auto;width:100%;padding:13px 16px;border-radius:15px;
+  font-size:16px;font-weight:900;letter-spacing:-.2px;
+  background:linear-gradient(180deg,#2E8BFF,#1259C8);
+  box-shadow:0 4px 0 #0B3D8F,0 8px 18px rgba(24,119,242,.32);
+  transition:transform .08s,box-shadow .08s;
+}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #0B3D8F;}
+.btn.ghost{background:linear-gradient(180deg,#2A3556,#1B2440);box-shadow:0 4px 0 #101830;}
+.btn.ghost:active{box-shadow:0 1px 0 #101830;}
+.btn.sm{font-size:14px;padding:11px 14px;}
+.brow{display:flex;gap:9px;width:100%;}
+
+.stats{width:100%;display:flex;flex-direction:column;gap:7px;}
+.srow{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;
+  border-radius:12px;background:rgba(255,255,255,.05);font-size:13px;font-weight:700;}
+.srow b{font-size:16px;font-weight:900;color:#8FE9FF;}
+.srow.tot{background:rgba(24,119,242,.16);border:1px solid rgba(24,119,242,.3);}
+.srow.tot b{font-size:22px;}
+
+.stars{display:flex;gap:10px;align-items:center;justify-content:center;height:52px;}
+.st{width:40px;height:40px;opacity:.2;transform:scale(.5);}
+.st.on{opacity:1;animation:stamp .42s cubic-bezier(.2,1.7,.4,1) forwards;}
+@keyframes stamp{0%{transform:scale(2.1) rotate(-22deg);opacity:0;}55%{opacity:1;}100%{transform:scale(1) rotate(0);opacity:1;}}
+
+/* ------------------------------------------------------------------ MENU -- */
+#menu{justify-content:flex-end;padding-bottom:34px;gap:12px;background:transparent;}
+#menuTitle{
+  font-size:44px;font-weight:900;letter-spacing:-1.5px;line-height:1;text-align:center;
+  background:linear-gradient(180deg,#EAF6FF 6%,#8FE9FF 46%,#1877F2 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 5px 0 rgba(8,20,45,.55)) drop-shadow(0 12px 22px rgba(24,119,242,.4));
+}
+#menuCard{width:100%;max-width:300px;display:flex;flex-direction:column;gap:10px;align-items:center;}
+#bestChip{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:14px;
+  background:rgba(22,32,56,.85);border:1.5px solid rgba(143,233,255,.35);font-size:14px;font-weight:900;}
+
+/* ------------------------------------------------------- LEVEL SELECT ---- */
+#levels{justify-content:flex-start;padding-top:calc(env(safe-area-inset-top,0px) + 58px);}
+#lvTop{position:absolute;left:0;right:0;top:0;z-index:3;
+  padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 10px;
+  display:flex;align-items:center;gap:8px;direction:ltr;
+  background:linear-gradient(180deg,rgba(9,14,26,.95),rgba(9,14,26,0));}
+#lvTitle{flex:1;text-align:center;font-size:17px;font-weight:900;}
+#lvGrid{width:100%;max-width:330px;display:grid;grid-template-columns:repeat(3,1fr);gap:11px;}
+.lvNode{
+  pointer-events:auto;aspect-ratio:1;border-radius:17px;position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  background:linear-gradient(180deg,#3D4B70,#222E4E);border:2px solid rgba(255,255,255,.12);
+  box-shadow:0 4px 0 rgba(0,0,0,.35);font-size:21px;font-weight:900;color:rgba(255,255,255,.4);
+}
+.lvNode.open{background:linear-gradient(180deg,#3E9BFF,#1259C8);color:#fff;
+  border-color:rgba(255,255,255,.4);box-shadow:0 4px 0 #0B3D8F;}
+.lvNode.done{background:linear-gradient(180deg,#37D9A6,#0E9B76);color:#04201A;
+  border-color:rgba(255,255,255,.42);box-shadow:0 4px 0 #07634C;}
+.lvNode:active{transform:translateY(2px);}
+.lvNode .ns{display:flex;gap:2px;}
+.lvNode .ns i{font-style:normal;font-size:10px;line-height:1;color:rgba(0,0,0,.3);}
+.lvNode .ns i.f{color:#FFD766;text-shadow:0 0 5px rgba(255,215,102,.8);}
+
+/* ------------------------------------------------------ RING COLLECTION -- */
+#ringRow{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;width:100%;}
+.ringPip{width:52px;padding:7px 3px;border-radius:12px;background:rgba(255,255,255,.05);
+  border:1.5px solid rgba(255,255,255,.1);display:flex;flex-direction:column;align-items:center;gap:3px;}
+.ringPip.on{border-color:rgba(255,215,102,.55);background:rgba(255,215,102,.12);}
+.ringPip .rc{width:22px;height:22px;border-radius:50%;border:3.5px solid #54607F;}
+.ringPip.on .rc{box-shadow:0 0 10px currentColor;}
+.ringPip .rn{font-size:8.5px;font-weight:900;opacity:.8;}
+
+#toast{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);z-index:40;
+  padding:12px 20px;border-radius:15px;font-size:14px;font-weight:900;text-align:center;
+  background:rgba(15,22,38,.96);border:1.5px solid rgba(94,234,212,.5);
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;}
+#toast.on{opacity:1;transform:translate(-50%,-50%) scale(1);}
+
+#boot{position:absolute;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  background:#0F1626;font-size:15px;font-weight:700;opacity:.85;}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div id="ui">
+    <div id="streaks"></div>
+    <div id="flash"></div>
+
+    <!-- ===================== HUD ===================== -->
+    <div id="hud" class="hide">
+      <div class="hrow">
+        <button class="iconbtn" id="btnPause" aria-label="إيقاف">❚❚</button>
+        <div id="dcount"><span id="dIcon"></span><span id="dVal" class="num">0</span></div>
+        <div id="lives"><i class="life"></i><i class="life"></i><i class="life"></i></div>
+      </div>
+      <div id="pbar"><div id="pfill"></div></div>
+    </div>
+    <div id="pups" class="hide"></div>
+
+    <!-- ==================== MAIN MENU ================== -->
+    <div id="menu" class="screen">
+      <div id="menuTitle">سباق الألماس</div>
+      <div id="menuCard">
+        <div id="bestChip"><span style="color:#8FE9FF">◆</span><span>الأفضل</span><span class="num" id="bestV">0</span></div>
+        <button class="btn" id="btnLevels">المستويات</button>
+        <button class="btn ghost" id="btnEndless">اللانهائي</button>
+        <div class="brow">
+          <button class="btn ghost sm" id="btnMute">🔊 الصوت</button>
+          <button class="btn ghost sm" id="btnRings">الخواتم</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================== LEVEL SELECT ================= -->
+    <div id="levels" class="screen dim hide">
+      <div id="lvTop">
+        <button class="iconbtn" id="btnLvBack">‹</button>
+        <div id="lvTitle">المستويات</div>
+        <div style="width:36px"></div>
+      </div>
+      <div id="lvGrid"></div>
+    </div>
+
+    <!-- ================== RING COLLECTION =============== -->
+    <div id="rings" class="screen dim hide">
+      <div class="panel">
+        <div class="ptitle">مجموعة الخواتم</div>
+        <div class="psub">اجمع الألماس لصنع خواتم أثمن</div>
+        <div id="ringRow"></div>
+        <button class="btn" id="btnRingsOk">رجوع</button>
+      </div>
+    </div>
+
+    <!-- ====================== PAUSE ==================== -->
+    <div id="pause" class="screen dim hide">
+      <div class="panel">
+        <div class="ptitle">إيقاف مؤقت</div>
+        <div class="psub" id="pzSub">اللانهائي</div>
+        <button class="btn" id="btnResume">استئناف</button>
+        <button class="btn ghost" id="btnRetry2">إعادة المحاولة</button>
+        <button class="btn ghost" id="btnHome2">القائمة الرئيسية</button>
+      </div>
+    </div>
+
+    <!-- ==================== RUN COMPLETE ================ -->
+    <div id="done" class="screen hide" style="justify-content:flex-end;padding-bottom:26px;">
+      <div class="panel">
+        <div class="ptitle" id="dnTitle">خاتم جديد!</div>
+        <div class="psub" id="dnTier">برونزي</div>
+        <div class="stars" id="dnStars"></div>
+        <div class="stats">
+          <div class="srow"><span>المسافة</span><b class="num" id="dnDist">0</b></div>
+          <div class="srow tot"><span>الألماس</span><b class="num" id="dnGems">0</b></div>
+        </div>
+        <div class="psub" id="dnBest"></div>
+        <div class="brow">
+          <button class="btn ghost sm" id="btnHome3">القائمة</button>
+          <button class="btn sm" id="btnNext">التالي</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+  <div id="boot">جارٍ التحميل…</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+/* ==========================================================================
+   0. TUNING — every hand-tunable constant lives up here
+   ========================================================================== */
+const TUNE = {
+  /* --- track ------------------------------------------------------------ */
+  LANE_HALF: 5.0,            // lane runs x ∈ [-5, +5]
+  CLAMP_X: 4.3,              // how far the runner may go before the rails
+  SEG_LEN: 40, SEG_COUNT: 10,// pooled track segments (400 units of road)
+  SPAWN_Z: -340,             // content is generated this far ahead
+  DESPAWN_Z: 16,             // …and recycled once it passes this far behind
+
+  /* --- camera. Pulled back and widened on purpose: a portrait screen has to
+         show a gate pair with >= 1.2 s of lead time. That is a fairness
+         requirement, so GATE_LEAD_MIN is asserted at boot. --------------- */
+  CAM_BACK: 9.5, CAM_UP: 6.2, CAM_LOOK_Z: -16, CAM_LOOK_Y: 1.0, FOV: 64,
+  FOG_NEAR: 60, FOG_FAR: 190,
+  /* Panel size drives readability: a gate is legible once it covers ~6.5% of
+     the screen height, which happens at GATE_H/(2*tan(fov/2)*0.065) metres.
+     At GATE_H = 5.4 that is ~66 m => 1.38 s of lead at the 48 m/s top speed,
+     clear of the 1.2 s fairness floor. Shrinking the panel breaks that. */
+  GATE_W: 5.0, GATE_H: 5.4,
+  GATE_LEAD_MIN: 1.2,        // seconds — asserted at boot against SPEED_MAX
+  READ_FRAC: 0.065,          // screen-height fraction at which a gate reads
+
+  /* --- movement --------------------------------------------------------- */
+  SPEED_MIN: 26, SPEED_MAX: 48,
+  DRAG_SCALE: 0.030,         // screen px -> world units of steering
+  STEER_LERP: 13,            // how quickly x chases the drag target
+  BOB_HZ: 7.0,
+
+  /* --- economy ---------------------------------------------------------- */
+  LIVES: 3,
+  HIT_LOSS: 0.30,            // fraction of the pile lost per obstacle hit
+  HIT_MIN_LOSS: 8,
+  GEM_VALUE: 1,
+  MAX_PILE: 120,             // carried diamonds drawn; beyond this the cluster
+  PILE_GROW: 260,            // …just grows in radius instead
+  DIAMOND_CAP: 340,          // instanced track diamonds
+  MAGNET_R: 11, MAGNET_T: 6, SHIELD_T: 8, RUSH_T: 5, RUSH_MUL: 1.45,
+
+  /* --- spacing ---------------------------------------------------------- */
+  GATE_GAP_MIN: 62,          // metres between gate pairs (level overrides)
+  IFRAME: 1.1,               // seconds of invulnerability after a hit
+  GATE_CLEAR: 30,            // metres of obstacle-free run either side of a gate
+  MUL_CEIL: 2000,            // above this pile size, gates stop offering multipliers
+  GATE_COMMIT_Z: -120        // z at which a gate picks its operators (~1 s before legible)
+};
+
+/* ---- gate operators. `good` only drives the panel colour; which side is
+        actually better is computed against the live count every time. ----- */
+const GATE_OPS = [
+  { k: 'mul', v: 2,  label: '×2',  good: true  },
+  { k: 'mul', v: 3,  label: '×3',  good: true  },
+  { k: 'add', v: 15, label: '+15', good: true  },
+  { k: 'add', v: 30, label: '+30', good: true  },
+  { k: 'sub', v: 10, label: '−10', good: false },
+  { k: 'sub', v: 25, label: '−25', good: false },
+  { k: 'div', v: 2,  label: '÷2',  good: false }
+];
+const GAINS = [0, 1, 2, 3], LOSSES = [4, 5, 6];
+
+const GEM_CAP = 999999;   // keeps the counter an exact integer and readable
+/* apply an operator. FAIRNESS: the count can never fall below zero. */
+function applyOp(op, n) {
+  let r = n;
+  if (op.k === 'mul') r = n * op.v;
+  else if (op.k === 'add') r = n + op.v;
+  else if (op.k === 'sub') r = n - op.v;
+  else if (op.k === 'div') r = Math.floor(n / op.v);
+  if (r < 0) r = 0;
+  return r > GEM_CAP ? GEM_CAP : r;
+}
+/* Western digits, abbreviated so a huge pile still fits the HUD */
+function fmtNum(n) {
+  n = Math.round(n);
+  if (n >= 1000000) return (n / 1000000).toFixed(n >= 10000000 ? 0 : 1) + 'M';
+  if (n >= 100000)  return Math.round(n / 1000) + 'K';
+  return String(n);
+}
+
+/* ---- ring tiers, by final diamond count ------------------------------- */
+const TIERS = [
+  { n: 'برونزي', min: 0,    col: 0xCD7F32, css: '#CD7F32', gems: 6,  band: 0.16 },
+  { n: 'فضي',    min: 300,  col: 0xC7D2E4, css: '#C7D2E4', gems: 10, band: 0.19 },
+  { n: 'ذهبي',   min: 900,  col: 0xFFC420, css: '#FFC420', gems: 15, band: 0.22 },
+  { n: 'ماسي',   min: 2200, col: 0x8FE9FF, css: '#8FE9FF', gems: 21, band: 0.25 },
+  { n: 'أسطوري', min: 4500, col: 0xA855F7, css: '#A855F7', gems: 28, band: 0.29 }
+];
+function tierFor(n) { let t = 0; for (let i = 0; i < TIERS.length; i++) if (n >= TIERS[i].min) t = i; return t; }
+
+/* ---- 12 levels. dist = metres, spd = [start, end], gate = metres between
+        gate pairs, obs = obstacle density, stars = diamond thresholds ----- */
+const LEVELS = [
+  { dist: 700,  spd: [24, 28], gate: 95, obs: 0.30, stars: [40, 90, 140] },
+  { dist: 800,  spd: [25, 30], gate: 90, obs: 0.40, stars: [120, 400, 900] },
+  { dist: 900,  spd: [26, 32], gate: 86, obs: 0.50, stars: [300, 600, 1200] },
+  { dist: 1000, spd: [27, 34], gate: 82, obs: 0.58, stars: [500, 1200, 2400] },
+  { dist: 1100, spd: [28, 36], gate: 78, obs: 0.66, stars: [800, 1500, 2600] },
+  { dist: 1200, spd: [29, 38], gate: 76, obs: 0.72, stars: [1000, 1900, 3200] },
+  { dist: 1300, spd: [30, 40], gate: 74, obs: 0.78, stars: [1300, 2100, 3300] },
+  { dist: 1400, spd: [31, 41], gate: 72, obs: 0.84, stars: [1600, 3200, 5600] },
+  { dist: 1500, spd: [32, 43], gate: 70, obs: 0.90, stars: [2000, 3600, 5500] },
+  { dist: 1600, spd: [33, 44], gate: 68, obs: 0.95, stars: [2200, 3800, 5600] },
+  { dist: 1750, spd: [34, 46], gate: 66, obs: 1.00, stars: [2000, 3200, 5000] },
+  { dist: 1900, spd: [35, 48], gate: 64, obs: 1.05, stars: [2400, 4200, 6800] }
+];
+
+/* ==========================================================================
+   1. SAVE
+   ========================================================================== */
+const SKEY = 'diamondrush_ar_v1';
+const SAVE = (function () {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch (e) { s = null; }
+  if (!s || typeof s !== 'object') s = {};
+  if (typeof s.unlocked !== 'number') s.unlocked = 0;
+  if (!s.stars) s.stars = {};
+  if (typeof s.bestEndless !== 'number') s.bestEndless = 0;
+  if (typeof s.bestTier !== 'number') s.bestTier = -1;
+  if (!s.tiers) s.tiers = {};
+  if (typeof s.mute !== 'boolean') s.mute = false;
+  return s;
+})();
+function persist() { try { localStorage.setItem(SKEY, JSON.stringify(SAVE)); } catch (e) {} }
+function totalStars() { let t = 0; for (const k in SAVE.stars) t += SAVE.stars[k]; return t; }
+
+/* ==========================================================================
+   2. AUDIO — procedural, unlocked on the first user gesture
+   ========================================================================== */
+const AU = {
+  ctx: null, master: null, ready: false, wind: null, windGain: null, nbuf: null,
+  init() {
+    if (this.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = SAVE.mute ? 0 : 0.5;
+    this.master.connect(this.ctx.destination);
+    this.ready = true;
+    this.startWind();
+  },
+  resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+  setMute(m) { SAVE.mute = m; persist(); if (this.master) this.master.gain.value = m ? 0 : 0.5; },
+  noiseBuf() {
+    if (!this.nbuf) {
+      const n = Math.floor(this.ctx.sampleRate * 2);
+      this.nbuf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+      const d = this.nbuf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return this.nbuf;
+  },
+  /* looping filtered noise = wind/rumble; gain follows forward speed */
+  startWind() {
+    if (!this.ready || this.wind) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuf(); src.loop = true;
+    const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
+    const g = this.ctx.createGain(); g.gain.value = 0;
+    src.connect(lp); lp.connect(g); g.connect(this.master);
+    src.start();
+    this.wind = src; this.windGain = g;
+  },
+  setWind(v) { if (this.windGain) this.windGain.gain.value = Math.max(0, Math.min(0.3, v)); },
+  tone(f, dur, type, vol, glide, delay) {
+    if (!this.ready || SAVE.mute) return;
+    const t = this.ctx.currentTime + (delay || 0);
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(f, t);
+    if (glide) o.frequency.exponentialRampToValueAtTime(Math.max(30, glide), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.2, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  },
+  noise(dur, f0, f1, vol, delay) {
+    if (!this.ready || SAVE.mute) return;
+    const t = this.ctx.currentTime + (delay || 0);
+    const s = this.ctx.createBufferSource(); s.buffer = this.noiseBuf();
+    s.playbackRate.value = 0.8 + Math.random() * 0.4;
+    const bp = this.ctx.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(f0, t);
+    bp.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t + dur);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol || 0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(bp); bp.connect(g); g.connect(this.master);
+    s.start(t); s.stop(t + dur);
+  },
+  pickup(combo) { const f = 720 * Math.pow(1.055, Math.min(combo, 20)); this.tone(f, 0.09, 'sine', 0.14, f * 1.5); },
+  gateWhoosh() { this.noise(0.26, 900, 180, 0.16); },
+  gateGood()  { this.tone(520, 0.16, 'triangle', 0.2, 1040); this.tone(780, 0.22, 'sine', 0.15, 1560, 0.07); },
+  gateBad()   { this.tone(190, 0.28, 'square', 0.17, 80); this.noise(0.2, 400, 90, 0.14); },
+  crash()     { this.noise(0.42, 900, 60, 0.3); this.tone(110, 0.3, 'sawtooth', 0.18, 45); },
+  power()     { this.tone(660, 0.14, 'sine', 0.18, 1320); this.tone(990, 0.18, 'triangle', 0.13, 1980, 0.06); },
+  ui()        { this.tone(660, 0.05, 'sine', 0.11, 880); },
+  fanfare()   { const s = [523, 659, 784, 1047, 1319]; for (let i = 0; i < s.length; i++) this.tone(s[i], 0.36, 'triangle', 0.17, s[i], i * 0.11); },
+  fail()      { this.tone(330, 0.3, 'sawtooth', 0.14, 150); this.tone(210, 0.44, 'sine', 0.12, 85, 0.1); }
+};
+
+/* ==========================================================================
+   3. RENDERER / VIEWPORT
+   ========================================================================== */
+const cv = document.getElementById('c');
+const uiEl = document.getElementById('ui');
+let VW = 0, VH = 0, PX = 0, PY = 0, PW = 0, PH = 0;
+
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false, alpha: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = false;                 // fake shadows only
+renderer.setClearColor(0x0F1626, 1);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x16203A, TUNE.FOG_NEAR, TUNE.FOG_FAR);
+const camera = new THREE.PerspectiveCamera(TUNE.FOV, 0.5625, 0.5, 420);
+
+/* the ring finale + menu centrepiece live in their own tiny scene */
+const ringScene = new THREE.Scene();
+/* Framed so the ring fills about half the portrait WIDTH and sits in the top
+   half of the screen, clear of the menu buttons and the results panel.
+   At z = 7.2 the ring was wider than the portrait viewport and ran off both
+   edges, so the group is lifted and the camera pulled back instead. */
+const ringCam = new THREE.PerspectiveCamera(42, 0.5625, 0.1, 60);
+ringCam.position.set(0, 0, 15);
+ringCam.lookAt(0, 0, 0);
+
+function layout() {
+  const w = cv.clientWidth || 360, h = cv.clientHeight || 640;
+  VW = w; VH = h;
+  PH = h; PW = Math.min(w, h * 9 / 16);
+  PX = (w - PW) / 2; PY = 0;
+  uiEl.style.left = PX + 'px'; uiEl.style.top = PY + 'px';
+  uiEl.style.width = PW + 'px'; uiEl.style.height = PH + 'px';
+
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  ringCam.aspect = w / h; ringCam.updateProjectionMatrix();
+}
+
+/* ==========================================================================
+   4. SHARED MATERIALS + GEOMETRY (built once, never disposed mid-run)
+   ========================================================================== */
+const MAT = {
+  road:    new THREE.MeshLambertMaterial({ vertexColors: true }),
+  diamond: new THREE.MeshLambertMaterial({ color: 0x9AEFFF, emissive: 0x1E7CA8 }),
+  pile:    new THREE.MeshLambertMaterial({ color: 0xBFF4FF, emissive: 0x2A8FBF }),
+  rock:    new THREE.MeshLambertMaterial({ color: 0x2A3350 }),
+  stone:   new THREE.MeshLambertMaterial({ color: 0x6B7794 }),
+  blade:   new THREE.MeshLambertMaterial({ color: 0xB84A5A, emissive: 0x3A0E16 }),
+  pit:     new THREE.MeshBasicMaterial({ color: 0x05070E }),
+  shadow:  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false }),
+  body:    new THREE.MeshLambertMaterial({ color: 0x2E86FF }),
+  skin:    new THREE.MeshLambertMaterial({ color: 0xF0C9A0 }),
+  dark:    new THREE.MeshLambertMaterial({ color: 0x1B2440 }),
+  shield:  new THREE.MeshBasicMaterial({ color: 0x5EEAD4, transparent: true, opacity: 0.22, depthWrite: false })
+};
+const GEO = {
+  diamond: new THREE.OctahedronGeometry(0.42, 0),
+  gem:     new THREE.OctahedronGeometry(0.2, 0),
+  pillar:  new THREE.CylinderGeometry(0.7, 0.9, 5.2, 6),
+  barrier: new THREE.BoxGeometry(3.2, 1.5, 0.7),
+  blade:   new THREE.BoxGeometry(6.4, 0.28, 0.6),
+  pit:     new THREE.PlaneGeometry(1, 1),
+  rock:    new THREE.IcosahedronGeometry(1, 0),
+  shadow:  new THREE.CircleGeometry(1, 12),
+  plane:   new THREE.PlaneGeometry(1, 1)
+};
+
+/* ==========================================================================
+   5. TRACK — one InstancedMesh of hand-built, vertex-coloured segments
+   ========================================================================== */
+function buildSegmentGeometry() {
+  const pos = [], nor = [], col = [];
+  const C_ROAD = [0.13, 0.18, 0.30], C_EDGE = [0.09, 0.12, 0.22], C_RAIL = [0.10, 0.47, 0.95];
+  const L = TUNE.SEG_LEN, H = TUNE.LANE_HALF;
+
+  /* axis-aligned box emitter: 6 faces, flat normals, flat colour */
+  function box(cx, cy, cz, sx, sy, sz, c) {
+    const x0 = cx - sx / 2, x1 = cx + sx / 2, y0 = cy - sy / 2, y1 = cy + sy / 2, z0 = cz - sz / 2, z1 = cz + sz / 2;
+    const F = [
+      [[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[x0,y1,z0],[0,1,0]],   // top
+      [[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],[0,-1,0]],  // bottom
+      [[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],[0,0,1]],   // +z
+      [[x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[0,0,-1]],  // -z
+      [[x1,y0,z1],[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[1,0,0]],   // +x
+      [[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],[-1,0,0]]   // -x
+    ];
+    for (let i = 0; i < F.length; i++) {
+      const f = F[i], n = f[4];
+      const tri = [0, 1, 2, 0, 2, 3];
+      /* dim the side faces a little so the shape reads without shadows */
+      const shade = n[1] > 0.5 ? 1 : (n[1] < -0.5 ? 0.45 : 0.72);
+      for (let t = 0; t < 6; t++) {
+        const v = f[tri[t]];
+        pos.push(v[0], v[1], v[2]);
+        nor.push(n[0], n[1], n[2]);
+        col.push(c[0] * shade, c[1] * shade, c[2] * shade);
+      }
+    }
+  }
+
+  box(0, -0.25, -L / 2, H * 2, 0.5, L, C_ROAD);            // road slab
+  box(-(H + 0.9), -0.9, -L / 2, 1.8, 1.4, L, C_EDGE);      // left shoulder
+  box(+(H + 0.9), -0.9, -L / 2, 1.8, 1.4, L, C_EDGE);      // right shoulder
+  box(-(H + 0.25), 0.35, -L / 2, 0.5, 0.7, L, C_RAIL);     // left rail
+  box(+(H + 0.25), 0.35, -L / 2, 0.5, 0.7, L, C_RAIL);     // right rail
+  /* lane stripes down the middle, 4 per segment */
+  for (let i = 0; i < 4; i++) {
+    box(0, 0.015, -(i * (L / 4) + L / 8), 0.28, 0.02, L / 9, [0.55, 0.72, 1.0]);
+  }
+
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
+}
+
+const segMesh = new THREE.InstancedMesh(buildSegmentGeometry(), MAT.road, TUNE.SEG_COUNT);
+segMesh.frustumCulled = false;
+scene.add(segMesh);
+const segZ = new Float32Array(TUNE.SEG_COUNT);
+
+/* ==========================================================================
+   6. GATE LABEL TEXTURES — big, bold, Western digits, baked onto the panel
+   ========================================================================== */
+const gateMats = [];
+function buildGateTextures() {
+  for (let i = 0; i < GATE_OPS.length; i++) {
+    const op = GATE_OPS[i];
+    /* texture aspect tracks the panel aspect so the digits never stretch */
+    const W = 256, H = Math.round(256 * TUNE.GATE_H / TUNE.GATE_W);
+    const cvs = document.createElement('canvas');
+    cvs.width = W; cvs.height = H;
+    const g = cvs.getContext('2d');
+    const good = op.good;
+    const edge = good ? '#3BE07A' : '#FF5566';
+    const fill = good ? 'rgba(38,200,110,0.30)' : 'rgba(230,50,70,0.30)';
+
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = fill;
+    g.fillRect(6, 6, W - 12, H - 12);
+    /* brighter band top and bottom so the panel edge reads against the sky */
+    const grd = g.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, good ? 'rgba(60,255,150,.35)' : 'rgba(255,90,110,.35)');
+    grd.addColorStop(0.5, 'rgba(255,255,255,0)');
+    grd.addColorStop(1, good ? 'rgba(60,255,150,.35)' : 'rgba(255,90,110,.35)');
+    g.fillStyle = grd; g.fillRect(6, 6, W - 12, H - 12);
+    g.strokeStyle = edge; g.lineWidth = 9;
+    g.strokeRect(6, 6, W - 12, H - 12);
+
+    g.font = '900 130px Cairo, Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 14; g.strokeStyle = 'rgba(6,12,26,.92)';
+    g.strokeText(op.label, W / 2, H / 2 + 4);
+    g.fillStyle = '#FFFFFF';
+    g.fillText(op.label, W / 2, H / 2 + 4);
+
+    const tex = new THREE.CanvasTexture(cvs);
+    tex.anisotropy = 1;
+    gateMats.push(new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false, fog: true
+    }));
+  }
+}
+
+/* ==========================================================================
+   7. POOLS
+   ========================================================================== */
+/* ---- diamonds: one InstancedMesh, state kept in parallel arrays --------- */
+const dm = {
+  mesh: null, n: TUNE.DIAMOND_CAP,
+  x: new Float32Array(TUNE.DIAMOND_CAP), y: new Float32Array(TUNE.DIAMOND_CAP),
+  z: new Float32Array(TUNE.DIAMOND_CAP), rot: new Float32Array(TUNE.DIAMOND_CAP),
+  st: new Uint8Array(TUNE.DIAMOND_CAP),      // 0 free, 1 on track, 2 flying to pile
+  t: new Float32Array(TUNE.DIAMOND_CAP)
+};
+/* ---- carried pile ------------------------------------------------------ */
+const pileMesh = new THREE.InstancedMesh(GEO.diamond, MAT.pile, TUNE.MAX_PILE);
+/* ---- gates: pooled pairs, each gate is ONE textured plane -------------- */
+const gates = [];
+const GATE_POOL = 7;
+/* ---- obstacles: one InstancedMesh per kind ---------------------------- */
+const OB_KINDS = ['pillar', 'barrier', 'blade', 'pit'];
+const obs = { pillar: null, barrier: null, blade: null, pit: null };
+const obList = [];   // {kind, x, z, w, spin, alive, hit}
+const OB_POOL = 26;
+/* ---- power-ups -------------------------------------------------------- */
+const pups = [];
+const PUP_POOL = 6;
+/* ---- side rocks ------------------------------------------------------- */
+let rockMesh = null;
+const ROCK_N = 44;
+const rockData = [];
+/* ---- dust motes ------------------------------------------------------- */
+let dust = null;
+const DUST_N = 90;
+
+const dummy = new THREE.Object3D();
+
+function buildWorld() {
+  buildGateTextures();
+
+  /* diamonds */
+  dm.mesh = new THREE.InstancedMesh(GEO.diamond, MAT.diamond, TUNE.DIAMOND_CAP);
+  dm.mesh.frustumCulled = false;
+  scene.add(dm.mesh);
+
+  /* carried pile rides with the player */
+  pileMesh.frustumCulled = false;
+  scene.add(pileMesh);
+
+  /* gate pairs */
+  for (let i = 0; i < GATE_POOL; i++) {
+    const pair = { alive: false, committed: false, z: 0, pz: 0, taken: false, side: [null, null], ops: [0, 0] };
+    for (let s = 0; s < 2; s++) {
+      const m = new THREE.Mesh(GEO.plane, gateMats[0]);
+      m.scale.set(TUNE.GATE_W, TUNE.GATE_H, 1);
+      m.position.set(s === 0 ? -TUNE.LANE_HALF / 2 : TUNE.LANE_HALF / 2, TUNE.GATE_H / 2 + 0.05, 0);
+      m.visible = false;
+      m.frustumCulled = false;
+      scene.add(m);
+      pair.side[s] = m;
+    }
+    gates.push(pair);
+  }
+
+  /* obstacles */
+  obs.pillar  = new THREE.InstancedMesh(GEO.pillar,  MAT.stone, OB_POOL);
+  obs.barrier = new THREE.InstancedMesh(GEO.barrier, MAT.stone, OB_POOL);
+  obs.blade   = new THREE.InstancedMesh(GEO.blade,   MAT.blade, OB_POOL);
+  obs.pit     = new THREE.InstancedMesh(GEO.pit,     MAT.pit,   OB_POOL);
+  for (let i = 0; i < OB_KINDS.length; i++) {
+    const m = obs[OB_KINDS[i]];
+    m.frustumCulled = false;
+    scene.add(m);
+  }
+  for (let i = 0; i < OB_POOL; i++) obList.push({ kind: -1, x: 0, z: 0, w: 1, spin: 0, alive: false, hit: false });
+
+  /* power-ups — few enough that plain meshes stay cheap */
+  const pupMats = [
+    new THREE.MeshLambertMaterial({ color: 0xFF4757, emissive: 0x571018 }),  // magnet
+    new THREE.MeshLambertMaterial({ color: 0x5EEAD4, emissive: 0x0E4A42 }),  // shield
+    new THREE.MeshLambertMaterial({ color: 0xFFC420, emissive: 0x5A3E00 })   // rush
+  ];
+  const pupGeo = new THREE.IcosahedronGeometry(0.75, 0);
+  for (let i = 0; i < PUP_POOL; i++) {
+    const m = new THREE.Mesh(pupGeo, pupMats[0]);
+    m.visible = false; m.frustumCulled = false;
+    scene.add(m);
+    pups.push({ mesh: m, mats: pupMats, kind: 0, x: 0, z: 0, alive: false, t: 0 });
+  }
+
+  /* canyon walls: instanced rocks marching down both sides */
+  rockMesh = new THREE.InstancedMesh(GEO.rock, MAT.rock, ROCK_N);
+  rockMesh.frustumCulled = false;
+  scene.add(rockMesh);
+  for (let i = 0; i < ROCK_N; i++) {
+    rockData.push({
+      x: (i % 2 ? 1 : -1) * (10 + Math.random() * 16),
+      y: -2 - Math.random() * 3,
+      z: -(i / ROCK_N) * 400 - Math.random() * 12,
+      s: 3 + Math.random() * 7,
+      rx: Math.random() * 6.28, ry: Math.random() * 6.28
+    });
+  }
+
+  /* dust motes */
+  const dg = new THREE.BufferGeometry();
+  const dp = new Float32Array(DUST_N * 3);
+  for (let i = 0; i < DUST_N; i++) {
+    dp[i * 3]     = (Math.random() - 0.5) * 30;
+    dp[i * 3 + 1] = Math.random() * 12;
+    dp[i * 3 + 2] = -Math.random() * 220;
+  }
+  dg.setAttribute('position', new THREE.BufferAttribute(dp, 3));
+  dust = new THREE.Points(dg, new THREE.PointsMaterial({
+    color: 0x9FC8FF, size: 0.16, transparent: true, opacity: 0.5, depthWrite: false
+  }));
+  dust.frustumCulled = false;
+  scene.add(dust);
+
+  buildPlayer();
+  buildRing();
+  buildSky();
+
+  /* lights: one ambient + one directional, no shadows */
+  scene.add(new THREE.AmbientLight(0x8FA8D8, 0.85));
+  const dir = new THREE.DirectionalLight(0xFFF4E0, 0.85);
+  dir.position.set(6, 14, 4);
+  scene.add(dir);
+
+  ringScene.add(new THREE.AmbientLight(0xBFD4FF, 0.9));
+  const rl = new THREE.DirectionalLight(0xFFFFFF, 1.0);
+  rl.position.set(3, 5, 6);
+  ringScene.add(rl);
+}
+
+/* ---- sky: a gradient painted onto a big inverted cylinder -------------- */
+function buildSky() {
+  const cvs = document.createElement('canvas');
+  cvs.width = 8; cvs.height = 128;
+  const g = cvs.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 128);
+  grd.addColorStop(0, '#070C1A');
+  grd.addColorStop(0.45, '#16233F');
+  grd.addColorStop(0.78, '#2B4472');
+  grd.addColorStop(1, '#4E6BA0');
+  g.fillStyle = grd; g.fillRect(0, 0, 8, 128);
+  const tex = new THREE.CanvasTexture(cvs);
+  const sky = new THREE.Mesh(
+    new THREE.CylinderGeometry(300, 300, 260, 12, 1, true),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false })
+  );
+  sky.position.y = 40;
+  sky.renderOrder = -1;
+  scene.add(sky);
+}
+
+/* ==========================================================================
+   8. PLAYER — low-poly figure from primitives (no loaders, no skeletons)
+   ========================================================================== */
+const player = { grp: null, torso: null, head: null, armL: null, armR: null, legL: null, legR: null, shield: null, shadow: null };
+function buildPlayer() {
+  const g = new THREE.Group();
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.95, 0.46), MAT.body);
+  torso.position.y = 1.18;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), MAT.skin);
+  head.position.y = 1.92;
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 6, 0, 6.28, 0, 1.1), MAT.dark);
+  hair.position.y = 1.96;
+  const armGeo = new THREE.BoxGeometry(0.19, 0.62, 0.19);
+  const armL = new THREE.Mesh(armGeo, MAT.skin); armL.position.set(-0.52, 1.28, 0);
+  const armR = new THREE.Mesh(armGeo, MAT.skin); armR.position.set(0.52, 1.28, 0);
+  const legGeo = new THREE.BoxGeometry(0.24, 0.72, 0.24);
+  const legL = new THREE.Mesh(legGeo, MAT.dark); legL.position.set(-0.2, 0.4, 0);
+  const legR = new THREE.Mesh(legGeo, MAT.dark); legR.position.set(0.2, 0.4, 0);
+
+  const shadow = new THREE.Mesh(GEO.shadow, MAT.shadow);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.03;
+  shadow.scale.set(0.85, 0.85, 1);
+
+  const shield = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 8), MAT.shield);
+  shield.position.y = 1.1; shield.visible = false;
+
+  g.add(torso, head, hair, armL, armR, legL, legR, shadow, shield);
+  scene.add(g);
+  Object.assign(player, { grp: g, torso, head, armL, armR, legL, legR, shield, shadow });
+}
+
+/* ==========================================================================
+   9. RING (menu centrepiece + end-of-run reward)
+   ========================================================================== */
+const ring = { grp: null, band: null, gems: null, mat: null, count: 0, t: 0 };
+function buildRing() {
+  const grp = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color: 0xFFC420, emissive: 0x3A2A00 });
+  const band = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.2, 8, 40), mat);
+  band.rotation.x = 0.42;
+  const gemMat = new THREE.MeshLambertMaterial({ color: 0x9AEFFF, emissive: 0x2A7FA8 });
+  const gems = new THREE.InstancedMesh(GEO.gem, gemMat, 32);
+  gems.frustumCulled = false;
+  grp.add(band, gems);
+  grp.position.y = 1.9;             // sits in the upper half of the portrait
+  ringScene.add(grp);
+  Object.assign(ring, { grp, band, gems, mat, gemMat });
+}
+function setRingTier(ti, anim) {
+  const T = TIERS[ti];
+  ring.mat.color.setHex(T.col);
+  ring.mat.emissive.setHex(T.col).multiplyScalar(0.22);
+  ring.band.geometry.dispose();
+  ring.band.geometry = new THREE.TorusGeometry(1.55, T.band, 8, 40);
+  ring.count = T.gems;
+  ring.t = anim ? 0 : 1;
+}
+function updateRing(dt) {
+  ring.grp.rotation.y += dt * 0.7;
+  if (ring.t < 1) ring.t = Math.min(1, ring.t + dt * 0.9);
+  const n = ring.count;
+  for (let i = 0; i < 32; i++) {
+    if (i >= n) { dummy.scale.set(0, 0, 0); dummy.position.set(0, 0, 0); dummy.rotation.set(0, 0, 0); }
+    else {
+      const a = (i / n) * 6.2832;
+      /* gems fly in from outside and settle onto the band */
+      const p = Math.max(0, Math.min(1, ring.t * 1.5 - (i / n) * 0.5));
+      const e = 1 - Math.pow(1 - p, 3);
+      const rad = 1.55 + (1 - e) * 5;
+      dummy.position.set(Math.cos(a) * rad, Math.sin(a) * rad * 0.92, Math.sin(a * 2) * 0.12);
+      dummy.position.applyAxisAngle(AXIS_X, 0.42);
+      dummy.rotation.set(a, a * 1.7, ring.grp.rotation.y);
+      const s = e * (0.9 + 0.25 * Math.sin(a * 3));
+      dummy.scale.set(s, s, s);
+    }
+    dummy.updateMatrix();
+    ring.gems.setMatrixAt(i, dummy.matrix);
+  }
+  ring.gems.instanceMatrix.needsUpdate = true;
+}
+const AXIS_X = new THREE.Vector3(1, 0, 0);
+
+/* ==========================================================================
+   10. GAME STATE
+   ========================================================================== */
+const G = {
+  screen: 'menu',            // menu | levels | rings | play | pause | done
+  mode: 'endless',           // endless | level
+  level: 0,
+  dist: 0, target: 0,
+  speed: 26, baseSpeed: 26, topSpeed: 40,
+  gems: 0, shownGems: 0, combo: 0, comboT: 0,
+  lives: 3, iframe: 0,
+  px: 0, targetX: 0, vx: 0,
+  bob: 0, lean: 0,
+  running: false, finished: false, endT: 0,
+  nextGateD: 0, nextObD: 0, nextPupD: 0, nextDiaD: 0,   // run-distance cursors
+  lastGateD: -999,
+  gateGap: 80, obDensity: 0.5,
+  magnet: 0, shield: 0, rush: 0,
+  shake: 0, camPunch: 0,
+  lastBetterSide: -1, sideRun: 0,
+  time: 0, tier: 0
+};
+
+/* ==========================================================================
+   11. SPAWNING
+   ========================================================================== */
+function freeDiamond() {
+  for (let i = 0; i < TUNE.DIAMOND_CAP; i++) if (dm.st[i] === 0) return i;
+  return -1;
+}
+function spawnDiamond(x, z, y) {
+  const i = freeDiamond(); if (i < 0) return;
+  dm.x[i] = x; dm.y[i] = y === undefined ? 0.95 : y; dm.z[i] = z;
+  dm.rot[i] = Math.random() * 6.28; dm.st[i] = 1; dm.t[i] = 0;
+}
+/* a readable run of diamonds: arcs, lines and zigzags, never a random mess */
+function spawnDiamondRun(z0) {
+  const shape = (Math.random() * 3) | 0;
+  const n = 6 + ((Math.random() * 7) | 0);
+  const baseX = (Math.random() * 2 - 1) * 3.2;
+  for (let i = 0; i < n; i++) {
+    const z = z0 - i * 3.0;
+    let x = baseX, y = 0.95;
+    if (shape === 0) x = baseX + Math.sin(i * 0.55) * 2.4;             // wave
+    else if (shape === 1) { x = baseX; y = 0.95 + Math.sin(i / n * Math.PI) * 1.5; } // arc
+    else x = baseX + (i - n / 2) * 0.55;                                // diagonal
+    spawnDiamond(Math.max(-TUNE.CLAMP_X, Math.min(TUNE.CLAMP_X, x)), z, y);
+  }
+  return n * 3.0;
+}
+
+/* Multipliers compound: a player who reads every gate correctly hits 2^N and
+   the counter turns into scientific notation. So the odds of drawing a
+   MULTIPLIER gain decay as the pile grows — past a few hundred diamonds the
+   gains are mostly +15/+30 (linear) while the losses stay ×-proportional
+   (÷2, −25). Growth flattens, mistakes still hurt, and the operator table
+   stays exactly the seven the design calls for. */
+function pickGain(count) {
+  /* Above MUL_CEIL no multiplier is offered at all. Without a hard ceiling a
+     player who reads every gate correctly compounds to the counter cap; with
+     it the early run is explosive growth and the late run becomes "protect
+     the pile from ÷2", which is the more interesting decision anyway. */
+  const mulOdds = count < 150 ? 0.85 : count < 500 ? 0.42 : count < TUNE.MUL_CEIL ? 0.15 : 0;
+  if (mulOdds > 0 && Math.random() < mulOdds) return count > 500 ? 0 : (Math.random() < 0.62 ? 0 : 1);
+  return Math.random() < 0.5 ? 2 : 3;                                                   // +15 / +30
+}
+function pickLoss() { return LOSSES[(Math.random() * LOSSES.length) | 0]; }
+
+/* ---- the gate generator. Always a real decision. ----------------------- */
+function pickPairOps(count, diff) {
+  let a, b, ra, rb, guard = 0;
+  do {
+    /* as difficulty rises, more pairs are gain-vs-gain, which forces an
+       actual comparison instead of "avoid the red one" */
+    const bothGain = Math.random() < 0.30 + diff * 0.35;
+    const bothLoss = !bothGain && Math.random() < 0.10 + diff * 0.10;
+    if (bothGain) { a = pickGain(count); b = pickGain(count); }
+    else if (bothLoss) { a = pickLoss(); b = pickLoss(); }
+    else { a = pickGain(count); b = pickLoss(); }
+    ra = applyOp(GATE_OPS[a], count);
+    rb = applyOp(GATE_OPS[b], count);
+    guard++;
+    /* Reject identical operators and outcomes too close to matter. The margin
+       is capped: once the pile is large, "+30 vs −25" is a genuine choice even
+       though 55 is a small fraction of the total, and an uncapped percentage
+       margin would reject every non-÷2 pair and spin the loop out. */
+    var need = Math.max(3, Math.min(count * 0.08, 45));
+  } while (guard < 40 && (a === b || Math.abs(ra - rb) < need));
+
+  /* Last resort must draw from the SAME pools — re-rolling across all seven
+     operators here would smuggle a ×2/×3 back in above MUL_CEIL. */
+  if (a === b) {
+    const aIsGain = GAINS.indexOf(a) >= 0;
+    b = aIsGain ? pickLoss() : pickGain(count);
+    if (b === a) b = aIsGain ? 6 : 2;
+    rb = applyOp(GATE_OPS[b], count);
+  }
+
+  /* place the better operator on an unpredictable side: forbid a third
+     repeat so the player can never just hold one side */
+  let betterLeft = ra >= rb ? true : false;
+  const better = betterLeft ? a : b, worse = betterLeft ? b : a;
+  let side = Math.random() < 0.5 ? 0 : 1;
+  if (side === G.lastBetterSide && G.sideRun >= 3) side = 1 - side;
+  G.sideRun = (side === G.lastBetterSide) ? G.sideRun + 1 : 1;
+  G.lastBetterSide = side;
+  return side === 0 ? [better, worse] : [worse, better];
+}
+
+/* A gate is SPAWNED far away for spacing, but its operators are COMMITTED
+   only once it is close (GATE_COMMIT_Z). Choosing them at spawn time used the
+   diamond count from 340 m back: a ×3 picked while you held 400 would fire at
+   15,000, and a "+15 vs −10" pair authored at 50 became a rounding error by
+   the time you read it. Committing late keeps every pair a real decision, and
+   still locks the label ~1 s before it is legible so it never changes on screen. */
+function spawnGatePair(z) {
+  let p = null;
+  for (let i = 0; i < gates.length; i++) if (!gates[i].alive) { p = gates[i]; break; }
+  if (!p) return;
+  p.alive = true; p.taken = false; p.committed = false; p.z = z; p.pz = z;
+  p.side[0].visible = false; p.side[1].visible = false;
+}
+function commitGate(p) {
+  const diff = G.mode === 'level' ? (G.level / (LEVELS.length - 1)) : Math.min(1, G.dist / 2600);
+  const ops = pickPairOps(Math.max(1, G.gems), diff);
+  p.committed = true;
+  p.ops[0] = ops[0]; p.ops[1] = ops[1];
+  for (let s = 0; s < 2; s++) {
+    p.side[s].material = gateMats[ops[s]];
+    p.side[s].visible = true;
+  }
+}
+
+function freeObstacle() { for (let i = 0; i < obList.length; i++) if (!obList[i].alive) return obList[i]; return null; }
+function spawnObstacle(z) {
+  const o = freeObstacle(); if (!o) return;
+  const r = Math.random();
+  o.alive = true; o.hit = false; o.z = z; o.spin = Math.random() * 6.28;
+  if (r < 0.36)      { o.kind = 0; o.w = 0.9;  o.x = (Math.random() * 2 - 1) * 3.6; }   // pillar
+  else if (r < 0.68) { o.kind = 1; o.w = 1.75; o.x = (Math.random() * 2 - 1) * 2.9; }   // barrier
+  else if (r < 0.86) { o.kind = 2; o.w = 3.2;  o.x = 0; }                                // blade (sweeps)
+  else               { o.kind = 3; o.w = 1.9;  o.x = (Math.random() * 2 - 1) * 3.0; }   // pit
+}
+function spawnPup(z) {
+  for (let i = 0; i < pups.length; i++) {
+    const p = pups[i];
+    if (p.alive) continue;
+    p.alive = true; p.t = 0; p.z = z;
+    p.kind = (Math.random() * 3) | 0;
+    p.x = (Math.random() * 2 - 1) * 3.4;
+    p.mesh.material = p.mats[p.kind];
+    p.mesh.visible = true;
+    return;
+  }
+}
+
+/* ==========================================================================
+   12. RUN LIFECYCLE
+   ========================================================================== */
+function resetRun(mode, lv) {
+  G.mode = mode; G.level = lv | 0;
+  const L = LEVELS[G.level];
+  G.dist = 0; G.gems = 0; G.shownGems = 0; G.combo = 0; G.comboT = 0;
+  G.lives = TUNE.LIVES; G.iframe = 0;
+  G.px = 0; G.targetX = 0; G.vx = 0; G.bob = 0; G.lean = 0;
+  G.magnet = 0; G.shield = 0; G.rush = 0;
+  G.shake = 0; G.camPunch = 0; G.finished = false; G.endT = 0;
+  G.lastBetterSide = -1; G.sideRun = 0;
+  G.running = true;
+
+  if (mode === 'level') {
+    G.baseSpeed = L.spd[0]; G.topSpeed = L.spd[1];
+    G.target = L.dist; G.gateGap = L.gate; G.obDensity = L.obs;
+  } else {
+    G.baseSpeed = TUNE.SPEED_MIN; G.topSpeed = TUNE.SPEED_MAX;
+    G.target = 0; G.gateGap = 88; G.obDensity = 0.42;
+  }
+  G.speed = G.baseSpeed;
+
+  /* clear the world */
+  for (let i = 0; i < TUNE.DIAMOND_CAP; i++) dm.st[i] = 0;
+  for (let i = 0; i < gates.length; i++) { gates[i].alive = false; gates[i].committed = false; gates[i].side[0].visible = false; gates[i].side[1].visible = false; }
+  for (let i = 0; i < obList.length; i++) obList[i].alive = false;
+  for (let i = 0; i < pups.length; i++) { pups[i].alive = false; pups[i].mesh.visible = false; }
+  for (let i = 0; i < TUNE.SEG_COUNT; i++) segZ[i] = -i * TUNE.SEG_LEN;
+
+  /* first gate lands a little after the runner settles in */
+  G.nextGateD = 40; G.nextObD = 90; G.nextPupD = 200; G.nextDiaD = 10; G.lastGateD = -999;
+  player.shield.visible = false;
+  refreshHud();
+}
+
+/* Tear down everything the run painted over the canvas. Without this the
+   power-up pips, the last gate popup and the gate flash all stay layered on
+   top of the results screen. */
+function clearRunFx() {
+  G.magnet = 0; G.shield = 0; G.rush = 0;
+  player.shield.visible = false;
+  refreshPups();
+  flashEl.style.transition = 'none';
+  flashEl.style.opacity = '0';
+  streakEl.style.opacity = '0';
+  const kids = uiEl.querySelectorAll('.popfx');
+  for (let i = 0; i < kids.length; i++) kids[i].remove();
+}
+
+function endRun(reason) {
+  if (!G.running) return;
+  G.running = false; G.finished = true; G.endT = 0;
+  clearRunFx();
+  const gems = G.gems;
+  G.tier = tierFor(gems);
+
+  if (G.mode === 'endless') {
+    if (gems > SAVE.bestEndless) SAVE.bestEndless = gems;
+  } else {
+    const L = LEVELS[G.level];
+    let st = 0;
+    if (gems >= L.stars[2]) st = 3; else if (gems >= L.stars[1]) st = 2; else if (gems >= L.stars[0]) st = 1;
+    /* the level only counts as cleared if the finish line was reached */
+    if (reason === 'finish') {
+      if (st < 1) st = 1;
+      if ((SAVE.stars[G.level] | 0) < st) SAVE.stars[G.level] = st;
+      if (SAVE.unlocked < G.level + 1) SAVE.unlocked = Math.min(LEVELS.length - 1, G.level + 1);
+    }
+    G.lastStars = reason === 'finish' ? st : 0;
+  }
+  if (G.tier > SAVE.bestTier) SAVE.bestTier = G.tier;
+  SAVE.tiers[G.tier] = 1;
+  persist();
+
+  setRingTier(G.tier, true);
+  showDone(reason);
+  if (reason === 'finish') AU.fanfare(); else AU.fail();
+}
+
+/* ==========================================================================
+   13. UPDATE
+   ========================================================================== */
+const tmpV = new THREE.Vector3();
+
+function update(dt) {
+  G.time += dt;
+  if (G.screen !== 'play' || !G.running) { updateRing(dt); return; }
+
+  /* ---- speed ramp --------------------------------------------------- */
+  const prog = G.mode === 'level' ? Math.min(1, G.dist / G.target) : Math.min(1, G.dist / 3200);
+  let sp = G.baseSpeed + (G.topSpeed - G.baseSpeed) * prog;
+  if (G.rush > 0) sp *= TUNE.RUSH_MUL;
+  G.speed = sp;
+  const dz = sp * dt;
+  G.dist += dz;
+
+  /* ---- steering ------------------------------------------------------ */
+  const tx = Math.max(-TUNE.CLAMP_X, Math.min(TUNE.CLAMP_X, G.targetX));
+  const nx = G.px + (tx - G.px) * Math.min(1, TUNE.STEER_LERP * dt);
+  G.vx = (nx - G.px) / Math.max(dt, 1e-4);
+  G.px = nx;
+
+  /* ---- timers -------------------------------------------------------- */
+  if (G.iframe > 0) G.iframe -= dt;
+  if (G.magnet > 0) G.magnet -= dt;
+  if (G.shield > 0) G.shield -= dt; else player.shield.visible = false;
+  if (G.rush > 0) G.rush -= dt;
+  if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
+  if (G.shake > 0) G.shake -= dt;
+  if (G.camPunch > 0) G.camPunch -= dt;
+
+  /* ---- track segments recycle back to front -------------------------- */
+  for (let i = 0; i < TUNE.SEG_COUNT; i++) {
+    segZ[i] += dz;
+    if (segZ[i] > TUNE.SEG_LEN) segZ[i] -= TUNE.SEG_COUNT * TUNE.SEG_LEN;
+    dummy.position.set(0, 0, segZ[i]);
+    dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    segMesh.setMatrixAt(i, dummy.matrix);
+  }
+  segMesh.instanceMatrix.needsUpdate = true;
+
+  /* ---- generation ------------------------------------------------------
+     Cursors are in RUN DISTANCE, not in z. Everything spawns at the same
+     SPAWN_Z and travels at the same speed, so spawning every N metres of
+     travel puts the objects exactly N metres apart — which is what the level
+     config actually promises. (Advancing a z-cursor instead silently
+     stretched every gap to ~150 m regardless of the configured value.) */
+  const arrival = G.dist + Math.abs(TUNE.SPAWN_Z);   // where this spawn lands
+  if (G.dist >= G.nextGateD) {
+    /* no gate so close to the line that it arrives after the finish */
+    if (!(G.mode === 'level' && arrival > G.target - 40)) spawnGatePair(TUNE.SPAWN_Z);
+    G.lastGateD = G.dist;
+    G.nextGateD = G.dist + G.gateGap;
+  }
+  if (G.dist >= G.nextObD) {
+    /* Keep a clean approach to every gate: an obstacle sitting on the gate
+       line would force "dodge" and "read the maths" into the same moment,
+       which is not a decision the player can actually make. */
+    const nearGate = Math.abs(G.dist - G.lastGateD) < TUNE.GATE_CLEAR ||
+                     Math.abs(G.dist - G.nextGateD) < TUNE.GATE_CLEAR;
+    if (!nearGate && Math.random() < G.obDensity) spawnObstacle(TUNE.SPAWN_Z);
+    G.nextObD = G.dist + (55 + Math.random() * 45) / Math.max(0.3, G.obDensity);
+  }
+  if (G.dist >= G.nextDiaD) {
+    const used = spawnDiamondRun(TUNE.SPAWN_Z);
+    G.nextDiaD = G.dist + used + 12 + Math.random() * 22;
+  }
+  if (G.dist >= G.nextPupD) {
+    spawnPup(TUNE.SPAWN_Z);
+    G.nextPupD = G.dist + 260 + Math.random() * 240;
+  }
+
+  updateDiamonds(dt, dz);
+  updateGates(dt, dz);
+  updateObstacles(dt, dz);
+  updatePups(dt, dz);
+  updateScenery(dt, dz);
+  updatePlayer(dt);
+  updatePile(dt);
+
+  /* ---- finish line ---------------------------------------------------- */
+  if (G.mode === 'level' && G.dist >= G.target) endRun('finish');
+
+  /* count-up animation for the HUD number */
+  if (G.shownGems !== G.gems) {
+    const d = G.gems - G.shownGems;
+    const stepN = Math.max(1, Math.abs(d) * 0.18);
+    G.shownGems += Math.sign(d) * Math.min(Math.abs(d), stepN);
+    if (Math.abs(G.gems - G.shownGems) < 0.6) G.shownGems = G.gems;
+    refreshCount();
+  }
+  refreshProgress();
+  AU.setWind(0.05 + (sp - TUNE.SPEED_MIN) / (TUNE.SPEED_MAX - TUNE.SPEED_MIN) * 0.2);
+}
+
+/* ---- diamonds ---------------------------------------------------------- */
+function updateDiamonds(dt, dz) {
+  const magnetOn = G.magnet > 0;
+  for (let i = 0; i < TUNE.DIAMOND_CAP; i++) {
+    const st = dm.st[i];
+    if (st === 0) { dummy.scale.set(0, 0, 0); dummy.position.set(0, -99, 0); dummy.updateMatrix(); dm.mesh.setMatrixAt(i, dummy.matrix); continue; }
+    dm.z[i] += dz;
+    dm.rot[i] += dt * 2.2;
+
+    if (st === 1) {
+      if (magnetOn) {
+        const ddx = G.px - dm.x[i], ddz = -dm.z[i];
+        const d2 = ddx * ddx + ddz * ddz;
+        if (d2 < TUNE.MAGNET_R * TUNE.MAGNET_R) {
+          const d = Math.sqrt(d2) || 1;
+          const pull = 26 * dt;
+          dm.x[i] += (ddx / d) * pull;
+          dm.z[i] += (ddz / d) * pull;
+          dm.y[i] += (0.95 - dm.y[i]) * Math.min(1, 6 * dt);
+        }
+      }
+      /* collect */
+      const adx = Math.abs(dm.x[i] - G.px);
+      if (Math.abs(dm.z[i]) < 1.5 && adx < 1.5) {
+        dm.st[i] = 2; dm.t[i] = 0;
+        G.combo++; G.comboT = 1.6;
+        const val = TUNE.GEM_VALUE * (G.rush > 0 ? 2 : 1);
+        G.gems = Math.min(GEM_CAP, G.gems + val);
+        AU.pickup(G.combo);
+      } else if (dm.z[i] > TUNE.DESPAWN_Z) dm.st[i] = 0;
+    } else {
+      /* flying to the pile: short arc, then it joins the carried cluster */
+      dm.t[i] += dt * 4.2;
+      const k = Math.min(1, dm.t[i]);
+      dm.x[i] += (G.px - dm.x[i]) * Math.min(1, 10 * dt);
+      dm.y[i] = 0.95 + Math.sin(k * Math.PI) * 1.4;
+      dm.z[i] += (1.6 - dm.z[i]) * Math.min(1, 10 * dt);
+      if (k >= 1) { dm.st[i] = 0; continue; }
+    }
+
+    const s = st === 2 ? 1 + 0.5 * Math.sin(Math.min(1, dm.t[i]) * Math.PI) : 1;
+    dummy.position.set(dm.x[i], dm.y[i], dm.z[i]);
+    dummy.rotation.set(0.5, dm.rot[i], 0.3);
+    dummy.scale.set(s, s, s);
+    dummy.updateMatrix();
+    dm.mesh.setMatrixAt(i, dummy.matrix);
+  }
+  dm.mesh.instanceMatrix.needsUpdate = true;
+}
+
+/* ---- gates ------------------------------------------------------------- */
+function updateGates(dt, dz) {
+  for (let i = 0; i < gates.length; i++) {
+    const p = gates[i];
+    if (!p.alive) continue;
+    p.pz = p.z; p.z += dz;
+    if (!p.committed && p.z >= TUNE.GATE_COMMIT_Z) commitGate(p);
+    p.side[0].position.z = p.z; p.side[1].position.z = p.z;
+
+    if (!p.taken && p.committed && p.pz < 0 && p.z >= 0) {
+      p.taken = true;
+      const s = G.px < 0 ? 0 : 1;
+      const op = GATE_OPS[p.ops[s]];
+      const before = G.gems;
+      G.gems = applyOp(op, G.gems);
+      const delta = G.gems - before;
+      popGate(op, delta);
+      G.camPunch = 0.22;
+    }
+    if (p.z > TUNE.DESPAWN_Z) { p.alive = false; p.side[0].visible = false; p.side[1].visible = false; }
+  }
+}
+
+/* ---- obstacles --------------------------------------------------------- */
+function updateObstacles(dt, dz) {
+  const counts = [0, 0, 0, 0];
+  for (let i = 0; i < obList.length; i++) {
+    const o = obList[i];
+    if (!o.alive) continue;
+    o.z += dz;
+    if (o.kind === 2) { o.spin += dt * 2.1; o.x = Math.sin(o.spin) * 3.0; }   // blade sweeps
+
+    if (!o.hit && Math.abs(o.z) < 1.5 && Math.abs(o.x - G.px) < o.w + 0.55) {
+      o.hit = true;
+      hitObstacle();
+    }
+    if (o.z > TUNE.DESPAWN_Z) { o.alive = false; continue; }
+
+    const k = o.kind, idx = counts[k]++;
+    if (k === 0)      { dummy.position.set(o.x, 2.6, o.z); dummy.rotation.set(0, o.spin, 0); dummy.scale.set(1, 1, 1); }
+    else if (k === 1) { dummy.position.set(o.x, 0.75, o.z); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); }
+    else if (k === 2) { dummy.position.set(0, 1.1, o.z); dummy.rotation.set(0, 0, o.spin * 1.6); dummy.scale.set(1, 1, 1); }
+    else              { dummy.position.set(o.x, 0.06, o.z); dummy.rotation.set(-Math.PI / 2, 0, 0); dummy.scale.set(o.w * 2, 7, 1); }
+    dummy.updateMatrix();
+    obs[OB_KINDS[k]].setMatrixAt(idx, dummy.matrix);
+  }
+  /* park unused instances out of sight */
+  for (let k = 0; k < 4; k++) {
+    for (let i = counts[k]; i < OB_POOL; i++) {
+      dummy.position.set(0, -999, 0); dummy.scale.set(0.001, 0.001, 0.001);
+      dummy.rotation.set(0, 0, 0); dummy.updateMatrix();
+      obs[OB_KINDS[k]].setMatrixAt(i, dummy.matrix);
+    }
+    obs[OB_KINDS[k]].instanceMatrix.needsUpdate = true;
+  }
+}
+
+function hitObstacle() {
+  if (G.iframe > 0) return;
+  if (G.shield > 0) {
+    G.shield = 0; player.shield.visible = false;
+    G.iframe = TUNE.IFRAME; G.shake = 0.2;
+    AU.gateBad(); flash('#5EEAD4');
+    return;
+  }
+  G.iframe = TUNE.IFRAME;
+  G.lives--;
+  const loss = Math.max(TUNE.HIT_MIN_LOSS, Math.floor(G.gems * TUNE.HIT_LOSS));
+  G.gems = Math.max(0, G.gems - loss);
+  G.combo = 0;
+  G.shake = 0.42; G.camPunch = 0.3;
+  AU.crash(); flash('#FF4757');
+  popText('-' + loss, '#FF7A85');
+  refreshHud();
+  if (G.lives <= 0) endRun('dead');
+}
+
+/* ---- power-ups --------------------------------------------------------- */
+function updatePups(dt, dz) {
+  for (let i = 0; i < pups.length; i++) {
+    const p = pups[i];
+    if (!p.alive) continue;
+    p.z += dz; p.t += dt;
+    p.mesh.position.set(p.x, 1.5 + Math.sin(p.t * 2.4) * 0.3, p.z);
+    p.mesh.rotation.set(p.t * 1.1, p.t * 1.7, 0);
+    if (Math.abs(p.z) < 1.6 && Math.abs(p.x - G.px) < 1.7) {
+      p.alive = false; p.mesh.visible = false;
+      if (p.kind === 0) { G.magnet = TUNE.MAGNET_T; popText('مغناطيس', '#FF9AA3'); }
+      else if (p.kind === 1) { G.shield = TUNE.SHIELD_T; player.shield.visible = true; popText('درع', '#5EEAD4'); }
+      else { G.rush = TUNE.RUSH_T; popText('سرعة', '#FFD766'); }
+      AU.power(); refreshPups();
+      continue;
+    }
+    if (p.z > TUNE.DESPAWN_Z) { p.alive = false; p.mesh.visible = false; }
+  }
+}
+
+/* ---- scenery ----------------------------------------------------------- */
+function updateScenery(dt, dz) {
+  for (let i = 0; i < ROCK_N; i++) {
+    const r = rockData[i];
+    r.z += dz;
+    if (r.z > 30) { r.z -= 420; r.x = (i % 2 ? 1 : -1) * (10 + Math.random() * 16); r.s = 3 + Math.random() * 7; }
+    dummy.position.set(r.x, r.y, r.z);
+    dummy.rotation.set(r.rx, r.ry, 0);
+    dummy.scale.set(r.s, r.s * 1.4, r.s);
+    dummy.updateMatrix();
+    rockMesh.setMatrixAt(i, dummy.matrix);
+  }
+  rockMesh.instanceMatrix.needsUpdate = true;
+
+  const dp = dust.geometry.attributes.position.array;
+  for (let i = 0; i < DUST_N; i++) {
+    dp[i * 3 + 2] += dz * 0.75;
+    if (dp[i * 3 + 2] > 12) { dp[i * 3 + 2] -= 230; dp[i * 3] = (Math.random() - 0.5) * 30; }
+  }
+  dust.geometry.attributes.position.needsUpdate = true;
+}
+
+/* ---- player + camera ---------------------------------------------------- */
+function updatePlayer(dt) {
+  const p = player;
+  G.bob += dt * TUNE.BOB_HZ * (G.speed / 30);
+  const bobY = Math.abs(Math.sin(G.bob)) * 0.14;
+  p.grp.position.set(G.px, bobY, 0);
+
+  /* lean into the steer, and blink while invulnerable */
+  G.lean += ((-G.vx * 0.035) - G.lean) * Math.min(1, 9 * dt);
+  p.grp.rotation.z = G.lean;
+  p.grp.rotation.y = -G.lean * 0.7;
+  const blink = G.iframe > 0 ? (Math.sin(G.time * 34) > 0 ? 0.25 : 1) : 1;
+  p.torso.material = blink < 1 ? MAT.dark : MAT.body;
+
+  const swing = Math.sin(G.bob) * 0.85;
+  p.legL.rotation.x = swing; p.legR.rotation.x = -swing;
+  p.armL.rotation.x = -swing * 0.8; p.armR.rotation.x = swing * 0.8;
+  p.shadow.position.set(0, 0.03 - bobY, 0);
+  if (p.shield.visible) p.shield.rotation.y += dt * 1.4;
+
+  /* chase camera + shake + punch */
+  const sh = G.shake > 0 ? G.shake * 1.6 : 0;
+  camera.position.set(
+    G.px * 0.34 + (Math.random() - 0.5) * sh,
+    TUNE.CAM_UP + (Math.random() - 0.5) * sh,
+    TUNE.CAM_BACK + (G.camPunch > 0 ? -G.camPunch * 4 : 0)
+  );
+  camera.lookAt(G.px * 0.18, TUNE.CAM_LOOK_Y, TUNE.CAM_LOOK_Z);
+}
+
+/* ---- carried pile ------------------------------------------------------- */
+function updatePile(dt) {
+  const n = Math.min(TUNE.MAX_PILE, G.gems);
+  /* past MAX_PILE the cluster stops adding instances and just grows instead.
+     Both the radius and `grow` are capped: an uncapped spiral reached ~2.5
+     units across and completely buried the runner. */
+  const grow = 1 + Math.min(0.3, Math.max(0, (G.gems - TUNE.MAX_PILE) / TUNE.PILE_GROW));
+  for (let i = 0; i < TUNE.MAX_PILE; i++) {
+    if (i >= n) { dummy.position.set(0, -999, 0); dummy.scale.set(0.001, 0.001, 0.001); }
+    else {
+      const a = i * 2.399963 + G.time * 0.6;               // golden-angle spiral
+      /* the pile sits nearer the camera than the runner, so it renders bigger
+         than its world size — keep the radius well under the lane half-width */
+      const rad = Math.min(0.8, 0.24 + Math.sqrt(i) * 0.062) * grow;
+      dummy.position.set(
+        G.px + Math.cos(a) * rad,
+        0.3 + (i / TUNE.MAX_PILE) * 0.62 * grow + Math.sin(G.time * 3 + i) * 0.04,
+        2.6 + Math.sin(a) * rad * 0.5                      // trails BEHIND the runner
+      );
+      dummy.rotation.set(a, a * 1.3, 0);
+      const s = 0.4 * grow;
+      dummy.scale.set(s, s, s);
+    }
+    dummy.updateMatrix();
+    pileMesh.setMatrixAt(i, dummy.matrix);
+  }
+  pileMesh.instanceMatrix.needsUpdate = true;
+}
+
+/* ==========================================================================
+   14. HUD / FEEDBACK
+   ========================================================================== */
+const el = id => document.getElementById(id);
+const dValEl = el('dVal'), pfillEl = el('pfill'), flashEl = el('flash'), streakEl = el('streaks');
+
+function refreshCount() {
+  dValEl.textContent = fmtNum(G.shownGems);
+}
+function refreshProgress() {
+  const f = G.mode === 'level' ? Math.min(1, G.dist / G.target) : Math.min(1, (G.dist % 1000) / 1000);
+  pfillEl.style.width = (f * 100) + '%';
+  streakEl.style.opacity = Math.max(0, Math.min(0.85,
+    (G.speed - TUNE.SPEED_MIN) / (TUNE.SPEED_MAX - TUNE.SPEED_MIN) * 0.7 + (G.rush > 0 ? 0.3 : 0)));
+}
+function refreshHud() {
+  refreshCount(); refreshProgress();
+  const lifeEls = document.querySelectorAll('#lives .life');
+  for (let i = 0; i < lifeEls.length; i++) lifeEls[i].classList.toggle('off', i >= G.lives);
+  refreshPups();
+}
+function refreshPups() {
+  const box = el('pups');
+  let h = '';
+  if (G.magnet > 0) h += '<div class="pup"><i>🧲</i><span class="num">' + Math.ceil(G.magnet) + '</span></div>';
+  if (G.shield > 0) h += '<div class="pup"><i>🛡</i><span class="num">' + Math.ceil(G.shield) + '</span></div>';
+  if (G.rush > 0)   h += '<div class="pup"><i>⚡</i><span class="num">' + Math.ceil(G.rush) + '</span></div>';
+  box.innerHTML = h;
+  box.classList.toggle('hide', h === '');
+}
+
+let flashT = 0;
+function flash(color) {
+  flashEl.style.background = 'radial-gradient(circle at 50% 55%, ' + color + '00 45%, ' + color + '88 100%)';
+  flashEl.style.opacity = '1';
+  clearTimeout(flashT);
+  flashT = setTimeout(() => { flashEl.style.transition = 'opacity .32s'; flashEl.style.opacity = '0'; }, 40);
+  flashEl.style.transition = 'none';
+}
+
+/* floating popup, plain DOM so the text stays crisp at any resolution */
+function popText(txt, color) {
+  const d = document.createElement('div');
+  d.textContent = txt;
+  d.className = 'popfx';
+  d.style.cssText = 'position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:7;' +
+    'font-size:38px;font-weight:900;pointer-events:none;color:' + color +
+    ';text-shadow:0 3px 0 rgba(6,12,26,.85),0 0 22px ' + color + ';direction:ltr;';
+  uiEl.appendChild(d);
+  const t0 = performance.now();
+  (function step(now) {
+    const k = Math.min(1, (now - t0) / 850);
+    d.style.opacity = String(1 - k * k);
+    d.style.transform = 'translate(-50%,-50%) translateY(' + (-70 * k) + 'px) scale(' + (1 + 0.35 * (1 - Math.pow(1 - k, 3))) + ')';
+    if (k < 1) requestAnimationFrame(step); else d.remove();
+  })(t0);
+}
+function popGate(op, delta) {
+  const good = delta >= 0;
+  popText(op.label, good ? '#4BE08A' : '#FF7A85');
+  flash(good ? '#3BE07A' : '#FF4757');
+  AU.gateWhoosh();
+  if (good) AU.gateGood(); else AU.gateBad();
+  dValEl.classList.remove('bump'); void dValEl.offsetWidth; dValEl.classList.add('bump');
+  refreshHud();
+}
+
+let toastT = 0;
+function toast(m) {
+  const t = el('toast'); t.textContent = m; t.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1700);
+}
+
+/* ==========================================================================
+   15. SCREENS
+   ========================================================================== */
+const SCREENS = ['menu', 'levels', 'rings', 'pause', 'done'];
+function show(name) {
+  for (let i = 0; i < SCREENS.length; i++) el(SCREENS[i]).classList.toggle('hide', SCREENS[i] !== name);
+  const inRun = (name === null || name === 'pause');
+  el('hud').classList.toggle('hide', !inRun);
+  if (!inRun) el('pups').classList.add('hide');
+  G.screen = name === null ? 'play' : name;
+  if (name === 'menu') el('bestV').textContent = SAVE.bestEndless;
+}
+
+function buildLevelGrid() {
+  const g = el('lvGrid');
+  g.innerHTML = '';
+  for (let i = 0; i < LEVELS.length; i++) {
+    const st = SAVE.stars[i] | 0, open = i <= SAVE.unlocked;
+    const b = document.createElement('button');
+    b.className = 'lvNode' + (st > 0 ? ' done' : (open ? ' open' : ''));
+    if (!open) b.innerHTML = '<span style="font-size:19px">🔒</span>';
+    else {
+      let h = '<span class="num">' + (i + 1) + '</span><span class="ns">';
+      for (let k = 0; k < 3; k++) h += '<i class="' + (k < st ? 'f' : '') + '">★</i>';
+      b.innerHTML = h + '</span>';
+      b.addEventListener('click', () => { AU.init(); AU.ui(); startRun('level', i); });
+    }
+    g.appendChild(b);
+  }
+}
+
+function buildRingRow() {
+  const r = el('ringRow');
+  r.innerHTML = '';
+  for (let i = 0; i < TIERS.length; i++) {
+    const on = !!SAVE.tiers[i];
+    const d = document.createElement('div');
+    d.className = 'ringPip' + (on ? ' on' : '');
+    d.style.color = TIERS[i].css;
+    d.innerHTML = '<div class="rc" style="' + (on ? 'border-color:' + TIERS[i].css : '') + '"></div>' +
+                  '<div class="rn">' + (on ? TIERS[i].n : '؟') + '</div>';
+    r.appendChild(d);
+  }
+}
+
+function starSvg(f) {
+  return '<svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z" fill="' +
+    (f ? '#FFD766' : '#2A3552') + '" stroke="' + (f ? '#FFB020' : '#1A2340') + '" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+}
+
+function showDone(reason) {
+  const T = TIERS[G.tier];
+  el('dnTitle').textContent = reason === 'finish' ? 'خط النهاية!' : 'انتهت المحاولة';
+  el('dnTitle').style.color = reason === 'finish' ? '#5EEAD4' : '#FF7A85';
+  el('dnTier').textContent = 'خاتم ' + T.n;
+  el('dnTier').style.color = T.css;
+  el('dnDist').textContent = Math.round(G.dist) + ' م';
+
+  const sw = el('dnStars');
+  sw.innerHTML = '';
+  if (G.mode === 'level') {
+    const st = G.lastStars | 0;
+    for (let i = 0; i < 3; i++) {
+      const d = document.createElement('div');
+      d.className = 'st'; d.innerHTML = starSvg(i < st);
+      sw.appendChild(d);
+      if (i < st) setTimeout(() => d.classList.add('on'), 300 + i * 280);
+    }
+  }
+  const best = G.mode === 'endless' ? SAVE.bestEndless : (LEVELS[G.level].stars[2]);
+  el('dnBest').textContent = G.mode === 'endless'
+    ? (G.gems >= SAVE.bestEndless ? 'رقم قياسي جديد!' : 'الأفضل: ' + SAVE.bestEndless)
+    : 'هدف 3 نجوم: ' + best;
+  el('btnNext').textContent = G.mode === 'endless' ? 'مرة أخرى'
+    : (reason === 'finish' && G.level + 1 < LEVELS.length ? 'التالي' : 'إعادة');
+
+  /* count the diamonds up while the ring builds */
+  const gEl = el('dnGems'), target = G.gems, t0 = performance.now();
+  (function tick(now) {
+    const k = Math.min(1, (now - t0) / 1100);
+    gEl.textContent = Math.round(target * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(tick);
+  })(t0);
+
+  show('done');
+}
+
+function startRun(mode, lv) {
+  resetRun(mode, lv);
+  el('pzSub').textContent = mode === 'endless' ? 'اللانهائي' : 'المستوى ' + (lv + 1);
+  show(null);
+}
+
+/* ==========================================================================
+   16. INPUT — touch first, mouse for desktop testing
+   ========================================================================== */
+let dragging = false, lastPX = 0;
+function evX(e) {
+  const t = e.touches && e.touches.length ? e.touches[0]
+          : (e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e);
+  return t.clientX;
+}
+function onDown(e) {
+  AU.init(); AU.resume();
+  if (G.screen !== 'play') return;
+  if (e.cancelable) e.preventDefault();
+  dragging = true; lastPX = evX(e);
+}
+function onMove(e) {
+  if (e.cancelable) e.preventDefault();       // stop WebView scroll / pull-to-refresh
+  if (!dragging || G.screen !== 'play') return;
+  const x = evX(e);
+  G.targetX = Math.max(-TUNE.CLAMP_X, Math.min(TUNE.CLAMP_X, G.targetX + (x - lastPX) * TUNE.DRAG_SCALE));
+  lastPX = x;
+}
+function onUp() { dragging = false; }
+
+cv.addEventListener('touchstart', onDown, { passive: false });
+cv.addEventListener('touchmove', onMove, { passive: false });
+cv.addEventListener('touchend', onUp, { passive: false });
+cv.addEventListener('touchcancel', onUp, { passive: false });
+cv.addEventListener('mousedown', onDown);
+window.addEventListener('mousemove', onMove);
+window.addEventListener('mouseup', onUp);
+document.addEventListener('touchmove', e => { if (e.target === cv) e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('contextmenu', e => e.preventDefault());
+/* keyboard for desktop testing */
+window.addEventListener('keydown', e => {
+  if (G.screen !== 'play') return;
+  if (e.key === 'ArrowLeft')  G.targetX = Math.max(-TUNE.CLAMP_X, G.targetX - 1.1);
+  if (e.key === 'ArrowRight') G.targetX = Math.min(TUNE.CLAMP_X, G.targetX + 1.1);
+});
+
+/* ==========================================================================
+   17. BUTTONS
+   ========================================================================== */
+function bind(id, fn) { el(id).addEventListener('click', e => { e.preventDefault(); AU.init(); AU.ui(); fn(); }); }
+bind('btnLevels', () => { buildLevelGrid(); show('levels'); });
+bind('btnEndless', () => startRun('endless', 0));
+bind('btnLvBack', () => show('menu'));
+bind('btnRings', () => { buildRingRow(); show('rings'); });
+bind('btnRingsOk', () => show('menu'));
+bind('btnPause', () => { G.running = false; show('pause'); });
+bind('btnResume', () => { G.running = true; show(null); });
+bind('btnRetry2', () => startRun(G.mode, G.level));
+bind('btnHome2', () => show('menu'));
+bind('btnHome3', () => show('menu'));
+bind('btnNext', () => {
+  if (G.mode === 'endless') startRun('endless', 0);
+  else if (G.lastStars > 0 && G.level + 1 < LEVELS.length) startRun('level', G.level + 1);
+  else startRun('level', G.level);
+});
+el('btnMute').addEventListener('click', e => {
+  e.preventDefault(); AU.init();
+  AU.setMute(!SAVE.mute);
+  el('btnMute').textContent = (SAVE.mute ? '🔇' : '🔊') + ' الصوت';
+  AU.ui();
+});
+el('btnMute').textContent = (SAVE.mute ? '🔇' : '🔊') + ' الصوت';
+
+/* ==========================================================================
+   18. RESIZE
+   ========================================================================== */
+function onResize() { layout(); }
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => setTimeout(onResize, 120));
+
+/* ==========================================================================
+   19. MAIN LOOP — fixed timestep accumulator
+   ========================================================================== */
+const STEP = 1 / 60;
+let acc = 0, last = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  /* the canvas box can change without a resize event in an Android WebView */
+  if (cv.clientWidth !== VW || cv.clientHeight !== VH) layout();
+
+  if (!last) last = now;
+  let dt = (now - last) / 1000; last = now;
+  if (dt > 0.25) dt = 0.25;
+  acc += dt;
+  let guard = 0;
+  while (acc >= STEP && guard++ < 5) { update(STEP); acc -= STEP; }
+  if (acc > STEP * 5) acc = 0;
+
+  /* menu-side screens share the ring backdrop; rendering the track scene
+     behind the level grid left a lit horizon band under the dim overlay */
+  if (G.screen === 'menu' || G.screen === 'done' || G.screen === 'rings' || G.screen === 'levels')
+    renderer.render(ringScene, ringCam);
+  else renderer.render(scene, camera);
+}
+
+/* ==========================================================================
+   20. BOOT
+   ========================================================================== */
+(function boot() {
+  if (!window.THREE) { el('boot').textContent = 'تعذّر تحميل المحرك ثلاثي الأبعاد'; return; }
+  layout();
+  buildWorld();
+
+  /* FAIRNESS ASSERT: a gate pair must be readable for at least
+     GATE_LEAD_MIN seconds even at the fastest speed in the game. Derived from
+     the real camera, so retuning FOV or panel size can never silently break it. */
+  const halfTan = Math.tan(TUNE.FOV * Math.PI / 360);
+  const readDist = TUNE.GATE_H / (2 * halfTan * TUNE.READ_FRAC) - TUNE.CAM_BACK;
+  const lead = readDist / TUNE.SPEED_MAX;
+  if (lead < TUNE.GATE_LEAD_MIN) {
+    console.warn('gate lead ' + lead.toFixed(2) + 's < required ' + TUNE.GATE_LEAD_MIN + 's');
+  }
+  window.__leadTime = lead;
+
+  resetRun('endless', 0);
+  G.running = false;
+  setRingTier(Math.max(0, SAVE.bestTier), false);
+  show('menu');
+  el('boot').style.display = 'none';
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
