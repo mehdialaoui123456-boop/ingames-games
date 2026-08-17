@@ -1,0 +1,2567 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0F1626">
+<meta name="format-detection" content="telephone=no">
+<title>فقاعات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   فقاعات — Bubbles
+   Level-based match-3 bubble shooter. Hex staggered grid, bank-shot aiming.
+   Single file, Canvas 2D, no libraries, no assets.
+   ========================================================================== */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#080D18;}
+body{
+  font-family:'Cairo','Segoe UI',sans-serif;color:#EAF1FF;
+  position:fixed;inset:0;touch-action:none;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+}
+#app{position:absolute;inset:0;overflow:hidden;}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;}
+
+/* Western digits inside an RTL document */
+.num{direction:ltr;unicode-bidi:isolate;font-feature-settings:"lnum" 1;}
+
+/* #ui is sized by JS onto the portrait play-viewport (letterboxed if wide) */
+#ui{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;overflow:hidden;}
+button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer;}
+.hide{display:none !important;}
+
+/* ------------------------------------------------------------------ HUD -- */
+#hud{
+  position:absolute;left:0;right:0;top:0;z-index:6;
+  padding:calc(env(safe-area-inset-top,0px) + 7px) 9px 8px;
+  display:flex;flex-direction:column;gap:6px;
+  background:linear-gradient(180deg,rgba(9,14,26,.92),rgba(9,14,26,.55) 62%,rgba(9,14,26,0));
+}
+.hrow{display:flex;align-items:center;gap:7px;direction:ltr;}
+.iconbtn{
+  pointer-events:auto;width:36px;height:36px;flex:0 0 36px;border-radius:11px;
+  background:rgba(22,32,56,.9);border:1.5px solid rgba(24,119,242,.55);
+  font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.35);
+}
+.iconbtn:active{transform:scale(.93);}
+.chip{
+  display:flex;align-items:center;gap:6px;height:36px;padding:0 11px;border-radius:11px;
+  background:rgba(22,32,56,.9);border:1.5px solid rgba(90,120,180,.3);
+}
+.chip .lbl{font-size:10px;font-weight:700;opacity:.62;letter-spacing:.2px;}
+.chip .val{font-size:16px;font-weight:900;}
+#shotChip{border-color:rgba(24,119,242,.7);}
+#shotChip .val{color:#7FB6FF;min-width:22px;text-align:center;}
+#shotChip.low{border-color:#FF4757;animation:pulse .9s ease-in-out infinite;}
+#shotChip.low .val{color:#FF7A85;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,71,87,0);}50%{box-shadow:0 0 0 6px rgba(255,71,87,.16);}}
+#scoreChip{flex:1;justify-content:flex-end;}
+#scoreChip .val{color:#FFD766;}
+
+/* objective strip */
+#objBar{
+  position:relative;                 /* #objTrack anchors here, not to #hud */
+  display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:10px;
+  background:rgba(22,32,56,.82);border:1.5px solid rgba(90,120,180,.26);
+  overflow:hidden;
+}
+#objIcon{
+  width:20px;height:20px;flex:0 0 20px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;
+  background:#2E86FF;color:#08101F;font-weight:900;
+  box-shadow:inset 0 -3px 5px rgba(0,0,0,.28),inset 0 3px 4px rgba(255,255,255,.45);
+}
+#objText{font-size:12.5px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#objProg{font-size:12.5px;font-weight:900;color:#7FB6FF;}
+#objTrack{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.1);}
+#objFill{height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,#1877F2,#5EEAD4);transition:width .25s;}
+
+/* -------------------------------------------------------------- BOOSTERS -- */
+#boosters{
+  position:absolute;left:0;right:0;bottom:0;z-index:6;
+  padding:6px 8px calc(env(safe-area-inset-bottom,0px) + 6px);
+  display:flex;gap:6px;justify-content:center;
+  background:linear-gradient(0deg,rgba(9,14,26,.9),rgba(9,14,26,0));
+}
+.bst{
+  pointer-events:auto;position:relative;flex:1 1 0;max-width:88px;height:50px;border-radius:13px;
+  background:linear-gradient(180deg,rgba(30,44,76,.96),rgba(18,26,46,.96));
+  border:1.5px solid rgba(24,119,242,.45);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  box-shadow:0 2px 8px rgba(0,0,0,.35);
+}
+.bst:active{transform:scale(.94);}
+.bst .bi{font-size:17px;line-height:1;}
+.bst .bn{font-size:8.5px;font-weight:700;opacity:.78;letter-spacing:-.2px;}
+.bst .bc{
+  position:absolute;top:-5px;left:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;
+  background:#1877F2;color:#fff;font-size:10px;font-weight:900;line-height:18px;text-align:center;
+  border:1.5px solid #0F1626;
+}
+.bst.empty{opacity:.4;border-color:rgba(120,140,175,.3);}
+.bst.empty .bc{background:#4A5878;}
+.bst.on{border-color:#5EEAD4;box-shadow:0 0 0 2px rgba(94,234,212,.3),0 2px 8px rgba(0,0,0,.35);}
+
+/* --------------------------------------------------------------- SCREENS -- */
+.screen{
+  position:absolute;inset:0;z-index:20;pointer-events:auto;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:18px;gap:14px;
+}
+.dim{background:rgba(6,10,20,.82);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);}
+.panel{
+  width:100%;max-width:330px;border-radius:22px;padding:20px 18px;
+  background:linear-gradient(180deg,#182444,#0F1626);
+  border:1.5px solid rgba(24,119,242,.34);
+  box-shadow:0 18px 44px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;align-items:center;gap:13px;
+  animation:pop .28s cubic-bezier(.2,1.5,.4,1);
+}
+@keyframes pop{from{transform:scale(.86);opacity:0;}to{transform:scale(1);opacity:1;}}
+.ptitle{font-size:26px;font-weight:900;letter-spacing:-.5px;}
+.psub{font-size:13px;font-weight:700;opacity:.7;text-align:center;line-height:1.6;}
+.btn{
+  pointer-events:auto;width:100%;padding:13px 16px;border-radius:15px;
+  font-size:16px;font-weight:900;letter-spacing:-.2px;
+  background:linear-gradient(180deg,#2E8BFF,#1259C8);
+  box-shadow:0 4px 0 #0B3D8F,0 8px 18px rgba(24,119,242,.32);
+  transition:transform .08s,box-shadow .08s;
+}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #0B3D8F,0 4px 10px rgba(24,119,242,.25);}
+.btn.ghost{
+  background:linear-gradient(180deg,#2A3556,#1B2440);
+  box-shadow:0 4px 0 #101830,0 8px 16px rgba(0,0,0,.3);
+}
+.btn.ghost:active{box-shadow:0 1px 0 #101830;}
+.btn.sm{font-size:14px;padding:11px 14px;}
+.brow{display:flex;gap:9px;width:100%;}
+
+/* stats grid inside result panels */
+.stats{width:100%;display:flex;flex-direction:column;gap:7px;}
+.srow{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 13px;border-radius:12px;background:rgba(255,255,255,.05);
+  font-size:13px;font-weight:700;
+}
+.srow b{font-size:16px;font-weight:900;color:#FFD766;}
+.srow.tot{background:rgba(24,119,242,.16);border:1px solid rgba(24,119,242,.3);}
+.srow.tot b{font-size:21px;}
+
+/* stars */
+.stars{display:flex;gap:10px;align-items:center;justify-content:center;height:56px;}
+.st{
+  width:44px;height:44px;opacity:.2;transform:scale(.5);
+  transition:transform .1s;
+}
+.st.on{opacity:1;animation:stamp .42s cubic-bezier(.2,1.7,.4,1) forwards;}
+.st.big{width:54px;height:54px;}
+@keyframes stamp{0%{transform:scale(2.1) rotate(-22deg);opacity:0;}55%{opacity:1;}100%{transform:scale(1) rotate(0);opacity:1;}}
+
+/* ------------------------------------------------------------------ MENU -- */
+#menu{justify-content:center;gap:22px;}
+#menuTitle{
+  font-size:56px;font-weight:900;letter-spacing:-2px;line-height:1;
+  background:linear-gradient(180deg,#EAF6FF 6%,#8CC6FF 46%,#1877F2 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 5px 0 rgba(8,20,45,.55)) drop-shadow(0 12px 22px rgba(24,119,242,.4));
+}
+#menuSub{font-size:13px;font-weight:700;opacity:.62;margin-top:-14px;}
+#menuCard{
+  width:100%;max-width:300px;display:flex;flex-direction:column;gap:11px;align-items:center;
+}
+#totalStars{
+  display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:14px;
+  background:rgba(22,32,56,.85);border:1.5px solid rgba(255,215,102,.35);
+  font-size:15px;font-weight:900;
+}
+#totalStars .sicon{color:#FFD766;font-size:17px;}
+
+/* ------------------------------------------------------------------- MAP -- */
+#map{padding:0;display:block;background:transparent;}
+#mapTop{
+  position:absolute;left:0;right:0;top:0;z-index:3;
+  padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 10px;
+  display:flex;align-items:center;gap:8px;direction:ltr;
+  background:linear-gradient(180deg,rgba(9,14,26,.95),rgba(9,14,26,0));
+}
+#mapTitle{flex:1;text-align:center;font-size:17px;font-weight:900;}
+#mapScroll{
+  position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;
+}
+#mapInner{position:relative;width:100%;padding:64px 0 26px;}
+#mapSvg{position:absolute;left:0;top:0;width:100%;pointer-events:none;}
+.sect{
+  position:absolute;left:12px;right:12px;height:34px;display:flex;align-items:center;gap:9px;
+}
+.sect .sl{flex:1;height:1.5px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3));}
+.sect .sr{flex:1;height:1.5px;background:linear-gradient(90deg,rgba(255,255,255,.3),transparent);}
+.sect .sn{font-size:12.5px;font-weight:900;opacity:.85;letter-spacing:.4px;white-space:nowrap;}
+.node{
+  position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:19px;font-weight:900;pointer-events:auto;
+  background:linear-gradient(180deg,#3D4B70,#222E4E);
+  border:2px solid rgba(255,255,255,.14);
+  box-shadow:0 5px 0 rgba(0,0,0,.35),0 8px 16px rgba(0,0,0,.35);
+  color:rgba(255,255,255,.42);
+}
+.node.open{
+  background:linear-gradient(180deg,#3E9BFF,#1259C8);
+  border-color:rgba(255,255,255,.4);color:#fff;
+  box-shadow:0 5px 0 #0B3D8F,0 8px 20px rgba(24,119,242,.45);
+}
+.node.done{
+  background:linear-gradient(180deg,#37D9A6,#0E9B76);
+  border-color:rgba(255,255,255,.42);color:#04201A;
+  box-shadow:0 5px 0 #07634C,0 8px 20px rgba(55,217,166,.35);
+}
+.node.cur{animation:bob 1.5s ease-in-out infinite;}
+@keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+.node:active{transform:scale(.92);}
+.node .ns{
+  position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);
+  display:flex;gap:1.5px;padding:2px 5px;border-radius:8px;
+  background:#0F1626;border:1px solid rgba(255,255,255,.14);
+}
+.node .ns i{font-style:normal;font-size:9px;line-height:1;color:#33405F;}
+.node .ns i.f{color:#FFD766;}
+.node .lk{font-size:17px;filter:grayscale(1) opacity(.7);}
+
+/* toast */
+#toast{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);z-index:40;
+  padding:12px 20px;border-radius:15px;font-size:14px;font-weight:900;text-align:center;
+  background:rgba(15,22,38,.96);border:1.5px solid rgba(94,234,212,.5);
+  box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;
+}
+#toast.on{opacity:1;transform:translate(-50%,-50%) scale(1);}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div id="ui">
+
+    <!-- ===================== HUD ===================== -->
+    <div id="hud" class="hide">
+      <div class="hrow">
+        <button class="iconbtn" id="btnPause" aria-label="إيقاف">❚❚</button>
+        <div class="chip" id="shotChip"><span class="lbl">طلقات</span><span class="val num" id="shotsV">0</span></div>
+        <div class="chip" id="scoreChip"><span class="lbl">النقاط</span><span class="val num" id="scoreV">0</span></div>
+      </div>
+      <div id="objBar">
+        <div id="objIcon">◍</div>
+        <div id="objText">أزل كل الفقاعات</div>
+        <div id="objProg" class="num">0/0</div>
+        <div id="objTrack"><div id="objFill"></div></div>
+      </div>
+    </div>
+
+    <!-- ================== BOOSTER ROW ================= -->
+    <div id="boosters" class="hide">
+      <button class="bst" data-b="aim"><span class="bi">🎯</span><span class="bn">تصويب دقيق</span><span class="bc num">0</span></button>
+      <button class="bst" data-b="bomb"><span class="bi">💣</span><span class="bn">قنبلة</span><span class="bc num">0</span></button>
+      <button class="bst" data-b="swap"><span class="bi">🔀</span><span class="bn">تبديل</span><span class="bc num">0</span></button>
+      <button class="bst" data-b="shots"><span class="bi">➕</span><span class="bn">طلقات</span><span class="bc num">0</span></button>
+    </div>
+
+    <!-- ==================== MAIN MENU ================== -->
+    <div id="menu" class="screen">
+      <div id="menuTitle">فقاعات</div>
+      <div id="menuSub">صوّب · ارتد · فجّر</div>
+      <div id="menuCard">
+        <!-- one LTR-isolated span: splitting the fraction across RTL siblings
+             reorders it to "90 / 0" -->
+        <div id="totalStars"><span class="sicon">★</span><span class="num" id="tsV">0 / 90</span></div>
+        <button class="btn" id="btnPlay">اللعب</button>
+        <div class="brow">
+          <button class="btn ghost sm" id="btnMute">🔊 الصوت</button>
+          <button class="btn ghost sm" id="btnHow">كيف تلعب</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== MAP SCREEN ================= -->
+    <div id="map" class="screen hide">
+      <div id="mapScroll"><div id="mapInner"><svg id="mapSvg"></svg></div></div>
+      <div id="mapTop">
+        <button class="iconbtn" id="btnMapBack">‹</button>
+        <div id="mapTitle">المستويات</div>
+        <div class="chip" style="height:36px"><span class="sicon" style="color:#FFD766;font-weight:900">★</span><span class="val num" id="tsV2">0</span></div>
+      </div>
+    </div>
+
+    <!-- ==================== HOW TO PLAY ================ -->
+    <div id="how" class="screen dim hide">
+      <div class="panel">
+        <div class="ptitle">كيف تلعب</div>
+        <div class="psub" style="text-align:right;opacity:.85">
+          • اسحب في أي مكان للتصويب، وارفع إصبعك للإطلاق.<br>
+          • خط التصويب يُظهر الارتداد عن الجدران — استغلّه.<br>
+          • 3 فقاعات أو أكثر بنفس اللون تنفجر.<br>
+          • الفقاعات التي تفقد تعلّقها بالسقف تسقط وتمنحك نقاطاً كبيرة.<br>
+          • كل لون يحمل رمزاً مميزاً (●▲■★◆⬢) لتمييزه بسهولة.<br>
+          • انقر الفقاعة التالية لتبديلها مع الحالية.<br>
+          • عدد الطلقات محدود — خطّط قبل أن تطلق.
+        </div>
+        <button class="btn" id="btnHowOk">فهمت</button>
+      </div>
+    </div>
+
+    <!-- ====================== PAUSE ==================== -->
+    <div id="pause" class="screen dim hide">
+      <div class="panel">
+        <div class="ptitle">إيقاف مؤقت</div>
+        <div class="psub">المستوى <span class="num" id="pzLvl">1</span></div>
+        <button class="btn" id="btnResume">استئناف</button>
+        <button class="btn ghost" id="btnRetry2">إعادة المحاولة</button>
+        <button class="btn ghost" id="btnHome2">القائمة الرئيسية</button>
+      </div>
+    </div>
+
+    <!-- ==================== LEVEL WIN =================== -->
+    <div id="win" class="screen dim hide">
+      <div class="panel">
+        <div class="ptitle" style="color:#5EEAD4">أحسنت!</div>
+        <div class="stars" id="winStars"></div>
+        <div class="stats">
+          <div class="srow"><span>نقاط المستوى</span><b class="num" id="wBase">0</b></div>
+          <div class="srow"><span>طلقات متبقية</span><b class="num" id="wShots">0</b></div>
+          <div class="srow tot"><span>المجموع</span><b class="num" id="wTotal">0</b></div>
+        </div>
+        <div id="wBest" class="psub" style="margin-top:-4px"></div>
+        <div class="brow">
+          <button class="btn ghost sm" id="btnHome3">القائمة</button>
+          <button class="btn sm" id="btnNext">التالي</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== LEVEL LOSE ================== -->
+    <div id="lose" class="screen dim hide">
+      <div class="panel">
+        <div class="ptitle" style="color:#FF7A85">انتهت الطلقات!</div>
+        <div class="psub" id="loseSub">اقتربت كثيراً — جرّب زاوية ارتداد مختلفة.</div>
+        <div class="stats">
+          <div class="srow tot"><span>النقاط</span><b class="num" id="lScore">0</b></div>
+        </div>
+        <button class="btn" id="btnRetry">إعادة المحاولة</button>
+        <button class="btn ghost" id="btnHome">القائمة</button>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   0. TUNING — every gameplay constant lives here so levels stay hand-editable
+   ========================================================================== */
+const TUNE = {
+  COLS_EVEN: 11,          // bubbles per even row (odd rows hold one less)
+  ROWS_MAX: 16,           // hard cap on grid rows
+  SHOT_SPEED_FACTOR: 4.0, // screen-heights per second (~0.25s to cross)
+  SNAP_HIT: 0.86,         // collision distance as a fraction of bubble diameter
+  MATCH_MIN: 3,           // group size that pops
+  BOMB_RADIUS: 2,         // hex rings cleared by a bomb
+  GRAV: 1750,             // px/s^2 for falling bubbles (at a 720px reference height)
+  DRIFT: 90,              // max horizontal drift of a dropped bubble
+  SWAY_K: 150,            // cluster sway spring stiffness
+  SWAY_D: 7.4,            // cluster sway damping
+  SWAY_MAX: 5,            // px — sway is purely cosmetic, kept small on purpose
+  PT_POP: 100,            // points per popped bubble (times combo)
+  PT_DROP: 120,           // base for the floating-drop bonus
+  DROP_EXP: 1.45,         // superlinear exponent: big drops are the scoring skill
+  PT_STAR: 500,           // rescued star gem
+  PT_SHOT: 300,           // unused shot at level end
+  COMBO_STEP: 1,          // combo multiplier gained per extra pop wave
+  RAINBOW_CHANCE: [0, .03, .05], // chance of being handed a rainbow, per map
+  POP_GROW: 0.12,         // seconds the bubble swells before bursting
+  SHARDS: 8,              // shards per popped bubble
+  FALL_STAGGER: 0.022,    // seconds between each dropped bubble letting go
+  CELEBRATE_STEP: 0.085,  // seconds per bubble in the end-of-level fireworks
+  START_BOOSTERS: { aim: 2, bomb: 1, swap: 2, shots: 1 }
+};
+
+/* ---- colour palette. Each colour ALSO carries a symbol: colourblind players
+        read the shape, not the hue. This is not optional. -------------------- */
+const SYM = ['circle', 'triangle', 'square', 'star', 'diamond', 'hex'];
+const SYM_CH = ['●', '▲', '■', '★', '◆', '⬢'];
+const COLORS = [
+  { name: 'أحمر',    base: '#FF4757', lite: '#FF9AA3', dark: '#A81828', rim: '#7C0F1C' },
+  { name: 'أزرق',    base: '#2E86FF', lite: '#95C4FF', dark: '#124CA8', rim: '#0B3170' },
+  { name: 'أخضر',    base: '#22C55E', lite: '#8FE9B2', dark: '#0C7A38', rim: '#065024' },
+  { name: 'أصفر',    base: '#FFC420', lite: '#FFE79A', dark: '#B37A00', rim: '#7A5200' },
+  { name: 'بنفسجي',  base: '#A855F7', lite: '#DCB6FF', dark: '#6A2AA8', rim: '#471574' },
+  { name: 'برتقالي', base: '#FF8A2B', lite: '#FFC79A', dark: '#B04E00', rim: '#753300' }
+];
+
+/* ---- bubble kinds -------------------------------------------------------- */
+const K_NORM = 0, K_ICE = 1, K_BOMB = 2, K_LIGHT = 3, K_STONE = 4, K_RAIN = 5, K_STAR = 6;
+
+/* ---- the three visual maps ----------------------------------------------- */
+const MAPS = [
+  { name: 'الفجر',   sky: ['#1B2A5E', '#3C5BA8', '#8E7BC4', '#F0A48C'], deco: '#FFD9C2', vig: '#0A1030' },
+  { name: 'المحيط',  sky: ['#04223F', '#075A78', '#0C97A8', '#5FD9C8'], deco: '#BFF6FF', vig: '#02141F' },
+  { name: 'الليل',   sky: ['#05040F', '#150F35', '#2A1A5E', '#4A2A7A'], deco: '#CFC2FF', vig: '#02010A' }
+];
+
+/* ==========================================================================
+   1. LEVELS — hand authored. 30 levels / 3 maps of 10.
+   ROW FORMAT: even rows (0,2,4…) are 11 chars, odd rows (1,3,5…) are 10 chars.
+   LEGEND
+     .      فارغة (empty)
+     0..5   فقاعة عادية بلون 0..5
+     a..f   جليدية (ice)   — لون 0..5، تحتاج ضربتين
+     A..F   قنبلة (bomb)   — لون 0..5، تنفجر بنصف قطر 2
+     j..o   برق (lightning)— لون 0..5، يمسح الصف كاملاً
+     #      حجرية (stone)  — لا تُطابَق، تُزال بالسقوط أو بالانفجار
+     w      قوس قزح (rainbow) — يطابق أي لون
+     @      نجمة (star gem) — يجب إسقاطها لمهام الإنقاذ
+   OBJECTIVES: {t:'clear'} | {t:'color',c:N} | {t:'rescue',n:N} | {t:'blockers'}
+   ========================================================================== */
+const LEVELS = [
+  /* ---------------------------- MAP 1 · الفجر ---------------------------- */
+  { m:0, cols:3, shots:16, obj:{t:'clear'}, stars:[2450,4050,6200], rows:[
+    "00011122200",
+    "0001112220",
+    "...111222.." ]},
+
+  { m:0, cols:3, shots:18, obj:{t:'clear'}, stars:[3800,6300,9650], rows:[
+    "11220011220",
+    "2200112200",
+    "00112200112",
+    "1122001122" ]},
+
+  { m:0, cols:3, shots:16, obj:{t:'color',c:0}, stars:[2900,4800,7350], rows:[
+    "22200022200",
+    "1110001110",
+    "22200022200" ]},
+
+  { m:0, cols:4, shots:20, obj:{t:'clear'}, stars:[3800,6300,9650], rows:[
+    "00112233001",
+    "1122330011",
+    "22330011223",
+    "3300112233" ]},
+
+  { m:0, cols:3, shots:18, obj:{t:'blockers'}, stars:[3800,6300,9650], rows:[
+    "00011122200",
+    "1112220001",
+    "22#000#1122",
+    "1112220001" ]},
+
+  { m:0, cols:3, shots:18, obj:{t:'rescue',n:2}, stars:[2450,4050,6200], rows:[
+    "00011122200",
+    "0001112220",
+    "..0.1.2.0..",
+    "..@...@..." ]},
+
+  { m:0, cols:4, shots:20, obj:{t:'clear'}, stars:[2900,4800,7350], rows:[
+    "00112233001",
+    "1a22b3001c",
+    "22330011223" ]},
+
+  { m:0, cols:4, shots:18, obj:{t:'color',c:3}, stars:[3800,6300,9650], rows:[
+    "33300033300",
+    "1112220001",
+    "00333111333",
+    "2220001112" ]},
+
+  { m:0, cols:4, shots:18, obj:{t:'clear'}, stars:[3800,6300,9650], rows:[
+    "00112233001",
+    "112A332001",
+    "22330011223",
+    "3300112233" ]},
+
+  { m:0, cols:4, shots:20, obj:{t:'rescue',n:3}, stars:[2450,4050,6200], rows:[
+    "00112233001",
+    "1122330011",
+    "..0..1..2..",
+    ".@...@..@." ]},
+
+  /* --------------------------- MAP 2 · المحيط ---------------------------- */
+  { m:1, cols:4, shots:24, obj:{t:'clear'}, stars:[4750,7950,12200], rows:[
+    "00112200112",
+    "3322330033",
+    "00112200112",
+    "3322330033",
+    "11002211002" ]},
+
+  { m:1, cols:5, shots:20, obj:{t:'color',c:4}, stars:[3800,6300,9650], rows:[
+    "44400044400",
+    "0112230114",
+    "22344401123",
+    "1230044112" ]},
+
+  /* ice costs two matches each, stone has to be dropped — keep the count low
+     or the shot budget stops being reachable */
+  { m:1, cols:4, shots:26, obj:{t:'blockers'}, stars:[3800,6300,9650], rows:[
+    "00112233001",
+    "1a2233c01b",
+    "22#30011#23",
+    "3300112233" ]},
+
+  { m:1, cols:5, shots:22, obj:{t:'clear'}, stars:[3800,6300,9650], rows:[
+    "00112233440",
+    "1122334400",
+    "223344001l2",
+    "3344001122" ]},
+
+  { m:1, cols:4, shots:22, obj:{t:'rescue',n:4}, stars:[3250,5400,8300], rows:[
+    "00112233001",
+    "1122330011",
+    "22330011223",
+    "@..@..@..@" ]},
+
+  { m:1, cols:5, shots:22, obj:{t:'clear'}, stars:[3800,6300,9650], rows:[
+    "00112233440",
+    "1A2233440b",
+    "22334400112",
+    "334400112w" ]},
+
+  { m:1, cols:5, shots:20, obj:{t:'color',c:0}, stars:[3800,6300,9650], rows:[
+    "00000111222",
+    "3344000112",
+    "44000112233",
+    "1122330044" ]},
+
+  { m:1, cols:5, shots:24, obj:{t:'blockers'}, stars:[3800,6300,9650], rows:[
+    "00112233440",
+    "#a2b3c4d#0",
+    "22334400112",
+    "3344001122" ]},
+
+  { m:1, cols:5, shots:24, obj:{t:'clear'}, stars:[4750,7950,12200], rows:[
+    "01122334400",
+    "1223344001",
+    "22334400112",
+    "3344001122",
+    "44001122334" ]},
+
+  { m:1, cols:5, shots:24, obj:{t:'rescue',n:5}, stars:[3350,5550,8500], rows:[
+    "00112233440",
+    "1122334400",
+    "22334400112",
+    "@.@.@.@.@." ]},
+
+  /* ---------------------------- MAP 3 · الليل ---------------------------- */
+  { m:2, cols:5, shots:24, obj:{t:'clear'}, stars:[5650,9450,14500], rows:[
+    "00112233440",
+    "1122334400",
+    "22334400112",
+    "3344001122",
+    "44001122334",
+    "0011223344" ]},
+
+  { m:2, cols:6, shots:26, obj:{t:'color',c:5}, stars:[3800,6300,9650], rows:[
+    "55500055500",
+    "0112233445",
+    "12345501234",
+    "5500112233" ]},
+
+  { m:2, cols:5, shots:26, obj:{t:'blockers'}, stars:[3800,6300,9650], rows:[
+    "00112233440",
+    "a#22c3#4b0",
+    "22334400112",
+    "3344001122" ]},
+
+  { m:2, cols:6, shots:24, obj:{t:'clear'}, stars:[4750,7950,12200], rows:[
+    "00112233445",
+    "11223A4455",
+    "22334455001",
+    "3344550011",
+    "4455001122D" ]},
+
+  { m:2, cols:6, shots:24, obj:{t:'rescue',n:4}, stars:[3250,5400,8300], rows:[
+    "00112233445",
+    "1122334455",
+    "22334455001",
+    "@..@..@..@" ]},
+
+  /* NB: colours are laid in adjacent PAIRS on purpose — a board of pure
+     singletons has no reachable 3-group and cannot be cleared at all. */
+  { m:2, cols:6, shots:26, obj:{t:'clear'}, stars:[3800,6300,9650], rows:[
+    "01122334455",
+    "1122334455",
+    "2233445500w",
+    "3344550011" ]},
+
+  { m:2, cols:6, shots:30, obj:{t:'color',c:2}, stars:[3800,6300,9650], rows:[
+    "22200222002",
+    "1345113451",
+    "22001122334",
+    "5522001122" ]},
+
+  { m:2, cols:6, shots:30, obj:{t:'blockers'}, stars:[3800,6300,9650], rows:[
+    "00112233445",
+    "#a2b3455#0",
+    "22334455001",
+    "3f4455001b" ]},
+
+  { m:2, cols:6, shots:26, obj:{t:'rescue',n:6}, stars:[4300,7200,11050], rows:[
+    "00112233445",
+    "1122334455",
+    "22334455001",
+    "3344550011",
+    "@.@.@.@.@.@" ]},
+
+  { m:2, cols:6, shots:30, obj:{t:'clear'}, stars:[5650,9450,14500], rows:[
+    "00112233445",
+    "1#2233445#",
+    "223A4455001",
+    "3f44550011",
+    "44550011223",
+    "455001122w" ]}
+];
+
+/* ==========================================================================
+   2. SAVE / localStorage
+   ========================================================================== */
+const SKEY = 'bubbles_ar_v1';
+const SAVE = loadSave();
+function loadSave() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch (e) { s = null; }
+  if (!s || typeof s !== 'object') s = {};
+  if (typeof s.unlocked !== 'number') s.unlocked = 0;
+  if (!s.stars) s.stars = {};
+  if (!s.best) s.best = {};
+  if (!s.boosters) s.boosters = Object.assign({}, TUNE.START_BOOSTERS);
+  for (const k in TUNE.START_BOOSTERS) if (typeof s.boosters[k] !== 'number') s.boosters[k] = TUNE.START_BOOSTERS[k];
+  if (typeof s.mute !== 'boolean') s.mute = false;
+  return s;
+}
+function persist() { try { localStorage.setItem(SKEY, JSON.stringify(SAVE)); } catch (e) {} }
+function totalStars() { let t = 0; for (const k in SAVE.stars) t += SAVE.stars[k]; return t; }
+
+/* ==========================================================================
+   3. AUDIO — fully procedural, started on the first user gesture
+   ========================================================================== */
+const AU = {
+  ctx: null, master: null, ready: false,
+  init() {
+    if (this.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = SAVE.mute ? 0 : 0.5;
+    this.master.connect(this.ctx.destination);
+    this.ready = true;
+  },
+  resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+  setMute(m) { SAVE.mute = m; persist(); if (this.master) this.master.gain.value = m ? 0 : 0.5; },
+  /* one shaped oscillator note */
+  tone(freq, dur, type, vol, glide, delay) {
+    if (!this.ready || SAVE.mute) return;
+    const t = this.ctx.currentTime + (delay || 0);
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if (glide) o.frequency.exponentialRampToValueAtTime(Math.max(30, glide), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.2, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  },
+  /* filtered noise burst — one white-noise buffer is built once and reused,
+     so a big cascade never allocates a second of audio per pop */
+  noiseBuf: null,
+  getNoise() {
+    if (!this.noiseBuf) {
+      const n = Math.floor(this.ctx.sampleRate * 0.6);
+      this.noiseBuf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+      const d = this.noiseBuf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return this.noiseBuf;
+  },
+  noise(dur, f0, f1, vol, delay) {
+    if (!this.ready || SAVE.mute) return;
+    const t = this.ctx.currentTime + (delay || 0);
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.getNoise();
+    src.playbackRate.value = 0.85 + Math.random() * 0.3;
+    const bp = this.ctx.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(f0, t);
+    bp.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t + dur);
+    bp.Q.value = 1.1;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol || 0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp); bp.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + dur);
+  },
+  shoot()  { this.tone(520, 0.09, 'triangle', 0.16, 900); this.noise(0.06, 1400, 500, 0.09); },
+  land()   { this.tone(300, 0.05, 'sine', 0.12, 220); },
+  pop(n)   { const f = 420 * Math.pow(1.09, Math.min(n, 14)); this.tone(f, 0.12, 'sine', 0.19, f * 1.7); this.noise(0.05, f * 2, f, 0.07); },
+  drop(n)  { this.tone(560, 0.34, 'sine', 0.13, 120); this.noise(0.3, 900, 160, 0.1); if (n > 5) this.tone(180, 0.4, 'triangle', 0.1, 90, 0.05); },
+  boom()   { this.noise(0.36, 700, 60, 0.3); this.tone(90, 0.32, 'square', 0.16, 38); },
+  zap()    { this.noise(0.22, 3200, 400, 0.2); this.tone(1400, 0.16, 'sawtooth', 0.1, 200); },
+  ui()     { this.tone(660, 0.05, 'sine', 0.11, 880); },
+  star()   { this.tone(880, 0.12, 'sine', 0.17, 1320); this.tone(1320, 0.14, 'sine', 0.11, 1760, 0.06); },
+  win()    { const s = [523, 659, 784, 1047, 1319]; for (let i = 0; i < s.length; i++) this.tone(s[i], 0.34, 'triangle', 0.17, s[i], i * 0.1); },
+  fail()   { this.tone(330, 0.3, 'sawtooth', 0.14, 150); this.tone(220, 0.42, 'sine', 0.12, 90, 0.1); }
+};
+
+/* ==========================================================================
+   4. CANVAS, VIEWPORT AND BOARD GEOMETRY
+   ========================================================================== */
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d', { alpha: false });
+const uiEl = document.getElementById('ui');
+
+let VW = 0, VH = 0;                 // canvas CSS size
+let PX = 0, PY = 0, PW = 0, PH = 0; // portrait play viewport (letterboxed if wide)
+let BX = 0, BY = 0, D = 0, R = 0, ROWH = 0; // board metrics
+let WL = 0, WR = 0, TOPY = 0;       // walls + ceiling
+let CANX = 0, CANY = 0;             // cannon muzzle
+let MAXROW = 12;                    // deepest row a bubble may be snapped into
+let SPR = 0;                        // sprite box size in CSS px
+
+const rowLen = r => (r & 1) ? TUNE.COLS_EVEN - 1 : TUNE.COLS_EVEN;
+const cellX  = (r, c) => BX + R + c * D + ((r & 1) ? R : 0);
+const cellY  = r => BY + R + r * ROWH;
+
+/* pixel -> nearest grid cell (may be out of range; callers clamp) */
+function cellAt(x, y, out) {
+  let r = Math.round((y - BY - R) / ROWH);
+  if (r < 0) r = 0; if (r > TUNE.ROWS_MAX - 1) r = TUNE.ROWS_MAX - 1;
+  let c = Math.round((x - BX - R - ((r & 1) ? R : 0)) / D);
+  out.r = r; out.c = c;
+  return out;
+}
+
+function layout() {
+  const cw = cv.clientWidth || 360, ch = cv.clientHeight || 640;
+  VW = cw; VH = ch;
+  cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  /* Portrait play viewport. Phones are 9:16 or taller, so PW == cw there;
+     on a wide screen the play area is letterboxed at 9:16 instead of stretching. */
+  PH = ch;
+  PW = Math.min(cw, ch * 9 / 16);
+  PX = (cw - PW) / 2; PY = 0;
+  uiEl.style.left = PX + 'px'; uiEl.style.top = PY + 'px';
+  uiEl.style.width = PW + 'px'; uiEl.style.height = PH + 'px';
+
+  /* board: 11 bubbles wide, always fits exactly */
+  const margin = Math.max(5, PW * 0.02);
+  const boardW = PW - margin * 2;
+  D = boardW / TUNE.COLS_EVEN; R = D / 2; ROWH = D * 0.8660254;
+  BX = PX + margin; WL = BX; WR = BX + boardW;
+  SPR = D + 6;
+
+  const topUI = Math.max(88, Math.min(PH * 0.155, 128));
+  BY = PY + topUI; TOPY = BY;
+
+  const botUI = Math.max(62, Math.min(PH * 0.095, 78));   // booster row
+  CANY = PY + PH - botUI - D * 1.15;
+  CANX = PX + PW / 2;
+
+  MAXROW = Math.min(TUNE.ROWS_MAX - 1, Math.floor((CANY - D * 1.5 - (BY + R)) / ROWH));
+  if (MAXROW < 6) MAXROW = 6;
+
+  buildSprites();
+  layoutDeco();
+}
+
+/* ==========================================================================
+   5. SPRITE CACHE — glossy spheres are pre-rendered once per resize so the
+      hot loop only ever does drawImage()
+   ========================================================================== */
+const SPRITES = {};                    // key -> canvas
+function sprKey(kind, color, cracked) { return kind + '_' + color + (cracked ? '_x' : ''); }
+
+function drawSymbolPath(g, sym, cx, cy, s) {
+  g.beginPath();
+  if (sym === 'circle') { g.arc(cx, cy, s * 0.62, 0, 6.2832); }
+  else if (sym === 'triangle') {
+    g.moveTo(cx, cy - s * 0.8); g.lineTo(cx + s * 0.72, cy + s * 0.56); g.lineTo(cx - s * 0.72, cy + s * 0.56); g.closePath();
+  } else if (sym === 'square') {
+    const q = s * 0.62; g.rect(cx - q, cy - q, q * 2, q * 2);
+  } else if (sym === 'star') {
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5, rr = (i & 1) ? s * 0.36 : s * 0.86;
+      const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+      i ? g.lineTo(px, py) : g.moveTo(px, py);
+    }
+    g.closePath();
+  } else if (sym === 'diamond') {
+    g.moveTo(cx, cy - s * 0.86); g.lineTo(cx + s * 0.64, cy); g.lineTo(cx, cy + s * 0.86); g.lineTo(cx - s * 0.64, cy); g.closePath();
+  } else { /* hex */
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 3;
+      const px = cx + Math.cos(a) * s * 0.76, py = cy + Math.sin(a) * s * 0.76;
+      i ? g.lineTo(px, py) : g.moveTo(px, py);
+    }
+    g.closePath();
+  }
+}
+
+/* the shared glossy-sphere body used by every bubble kind */
+function paintSphere(g, cx, cy, rad, base, lite, dark, rim) {
+  const gr = g.createRadialGradient(cx - rad * 0.34, cy - rad * 0.38, rad * 0.08, cx, cy, rad);
+  gr.addColorStop(0, lite); gr.addColorStop(0.42, base); gr.addColorStop(1, dark);
+  g.fillStyle = gr;
+  g.beginPath(); g.arc(cx, cy, rad, 0, 6.2832); g.fill();
+
+  /* soft inner shadow along the bottom rim */
+  const sh = g.createRadialGradient(cx, cy + rad * 0.5, rad * 0.15, cx, cy + rad * 0.18, rad * 1.05);
+  sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.42)');
+  g.fillStyle = sh;
+  g.beginPath(); g.arc(cx, cy, rad, 0, 6.2832); g.fill();
+
+  /* thin darker rim */
+  g.strokeStyle = rim; g.lineWidth = Math.max(1, rad * 0.09);
+  g.beginPath(); g.arc(cx, cy, rad - g.lineWidth * 0.5, 0, 6.2832); g.stroke();
+}
+
+function paintGloss(g, cx, cy, rad) {
+  /* bright specular highlight, upper-left */
+  g.save();
+  g.translate(cx - rad * 0.34, cy - rad * 0.4);
+  g.rotate(-0.5);
+  g.scale(1, 0.62);
+  const hg = g.createRadialGradient(0, 0, 0, 0, 0, rad * 0.42);
+  hg.addColorStop(0, 'rgba(255,255,255,.95)'); hg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = hg;
+  g.beginPath(); g.arc(0, 0, rad * 0.42, 0, 6.2832); g.fill();
+  g.restore();
+  /* faint arc of reflected light along the lower-right edge */
+  g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = Math.max(1, rad * 0.1);
+  g.beginPath(); g.arc(cx, cy, rad * 0.78, 0.35, 1.5); g.stroke();
+}
+
+function newSpriteCanvas() {
+  const s = document.createElement('canvas');
+  s.width = s.height = Math.max(8, Math.ceil(SPR * DPR));
+  const g = s.getContext('2d');
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);   // draw in CSS px, store at DPR
+  return { cv: s, g: g };
+}
+
+function buildSprites() {
+  for (const k in SPRITES) delete SPRITES[k];
+  const rad = R - 0.6, cx = SPR / 2, cy = SPR / 2;
+
+  for (let i = 0; i < 6; i++) {
+    const C = COLORS[i];
+    /* --- plain ------------------------------------------------------- */
+    let s = newSpriteCanvas(), g = s.g;
+    paintSphere(g, cx, cy, rad, C.base, C.lite, C.dark, C.rim);
+    g.fillStyle = 'rgba(255,255,255,.9)';
+    g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = Math.max(1, rad * 0.08);
+    drawSymbolPath(g, SYM[i], cx, cy + rad * 0.05, rad * 0.42); g.fill(); g.stroke();
+    paintGloss(g, cx, cy, rad);
+    SPRITES[sprKey(K_NORM, i, 0)] = s.cv;
+
+    /* --- ice (2 hits) and cracked ice --------------------------------- */
+    for (let cr = 0; cr < 2; cr++) {
+      s = newSpriteCanvas(); g = s.g;
+      paintSphere(g, cx, cy, rad, C.base, C.lite, C.dark, C.rim);
+      g.fillStyle = 'rgba(255,255,255,.85)';
+      drawSymbolPath(g, SYM[i], cx, cy + rad * 0.05, rad * 0.36); g.fill();
+      /* frozen shell */
+      g.save(); g.beginPath(); g.arc(cx, cy, rad, 0, 6.2832); g.clip();
+      g.fillStyle = cr ? 'rgba(215,245,255,.34)' : 'rgba(215,245,255,.56)';
+      g.fillRect(0, 0, SPR, SPR);
+      g.strokeStyle = cr ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.7)';
+      g.lineWidth = Math.max(1, rad * 0.1); g.lineCap = 'round';
+      const cracks = cr ? 5 : 3;
+      for (let k = 0; k < cracks; k++) {
+        const a = k * 6.2832 / cracks + (cr ? 0.5 : 0.2);
+        g.beginPath(); g.moveTo(cx, cy);
+        g.lineTo(cx + Math.cos(a) * rad * 0.95, cy + Math.sin(a) * rad * 0.95);
+        g.stroke();
+      }
+      g.restore();
+      g.strokeStyle = 'rgba(190,235,255,.95)'; g.lineWidth = Math.max(1.2, rad * 0.11);
+      g.beginPath(); g.arc(cx, cy, rad - rad * 0.055, 0, 6.2832); g.stroke();
+      paintGloss(g, cx, cy, rad);
+      SPRITES[sprKey(K_ICE, i, cr)] = s.cv;
+    }
+
+    /* --- bomb --------------------------------------------------------- */
+    s = newSpriteCanvas(); g = s.g;
+    paintSphere(g, cx, cy, rad, '#242C3E', '#5A6780', '#0B0F18', '#05070C');
+    g.strokeStyle = C.base; g.lineWidth = Math.max(1.6, rad * 0.16);
+    g.beginPath(); g.arc(cx, cy, rad - rad * 0.1, 0, 6.2832); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.92)';
+    drawSymbolPath(g, SYM[i], cx, cy + rad * 0.06, rad * 0.3); g.fill();
+    /* fuse spark */
+    g.strokeStyle = '#FFC420'; g.lineWidth = Math.max(1.2, rad * 0.12); g.lineCap = 'round';
+    g.beginPath(); g.moveTo(cx + rad * 0.3, cy - rad * 0.55);
+    g.quadraticCurveTo(cx + rad * 0.72, cy - rad * 0.82, cx + rad * 0.5, cy - rad * 1.02); g.stroke();
+    g.fillStyle = '#FFF3B0';
+    g.beginPath(); g.arc(cx + rad * 0.5, cy - rad * 1.02, rad * 0.16, 0, 6.2832); g.fill();
+    paintGloss(g, cx, cy, rad);
+    SPRITES[sprKey(K_BOMB, i, 0)] = s.cv;
+
+    /* --- lightning ---------------------------------------------------- */
+    s = newSpriteCanvas(); g = s.g;
+    paintSphere(g, cx, cy, rad, C.base, C.lite, C.dark, C.rim);
+    g.save(); g.beginPath(); g.arc(cx, cy, rad, 0, 6.2832); g.clip();
+    g.fillStyle = 'rgba(10,14,26,.5)'; g.fillRect(0, 0, SPR, SPR);
+    g.restore();
+    g.fillStyle = '#FFF6C2'; g.shadowColor = '#FFE066'; g.shadowBlur = rad * 0.6;
+    g.beginPath();
+    g.moveTo(cx + rad * 0.16, cy - rad * 0.78);
+    g.lineTo(cx - rad * 0.34, cy + rad * 0.1);
+    g.lineTo(cx - rad * 0.02, cy + rad * 0.1);
+    g.lineTo(cx - rad * 0.2, cy + rad * 0.8);
+    g.lineTo(cx + rad * 0.38, cy - rad * 0.16);
+    g.lineTo(cx + rad * 0.04, cy - rad * 0.16);
+    g.closePath(); g.fill(); g.shadowBlur = 0;
+    paintGloss(g, cx, cy, rad);
+    SPRITES[sprKey(K_LIGHT, i, 0)] = s.cv;
+  }
+
+  /* --- stone ---------------------------------------------------------- */
+  let s = newSpriteCanvas(), g = s.g;
+  paintSphere(g, cx, cy, rad, '#6E7A90', '#AEB9CC', '#31394A', '#1B212D');
+  g.save(); g.beginPath(); g.arc(cx, cy, rad, 0, 6.2832); g.clip();
+  g.strokeStyle = 'rgba(20,26,38,.5)'; g.lineWidth = Math.max(1, rad * 0.1);
+  g.beginPath(); g.moveTo(cx - rad, cy - rad * 0.2); g.lineTo(cx - rad * 0.1, cy + rad * 0.1); g.lineTo(cx + rad * 0.3, cy - rad * 0.4); g.stroke();
+  g.beginPath(); g.moveTo(cx - rad * 0.3, cy + rad); g.lineTo(cx + rad * 0.1, cy + rad * 0.3); g.lineTo(cx + rad, cy + rad * 0.5); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,.1)';
+  g.beginPath(); g.arc(cx - rad * 0.25, cy + rad * 0.35, rad * 0.18, 0, 6.2832); g.fill();
+  g.restore();
+  paintGloss(g, cx, cy, rad * 0.9);
+  SPRITES[sprKey(K_STONE, 0, 0)] = s.cv;
+
+  /* --- rainbow -------------------------------------------------------- */
+  s = newSpriteCanvas(); g = s.g;
+  g.save(); g.beginPath(); g.arc(cx, cy, rad, 0, 6.2832); g.clip();
+  for (let i = 0; i < 6; i++) {
+    g.fillStyle = COLORS[i].base;
+    g.beginPath(); g.moveTo(cx, cy);
+    g.arc(cx, cy, rad, -1.5708 + i * 1.0472, -1.5708 + (i + 1) * 1.0472);
+    g.closePath(); g.fill();
+  }
+  const rg = g.createRadialGradient(cx - rad * 0.3, cy - rad * 0.35, rad * 0.05, cx, cy, rad);
+  rg.addColorStop(0, 'rgba(255,255,255,.75)'); rg.addColorStop(0.5, 'rgba(255,255,255,.06)'); rg.addColorStop(1, 'rgba(0,0,0,.4)');
+  g.fillStyle = rg; g.fillRect(0, 0, SPR, SPR);
+  g.restore();
+  g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = Math.max(1, rad * 0.09);
+  g.beginPath(); g.arc(cx, cy, rad - rad * 0.05, 0, 6.2832); g.stroke();
+  g.fillStyle = '#fff';
+  drawSymbolPath(g, 'star', cx, cy, rad * 0.34); g.fill();
+  paintGloss(g, cx, cy, rad);
+  SPRITES[sprKey(K_RAIN, 0, 0)] = s.cv;
+
+  /* --- star gem ------------------------------------------------------- */
+  s = newSpriteCanvas(); g = s.g;
+  paintSphere(g, cx, cy, rad, '#FFD766', '#FFF4C6', '#B37A00', '#6E4A00');
+  g.fillStyle = '#FFFCEB'; g.shadowColor = '#FFE066'; g.shadowBlur = rad * 0.7;
+  drawSymbolPath(g, 'star', cx, cy, rad * 0.66); g.fill(); g.shadowBlur = 0;
+  g.strokeStyle = 'rgba(140,90,0,.65)'; g.lineWidth = Math.max(1, rad * 0.07);
+  drawSymbolPath(g, 'star', cx, cy, rad * 0.66); g.stroke();
+  paintGloss(g, cx, cy, rad);
+  SPRITES[sprKey(K_STAR, 0, 0)] = s.cv;
+}
+
+function spriteFor(b) {
+  if (b.kind === K_ICE) return SPRITES[sprKey(K_ICE, b.color, b.hp <= 1 ? 1 : 0)];
+  if (b.kind === K_STONE || b.kind === K_RAIN || b.kind === K_STAR) return SPRITES[sprKey(b.kind, 0, 0)];
+  return SPRITES[sprKey(b.kind, b.color, 0)] || SPRITES[sprKey(K_NORM, b.color || 0, 0)];
+}
+
+/* ==========================================================================
+   6. POOLS — nothing is allocated once the level is running
+   ========================================================================== */
+function makePool(n, factory) {
+  const a = new Array(n);
+  for (let i = 0; i < n; i++) { a[i] = factory(); a[i].alive = false; }
+  a.get = function () {
+    for (let i = 0; i < this.length; i++) if (!this[i].alive) { this[i].alive = true; return this[i]; }
+    return null;                    // pool exhausted: silently drop the effect
+  };
+  return a;
+}
+
+const bubblePool = makePool(TUNE.ROWS_MAX * TUNE.COLS_EVEN + 8, () => ({
+  kind: K_NORM, color: 0, hp: 1, r: 0, c: 0, bob: 0, spawn: 0, alive: false
+}));
+const popPool   = makePool(120, () => ({ x: 0, y: 0, color: 0, kind: 0, hp: 1, t: 0, delay: 0, alive: false }));
+const shardPool = makePool(320, () => ({ x: 0, y: 0, vx: 0, vy: 0, rot: 0, vr: 0, sz: 0, col: '#fff', life: 0, max: 0, alive: false }));
+const ringPool  = makePool(40,  () => ({ x: 0, y: 0, r0: 0, r1: 0, life: 0, max: 0, col: '#fff', w: 3, alive: false }));
+const fallPool  = makePool(140, () => ({ x: 0, y: 0, vx: 0, vy: 0, rot: 0, vr: 0, kind: 0, color: 0, hp: 1, delay: 0, isStar: false, alive: false }));
+const textPool  = makePool(30,  () => ({ x: 0, y: 0, vy: 0, txt: '', life: 0, max: 0, col: '#fff', sz: 16, alive: false }));
+
+function spawnShards(x, y, colHex, n, power) {
+  for (let i = 0; i < n; i++) {
+    const s = shardPool.get(); if (!s) return;
+    const a = (i / n) * 6.2832 + Math.random() * 0.5;
+    const sp = (60 + Math.random() * 120) * power;
+    s.x = x; s.y = y;
+    s.vx = Math.cos(a) * sp; s.vy = Math.sin(a) * sp - 40 * power;
+    s.rot = Math.random() * 6.28; s.vr = (Math.random() - 0.5) * 14;
+    s.sz = R * (0.2 + Math.random() * 0.24); s.col = colHex;
+    s.max = s.life = 0.34 + Math.random() * 0.24;
+  }
+}
+function spawnRing(x, y, r1, colHex, w) {
+  const g = ringPool.get(); if (!g) return;
+  g.x = x; g.y = y; g.r0 = R * 0.4; g.r1 = r1; g.col = colHex; g.w = w || 3;
+  g.max = g.life = 0.36;
+}
+function spawnText(x, y, txt, colHex, sz) {
+  const t = textPool.get(); if (!t) return;
+  t.x = x; t.y = y; t.vy = -58; t.txt = txt; t.col = colHex; t.sz = sz || R * 0.9;
+  t.max = t.life = 0.95;
+}
+
+/* ==========================================================================
+   7. GAME STATE
+   ========================================================================== */
+const G = {
+  screen: 'menu',          // menu | map | play | pause | win | lose
+  level: 0,
+  map: 0,
+  grid: null,              // [r][c] -> bubble | null
+  palette: [0, 1, 2],
+  shots: 0,
+  score: 0,
+  rescued: 0, rescueNeed: 0,
+  objInit: 0, objNow: 0,
+  cur: null, next: null,   // {kind,color,hp}
+  aiming: false, aimAng: Math.PI / 2, aimShow: 0,
+  aimBounces: 1,
+  proj: { on: false, x: 0, y: 0, dx: 0, dy: 0, rem: 0, kind: 0, color: 0, hp: 1 },
+  swayX: 0, swayV: 0,
+  combo: 1,
+  ended: false, endT: 0, endPhase: 0,
+  baseScore: 0, shotBonus: 0,   // split shown on the level-complete panel
+  settle: 0,               // seconds of animation still pending
+  shakeT: 0, shakeA: 0,
+  flashRow: -1, flashT: 0,
+  boostAim: false,
+  time: 0
+};
+
+const cellTmp = { r: 0, c: 0 };
+const scratchA = [], scratchB = [], scratchC = [];
+const visited = new Uint8Array(TUNE.ROWS_MAX * TUNE.COLS_EVEN);
+const qArr = new Int32Array(TUNE.ROWS_MAX * TUNE.COLS_EVEN);
+
+function idx(r, c) { return r * TUNE.COLS_EVEN + c; }
+function inGrid(r, c) { return r >= 0 && r < TUNE.ROWS_MAX && c >= 0 && c < rowLen(r); }
+function at(r, c) { return inGrid(r, c) ? G.grid[r][c] : null; }
+
+/* hex neighbours: staggered rows give every cell up to 6 of them */
+const NB = new Int32Array(12);
+function neighbours(r, c) {
+  const odd = r & 1;
+  NB[0] = r;     NB[1] = c - 1;
+  NB[2] = r;     NB[3] = c + 1;
+  NB[4] = r - 1; NB[5] = odd ? c : c - 1;
+  NB[6] = r - 1; NB[7] = odd ? c + 1 : c;
+  NB[8] = r + 1; NB[9] = odd ? c : c - 1;
+  NB[10] = r + 1; NB[11] = odd ? c + 1 : c;
+  return NB;
+}
+
+/* ==========================================================================
+   8. LEVEL LOADING
+   ========================================================================== */
+function parseCell(ch) {
+  if (ch === '.' || ch === ' ') return null;
+  if (ch >= '0' && ch <= '5') return { kind: K_NORM, color: +ch, hp: 1 };
+  if (ch >= 'a' && ch <= 'f') return { kind: K_ICE, color: ch.charCodeAt(0) - 97, hp: 2 };
+  if (ch >= 'A' && ch <= 'F') return { kind: K_BOMB, color: ch.charCodeAt(0) - 65, hp: 1 };
+  if (ch >= 'j' && ch <= 'o') return { kind: K_LIGHT, color: ch.charCodeAt(0) - 106, hp: 1 };
+  if (ch === '#') return { kind: K_STONE, color: -1, hp: 1 };
+  if (ch === 'w') return { kind: K_RAIN, color: -1, hp: 1 };
+  if (ch === '@') return { kind: K_STAR, color: -1, hp: 1 };
+  return null;
+}
+
+function clearGrid() {
+  if (!G.grid) {
+    G.grid = new Array(TUNE.ROWS_MAX);
+    for (let r = 0; r < TUNE.ROWS_MAX; r++) G.grid[r] = new Array(TUNE.COLS_EVEN).fill(null);
+  }
+  for (let r = 0; r < TUNE.ROWS_MAX; r++)
+    for (let c = 0; c < TUNE.COLS_EVEN; c++) {
+      const b = G.grid[r][c];
+      if (b) b.alive = false;
+      G.grid[r][c] = null;
+    }
+  for (let i = 0; i < bubblePool.length; i++) bubblePool[i].alive = false;
+}
+
+function killAllFx() {
+  for (let i = 0; i < popPool.length; i++)   popPool[i].alive = false;
+  for (let i = 0; i < shardPool.length; i++) shardPool[i].alive = false;
+  for (let i = 0; i < ringPool.length; i++)  ringPool[i].alive = false;
+  for (let i = 0; i < fallPool.length; i++)  fallPool[i].alive = false;
+  for (let i = 0; i < textPool.length; i++)  textPool[i].alive = false;
+}
+
+function loadLevel(n) {
+  const L = LEVELS[n];
+  G.level = n; G.map = L.m;
+  G.palette.length = 0;
+  for (let i = 0; i < L.cols; i++) G.palette.push(i);
+  G.shots = L.shots;
+  G.score = 0; G.rescued = 0; G.combo = 1; G.baseScore = 0; G.shotBonus = 0;
+  G.rescueNeed = L.obj.t === 'rescue' ? L.obj.n : 0;
+  G.ended = false; G.endT = 0; G.endPhase = 0; G.settle = 0;
+  G.swayX = 0; G.swayV = 0; G.shakeT = 0; G.boostAim = false;
+  G.aimBounces = 1; G.aimAng = Math.PI / 2; G.aimShow = 0; G.aiming = false;
+  G.proj.on = false;
+  G.flashRow = -1;
+
+  clearGrid(); killAllFx();
+
+  for (let r = 0; r < L.rows.length && r < TUNE.ROWS_MAX; r++) {
+    const line = L.rows[r], len = rowLen(r);
+    for (let c = 0; c < len; c++) {
+      const spec = parseCell(c < line.length ? line[c] : '.');
+      if (!spec) continue;
+      const b = bubblePool.get(); if (!b) continue;
+      b.kind = spec.kind; b.color = spec.color; b.hp = spec.hp;
+      b.r = r; b.c = c; b.bob = Math.random() * 6.28; b.spawn = 0;
+      G.grid[r][c] = b;
+    }
+  }
+
+  G.objInit = objectiveTotal();
+  G.objNow = 0;
+  G.cur = rollBubble(); G.next = rollBubble();
+  refreshHud();
+}
+
+/* ==========================================================================
+   9. COLOUR GENERATION — fairness rule: never hand out a colour that has
+      vanished from the board
+   ========================================================================== */
+const colCount = new Int32Array(6);
+function countBoardColors() {
+  for (let i = 0; i < 6; i++) colCount[i] = 0;
+  let rain = 0;
+  for (let r = 0; r < TUNE.ROWS_MAX; r++) for (let c = 0, L = rowLen(r); c < L; c++) {
+    const b = G.grid[r][c]; if (!b) continue;
+    if (b.kind === K_RAIN) { rain++; continue; }
+    if (b.color >= 0 && b.kind !== K_STONE && b.kind !== K_STAR) colCount[b.color]++;
+  }
+  return rain;
+}
+
+function rollBubble() {
+  countBoardColors();
+  scratchC.length = 0;
+  for (let i = 0; i < G.palette.length; i++) { const k = G.palette[i]; if (colCount[k] > 0) scratchC.push(k); }
+
+  /* FAIRNESS: never hand out a colour that has left the board. If nothing
+     matchable is left at all (a rescue board down to stars and stone), a
+     rainbow is the only honest answer — any plain colour would be a dud. */
+  if (!scratchC.length) return { kind: K_RAIN, color: -1, hp: 1 };
+
+  const rc = TUNE.RAINBOW_CHANCE[G.map] || 0;
+  if (Math.random() < rc) return { kind: K_RAIN, color: -1, hp: 1 };
+  return { kind: K_NORM, color: scratchC[(Math.random() * scratchC.length) | 0], hp: 1 };
+}
+
+/* keep the loaded bubbles legal after the board changes */
+function revalidateAmmo() {
+  countBoardColors();
+  const ok = k => k.kind !== K_NORM || colCount[k.color] > 0;
+  if (G.cur && !ok(G.cur)) G.cur = rollBubble();
+  if (G.next && !ok(G.next)) G.next = rollBubble();
+}
+
+/* ==========================================================================
+   10. OBJECTIVES
+   ========================================================================== */
+function countBubbles(pred) {
+  let n = 0;
+  for (let r = 0; r < TUNE.ROWS_MAX; r++) for (let c = 0, L = rowLen(r); c < L; c++) {
+    const b = G.grid[r][c]; if (b && pred(b)) n++;
+  }
+  return n;
+}
+const isBlocker = b => b.kind === K_STONE || b.kind === K_ICE;
+
+function objectiveTotal() {
+  const o = LEVELS[G.level].obj;
+  if (o.t === 'clear')  return countBubbles(() => true);
+  if (o.t === 'color')  return countBubbles(b => b.color === o.c && b.kind !== K_STONE && b.kind !== K_STAR);
+  if (o.t === 'rescue') return o.n;
+  return countBubbles(isBlocker);
+}
+function objectiveRemaining() {
+  const o = LEVELS[G.level].obj;
+  if (o.t === 'clear')  return countBubbles(() => true);
+  if (o.t === 'color')  return countBubbles(b => b.color === o.c && b.kind !== K_STONE && b.kind !== K_STAR);
+  if (o.t === 'rescue') return Math.max(0, o.n - G.rescued);
+  return countBubbles(isBlocker);
+}
+function objectiveMet() { return objectiveRemaining() === 0; }
+
+function objectiveText() {
+  const o = LEVELS[G.level].obj;
+  if (o.t === 'clear')  return 'أزل كل الفقاعات';
+  if (o.t === 'color')  return 'أزل كل الفقاعات ' + COLORS[o.c].name;
+  if (o.t === 'rescue') return 'أنقذ النجوم بإسقاطها';
+  return 'حطّم كل العوائق';
+}
+
+/* ==========================================================================
+   11. AIM TRACE — the bank-shot predictor. Marches the exact same collision
+       rules the live projectile uses, so the preview never lies.
+   ========================================================================== */
+const aimV = new Float32Array(16);   // segment vertices x,y,x,y…
+let aimVN = 0;
+const aimCell = { r: -1, c: -1 };
+
+function hitTestPoint(x, y) {
+  cellAt(x, y, cellTmp);
+  const hr = cellTmp.r, hc = cellTmp.c;
+  const lim = D * D * TUNE.SNAP_HIT * TUNE.SNAP_HIT;
+  for (let r = hr - 1; r <= hr + 1; r++) {
+    if (r < 0 || r >= TUNE.ROWS_MAX) continue;
+    for (let c = hc - 1; c <= hc + 1; c++) {
+      if (c < 0 || c >= rowLen(r)) continue;
+      if (!G.grid[r][c]) continue;
+      const dx = x - cellX(r, c), dy = y - cellY(r);
+      if (dx * dx + dy * dy < lim) { cellTmp.r = r; cellTmp.c = c; return true; }
+    }
+  }
+  return false;
+}
+
+/* nearest empty, ceiling-reachable cell to (px,py) around a hit cell.
+   NOTE: keeps its own scratch cell — callers legitimately pass cellTmp as `out`,
+   so this must never write through a shared scratch object. */
+const snapTmp = { r: 0, c: 0 };
+let snapBest = 0, snapOut = null, snapPX = 0, snapPY = 0;
+function considerCell(r, c) {
+  if (!inGrid(r, c) || r > MAXROW) return;
+  if (G.grid[r][c]) return;
+  const dx = snapPX - cellX(r, c), dy = snapPY - cellY(r);
+  const d2 = dx * dx + dy * dy;
+  if (d2 < snapBest) { snapBest = d2; snapOut.r = r; snapOut.c = c; }
+}
+function findSnapCell(px, py, hr, hc, out) {
+  snapBest = Infinity; snapOut = out; snapPX = px; snapPY = py;
+  out.r = -1; out.c = -1;
+  if (hr >= 0) {
+    const nb = neighbours(hr, hc);
+    for (let i = 0; i < 12; i += 2) considerCell(nb[i], nb[i + 1]);
+  }
+  cellAt(px, py, snapTmp);
+  considerCell(snapTmp.r, snapTmp.c);
+  if (out.r < 0) {                                   // desperate fallback
+    for (let r = 0; r <= MAXROW; r++) for (let c = 0, L = rowLen(r); c < L; c++) considerCell(r, c);
+  }
+  return out;
+}
+
+/* The preview and the live shot MUST march in identical increments, otherwise
+   they trip the collision test at slightly different points and the ghost lies
+   about the landing cell. Both use MARCH(); the projectile carries the
+   sub-step remainder across frames so the sampled points stay in lockstep. */
+function MARCH() { return R * 0.25; }
+
+function traceAim(ang, maxBounce) {
+  let x = CANX, y = CANY, vx = Math.cos(ang), vy = -Math.sin(ang);
+  aimVN = 0; aimCell.r = -1; aimCell.c = -1;
+  aimV[aimVN++] = x; aimV[aimVN++] = y;
+  const step = MARCH();
+  let bounces = 0;
+  for (let i = 0; i < 6000; i++) {
+    x += vx * step; y += vy * step;
+    if (x - R < WL) {
+      x = WL + R; vx = -vx; bounces++;
+      if (aimVN < 14) { aimV[aimVN++] = x; aimV[aimVN++] = y; }
+      if (bounces > maxBounce) break;
+    } else if (x + R > WR) {
+      x = WR - R; vx = -vx; bounces++;
+      if (aimVN < 14) { aimV[aimVN++] = x; aimV[aimVN++] = y; }
+      if (bounces > maxBounce) break;
+    }
+    if (y - R <= TOPY) {
+      y = TOPY + R;
+      findSnapCell(x, y, -1, -1, aimCell);
+      break;
+    }
+    if (hitTestPoint(x, y)) {
+      findSnapCell(x, y, cellTmp.r, cellTmp.c, aimCell);
+      break;
+    }
+    if (y > CANY + D) break;
+  }
+  if (aimCell.r >= 0) { x = cellX(aimCell.r, aimCell.c); y = cellY(aimCell.r); }
+  if (aimVN < 16) { aimV[aimVN++] = x; aimV[aimVN++] = y; }
+}
+
+/* ==========================================================================
+   12. FIRING AND LANDING
+   ========================================================================== */
+function shotSpeed() { return PH * TUNE.SHOT_SPEED_FACTOR; }
+
+function fire() {
+  if (G.proj.on || G.ended || G.shots <= 0) return;
+  const p = G.proj;
+  p.on = true; p.x = CANX; p.y = CANY; p.rem = 0;
+  p.dx = Math.cos(G.aimAng); p.dy = -Math.sin(G.aimAng);
+  p.kind = G.cur.kind; p.color = G.cur.color; p.hp = G.cur.hp;
+  G.cur = G.next; G.next = rollBubble();
+  G.shots--;
+  G.aimBounces = 1; G.boostAim = false;
+  refreshHud();
+  AU.shoot();
+}
+
+function stepProjectile(dt) {
+  const p = G.proj;
+  const sd = MARCH();
+  const budget = shotSpeed() * dt + p.rem;
+  const n = Math.floor(budget / sd);
+  p.rem = budget - n * sd;              // carried so the march never drifts
+  for (let i = 0; i < n; i++) {
+    p.x += p.dx * sd; p.y += p.dy * sd;
+    if (p.x - R < WL) { p.x = WL + R; p.dx = -p.dx; AU.land(); }
+    else if (p.x + R > WR) { p.x = WR - R; p.dx = -p.dx; AU.land(); }
+    if (p.y - R <= TOPY) { p.y = TOPY + R; land(-1, -1); return; }
+    if (hitTestPoint(p.x, p.y)) { land(cellTmp.r, cellTmp.c); return; }
+    if (p.y > CANY + D * 2) { p.on = false; return; }   // safety valve
+  }
+}
+
+function land(hr, hc) {
+  const p = G.proj;
+  p.on = false;
+  findSnapCell(p.x, p.y, hr, hc, cellTmp);
+  const r = cellTmp.r, c = cellTmp.c;
+  if (r < 0) { revalidateAmmo(); return; }
+
+  const b = bubblePool.get();
+  if (!b) { revalidateAmmo(); return; }
+  b.kind = p.kind; b.color = p.color; b.hp = p.hp;
+  b.r = r; b.c = c; b.bob = 0; b.spawn = 0.16;
+  G.grid[r][c] = b;
+
+  AU.land();
+  impulse((p.x - CANX) * 0.02);
+  resolveShot(b);
+}
+
+/* cluster sway impulse */
+function impulse(v) { G.swayV += Math.max(-40, Math.min(40, v * 26)); }
+
+/* ==========================================================================
+   13. MATCH / EXPLODE / FLOAT RESOLUTION
+       Runs synchronously on landing (so the next shot is instantly available);
+       only the visuals are staggered over time.
+   ========================================================================== */
+const popList = [], detoQ = [];
+function shardColorOf(kind, color) {
+  if (color >= 0) return COLORS[color].base;
+  if (kind === K_STAR) return '#FFD766';
+  if (kind === K_RAIN) return '#FFFFFF';
+  return '#8FA0BD';                         // stone
+}
+
+function floodMatch(sr, sc, color, out) {
+  out.length = 0;
+  visited.fill(0);
+  let head = 0, tail = 0;
+  qArr[tail++] = idx(sr, sc); visited[idx(sr, sc)] = 1;
+  while (head < tail) {
+    const v = qArr[head++];
+    const r = (v / TUNE.COLS_EVEN) | 0, c = v % TUNE.COLS_EVEN;
+    const b = G.grid[r][c];
+    out.push(v);
+    /* ice and the incoming bubble's own cell terminate the chain: frozen
+       bubbles join a group but never carry it further */
+    if (b.kind === K_ICE && !(r === sr && c === sc)) continue;
+    const nb = neighbours(r, c);
+    for (let i = 0; i < 12; i += 2) {
+      const nr = nb[i], nc = nb[i + 1];
+      if (!inGrid(nr, nc)) continue;
+      const j = idx(nr, nc);
+      if (visited[j]) continue;
+      const o = G.grid[nr][nc];
+      if (!o || o.kind === K_STONE || o.kind === K_STAR) continue;
+      if (!(o.kind === K_RAIN || o.color === color)) continue;
+      visited[j] = 1; qArr[tail++] = j;
+    }
+  }
+  return out;
+}
+
+/* colour a landing rainbow adopts: whichever neighbouring colour is commonest.
+   Keeps its own tally — colCount belongs to the fairness generator. */
+const nbCount = new Int32Array(6);
+function rainbowColor(r, c) {
+  for (let i = 0; i < 6; i++) nbCount[i] = 0;
+  const nb = neighbours(r, c);
+  for (let i = 0; i < 12; i += 2) {
+    const o = at(nb[i], nb[i + 1]);
+    if (o && o.color >= 0 && o.kind !== K_STONE && o.kind !== K_STAR) nbCount[o.color]++;
+  }
+  let best = -1, bn = 0;
+  for (let i = 0; i < 6; i++) if (nbCount[i] > bn) { bn = nbCount[i]; best = i; }
+  if (best < 0) best = G.palette[(Math.random() * G.palette.length) | 0];
+  return best;
+}
+
+function removeCell(r, c, delay) {
+  const b = G.grid[r][c];
+  if (!b) return null;
+  G.grid[r][c] = null;
+  const f = popPool.get();
+  if (f) {
+    f.x = cellX(r, c); f.y = cellY(r);
+    f.color = b.color; f.kind = b.kind; f.hp = b.hp;
+    f.t = 0; f.delay = delay;
+  }
+  b.alive = false;
+  return b;
+}
+
+/* One shot's whole cascade. Returns nothing; mutates score + FX pools. */
+function resolveShot(landed) {
+  let wave = 0, totalPopped = 0, delay = 0;
+  popList.length = 0; detoQ.length = 0;
+  G.combo = 1;
+
+  /* the fired bubble may itself be a special */
+  if (landed.kind === K_BOMB)  detoQ.push(idx(landed.r, landed.c) | 0x10000);
+  else if (landed.kind === K_LIGHT) detoQ.push(idx(landed.r, landed.c) | 0x20000);
+  else {
+    let col = landed.color;
+    if (landed.kind === K_RAIN) { col = rainbowColor(landed.r, landed.c); landed.color = col; }
+    floodMatch(landed.r, landed.c, col, popList);
+    if (popList.length >= TUNE.MATCH_MIN) {
+      wave++;
+      totalPopped += applyPops(popList, delay, wave);
+      delay += 0.05;
+    }
+  }
+
+  /* chained detonations (bombs / lightning triggered by pops or by each other) */
+  let guard = 0;
+  while (detoQ.length && guard++ < 200) {
+    const v = detoQ.shift();
+    const kindBit = v & 0x30000, id = v & 0xFFFF;
+    const r = (id / TUNE.COLS_EVEN) | 0, c = id % TUNE.COLS_EVEN;
+    wave++;
+    if (kindBit === 0x10000) totalPopped += explode(r, c, delay, wave);
+    else                     totalPopped += zapRow(r, c, delay, wave);
+    delay += 0.07;
+  }
+
+  if (totalPopped > 0) {
+    G.shakeT = Math.max(G.shakeT, Math.min(0.3, 0.06 + totalPopped * 0.012));
+    G.shakeA = Math.min(7, 1.5 + totalPopped * 0.25);
+    impulse(2.5);
+  }
+
+  /* ---- floating detection: anything no longer hanging from the ceiling ---- */
+  const dropped = dropFloating(delay + 0.04);
+  if (dropped > 0) {
+    const bonus = Math.round(TUNE.PT_DROP * Math.pow(dropped, TUNE.DROP_EXP));
+    G.score += bonus;
+    spawnText(PX + PW / 2, BY + PH * 0.24, '+' + bonus, '#5EEAD4', R * 1.15);
+    AU.drop(dropped);
+  }
+
+  G.settle = Math.max(G.settle, delay + 1.5);
+  revalidateAmmo();
+  G.objNow = G.objInit - objectiveRemaining();
+  refreshHud();
+  checkEnd();
+}
+
+/* pop a matched group; ice cracks instead of popping */
+function applyPops(list, delay, wave) {
+  let n = 0;
+  const mult = 1 + (wave - 1) * TUNE.COMBO_STEP;
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i];
+    const r = (v / TUNE.COLS_EVEN) | 0, c = v % TUNE.COLS_EVEN;
+    const b = G.grid[r][c];
+    if (!b) continue;
+    if (b.kind === K_ICE && b.hp > 1) {              // crack, do not break
+      b.hp--;
+      spawnShards(cellX(r, c), cellY(r), '#DFF6FF', 5, 0.7);
+      continue;
+    }
+    if (b.kind === K_BOMB)  detoQ.push(idx(r, c) | 0x10000);
+    if (b.kind === K_LIGHT) detoQ.push(idx(r, c) | 0x20000);
+    removeCell(r, c, delay + i * 0.012);
+    n++;
+  }
+  if (n) {
+    G.score += TUNE.PT_POP * n * mult;
+    if (mult > 1) {
+      const p = list[0], pr = (p / TUNE.COLS_EVEN) | 0, pc = p % TUNE.COLS_EVEN;
+      spawnText(cellX(pr, pc), cellY(pr), '×' + mult, '#FFD766', R * 1.05);
+    }
+    AU.pop(wave * 2 + n);
+  }
+  return n;
+}
+
+function explode(r, c, delay, wave) {
+  const cx = cellX(r, c), cy = cellY(r);
+  spawnRing(cx, cy, D * (TUNE.BOMB_RADIUS + 1.1), '#FFC420', 5);
+  spawnShards(cx, cy, '#FFB020', 14, 1.7);
+  AU.boom();
+  G.shakeT = 0.32; G.shakeA = 8;
+
+  /* hex disc of radius TUNE.BOMB_RADIUS via BFS */
+  visited.fill(0);
+  let head = 0, tail = 0;
+  qArr[tail++] = idx(r, c) | 0; visited[idx(r, c)] = 1;
+  scratchA.length = 0; scratchA.push(idx(r, c));
+  let ring = 0, ringEnd = tail;
+  while (head < tail && ring < TUNE.BOMB_RADIUS) {
+    while (head < ringEnd) {
+      const v = qArr[head++];
+      const rr = (v / TUNE.COLS_EVEN) | 0, cc = v % TUNE.COLS_EVEN;
+      const nb = neighbours(rr, cc);
+      for (let i = 0; i < 12; i += 2) {
+        const nr = nb[i], nc = nb[i + 1];
+        if (!inGrid(nr, nc)) continue;
+        const j = idx(nr, nc);
+        if (visited[j]) continue;
+        visited[j] = 1; qArr[tail++] = j; scratchA.push(j);
+      }
+    }
+    ringEnd = tail; ring++;
+  }
+  let n = 0;
+  const mult = 1 + (wave - 1) * TUNE.COMBO_STEP;
+  for (let i = 0; i < scratchA.length; i++) {
+    const v = scratchA[i];
+    const rr = (v / TUNE.COLS_EVEN) | 0, cc = v % TUNE.COLS_EVEN;
+    const b = G.grid[rr][cc];
+    if (!b) continue;
+    if (b.kind === K_BOMB && !(rr === r && cc === c)) { detoQ.push(v | 0x10000); continue; }
+    if (b.kind === K_LIGHT) { detoQ.push(v | 0x20000); continue; }
+    removeCell(rr, cc, delay + i * 0.008);
+    n++;
+  }
+  if (n) G.score += TUNE.PT_POP * n * mult;
+  return n;
+}
+
+function zapRow(r, c, delay, wave) {
+  G.flashRow = r; G.flashT = 0.4;
+  AU.zap();
+  spawnRing(PX + PW / 2, cellY(r), PW * 0.6, '#FFF6C2', 4);
+  let n = 0;
+  const mult = 1 + (wave - 1) * TUNE.COMBO_STEP;
+  for (let cc = 0, L = rowLen(r); cc < L; cc++) {
+    const b = G.grid[r][cc];
+    if (!b) continue;
+    if (b.kind === K_BOMB) { detoQ.push(idx(r, cc) | 0x10000); continue; }
+    removeCell(r, cc, delay + cc * 0.02);
+    n++;
+  }
+  if (n) G.score += TUNE.PT_POP * n * mult;
+  return n;
+}
+
+/* everything not reachable from row 0 detaches and falls */
+function dropFloating(delay) {
+  visited.fill(0);
+  let head = 0, tail = 0;
+  for (let c = 0, L = rowLen(0); c < L; c++) {
+    if (G.grid[0][c]) { const j = idx(0, c); visited[j] = 1; qArr[tail++] = j; }
+  }
+  while (head < tail) {
+    const v = qArr[head++];
+    const r = (v / TUNE.COLS_EVEN) | 0, c = v % TUNE.COLS_EVEN;
+    const nb = neighbours(r, c);
+    for (let i = 0; i < 12; i += 2) {
+      const nr = nb[i], nc = nb[i + 1];
+      if (!inGrid(nr, nc)) continue;
+      const j = idx(nr, nc);
+      if (visited[j] || !G.grid[nr][nc]) continue;
+      visited[j] = 1; qArr[tail++] = j;
+    }
+  }
+  let n = 0;
+  for (let r = 0; r < TUNE.ROWS_MAX; r++) for (let c = 0, L = rowLen(r); c < L; c++) {
+    const b = G.grid[r][c];
+    if (!b || visited[idx(r, c)]) continue;
+    const f = fallPool.get();
+    if (f) {
+      f.x = cellX(r, c); f.y = cellY(r);
+      f.vx = (Math.random() - 0.5) * TUNE.DRIFT * (PH / 720);
+      f.vy = -30 - Math.random() * 50;
+      f.rot = 0; f.vr = (Math.random() - 0.5) * 7;
+      f.kind = b.kind; f.color = b.color; f.hp = b.hp;
+      f.isStar = b.kind === K_STAR;
+      f.delay = delay + n * TUNE.FALL_STAGGER;
+    }
+    b.alive = false; G.grid[r][c] = null;
+    n++;
+  }
+  return n;
+}
+
+/* ==========================================================================
+   14. END OF LEVEL
+   ========================================================================== */
+function checkEnd() {
+  if (G.ended) return;
+  if (objectiveMet()) { G.ended = true; G.endPhase = 1; G.endT = 0.5; return; }
+  if (G.shots <= 0 && !G.proj.on) { G.ended = true; G.endPhase = 3; G.endT = 1.1; }
+}
+
+function starsFor(score) {
+  const t = LEVELS[G.level].stars;
+  return score >= t[2] ? 3 : score >= t[1] ? 2 : score >= t[0] ? 1 : 0;
+}
+
+const BOOST_KEYS = ['aim', 'bomb', 'swap', 'shots'];
+const BOOST_NAMES = { aim: 'تصويب دقيق', bomb: 'قنبلة', swap: 'تبديل', shots: 'طلقات إضافية' };
+
+function finishWin() {
+  const lv = G.level;
+  const st = starsFor(G.score);
+  const prevStars = SAVE.stars[lv] || 0;
+  const prevBest = SAVE.best[lv] || 0;
+  const firstClear = prevStars === 0;
+
+  if (st > prevStars) SAVE.stars[lv] = st;
+  if (G.score > prevBest) SAVE.best[lv] = G.score;
+  if (SAVE.unlocked < lv + 1) SAVE.unlocked = Math.min(LEVELS.length - 1, lv + 1);
+
+  /* boosters are earned, never bought */
+  let awarded = '';
+  if (st === 3 && prevStars < 3) {
+    const k = BOOST_KEYS[lv % BOOST_KEYS.length];
+    SAVE.boosters[k]++; awarded = BOOST_NAMES[k];
+  }
+  if (firstClear && (lv + 1) % 5 === 0) {
+    for (let i = 0; i < BOOST_KEYS.length; i++) SAVE.boosters[BOOST_KEYS[i]]++;
+    awarded = 'كل المعزّزات';
+  }
+  persist();
+
+  /* panel — baseScore was snapshotted before the celebration burned the
+     leftover shots, so the two rows always add up to the total */
+  document.getElementById('wBase').textContent = G.baseScore | 0;
+  document.getElementById('wShots').textContent = '+' + (G.shotBonus | 0);
+  const wTot = document.getElementById('wTotal');
+  const target = G.score;
+  const bestTxt = document.getElementById('wBest');
+  bestTxt.textContent = G.score > prevBest ? 'رقم قياسي جديد!' : 'أفضل نتيجة: ' + prevBest;
+
+  const sw = document.getElementById('winStars');
+  sw.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const d = document.createElement('div');
+    d.className = 'st' + (i === 1 ? ' big' : '');
+    d.innerHTML = starSvg(i < st);
+    sw.appendChild(d);
+    if (i < st) setTimeout(() => { d.classList.add('on'); AU.star(); }, 260 + i * 300);
+  }
+
+  /* score count-up */
+  let shown = 0;
+  wTot.textContent = '0';
+  const t0 = performance.now();
+  (function tick(now) {
+    const k = Math.min(1, (now - t0) / 900);
+    shown = Math.round(target * (1 - Math.pow(1 - k, 3)));
+    wTot.textContent = shown;
+    if (k < 1) requestAnimationFrame(tick);
+  })(performance.now());
+
+  show('win');
+  AU.win();
+  confetti();
+  if (awarded) setTimeout(() => toast('حصلت على ' + awarded + ' 🎁'), 1500);
+}
+
+function starSvg(filled) {
+  const f = filled ? '#FFD766' : '#2A3552';
+  const s = filled ? '#FFB020' : '#1A2340';
+  return '<svg viewBox="0 0 24 24" width="100%" height="100%">' +
+    '<path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z" fill="' + f + '" stroke="' + s + '" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+}
+
+function finishLose() {
+  document.getElementById('lScore').textContent = G.score;
+  const rem = objectiveRemaining();
+  document.getElementById('loseSub').textContent =
+    rem <= 3 ? 'بقي القليل فقط — جرّب زاوية ارتداد مختلفة.' : 'خطّط طلقاتك: استغل الارتداد عن الجدران.';
+  show('lose');
+  AU.fail();
+}
+
+/* ==========================================================================
+   15. UPDATE
+   ========================================================================== */
+function update(dt) {
+  G.time += dt;
+
+  /* --- cluster sway (cosmetic spring, deliberately tiny) --------------- */
+  G.swayV += (-TUNE.SWAY_K * G.swayX - TUNE.SWAY_D * G.swayV) * dt;
+  G.swayX += G.swayV * dt;
+  if (G.swayX > TUNE.SWAY_MAX) { G.swayX = TUNE.SWAY_MAX; G.swayV *= -0.4; }
+  if (G.swayX < -TUNE.SWAY_MAX) { G.swayX = -TUNE.SWAY_MAX; G.swayV *= -0.4; }
+
+  if (G.shakeT > 0) G.shakeT -= dt;
+  if (G.flashT > 0) { G.flashT -= dt; if (G.flashT <= 0) G.flashRow = -1; }
+  if (G.settle > 0) G.settle -= dt;
+
+  /* --- projectile ------------------------------------------------------ */
+  if (G.proj.on) stepProjectile(dt);
+
+  /* --- spawn pop-in ---------------------------------------------------- */
+  for (let r = 0; r < TUNE.ROWS_MAX; r++) for (let c = 0, L = rowLen(r); c < L; c++) {
+    const b = G.grid[r][c];
+    if (b && b.spawn > 0) b.spawn -= dt;
+  }
+
+  /* --- pop FX: swell then burst ---------------------------------------- */
+  const G2 = TUNE.GRAV * (PH / 720);
+  for (let i = 0; i < popPool.length; i++) {
+    const p = popPool[i]; if (!p.alive) continue;
+    if (p.delay > 0) { p.delay -= dt; continue; }
+    p.t += dt;
+    if (p.t >= TUNE.POP_GROW) {
+      const hex = shardColorOf(p.kind, p.color);
+      spawnShards(p.x, p.y, hex, TUNE.SHARDS, 1);
+      spawnRing(p.x, p.y, D * 1.15, hex, 3);
+      p.alive = false;
+    }
+  }
+
+  /* --- shards ---------------------------------------------------------- */
+  for (let i = 0; i < shardPool.length; i++) {
+    const s = shardPool[i]; if (!s.alive) continue;
+    s.life -= dt;
+    if (s.life <= 0) { s.alive = false; continue; }
+    s.vy += G2 * 0.55 * dt;
+    s.x += s.vx * dt; s.y += s.vy * dt;
+    s.rot += s.vr * dt;
+  }
+
+  /* --- rings ----------------------------------------------------------- */
+  for (let i = 0; i < ringPool.length; i++) {
+    const g = ringPool[i]; if (!g.alive) continue;
+    g.life -= dt; if (g.life <= 0) g.alive = false;
+  }
+
+  /* --- falling (dropped) bubbles --------------------------------------- */
+  for (let i = 0; i < fallPool.length; i++) {
+    const f = fallPool[i]; if (!f.alive) continue;
+    if (f.delay > 0) { f.delay -= dt; continue; }
+    f.vy += G2 * dt;
+    f.x += f.vx * dt; f.y += f.vy * dt;
+    f.rot += f.vr * dt;
+    if (f.x < WL + R) { f.x = WL + R; f.vx = Math.abs(f.vx) * 0.6; }
+    if (f.x > WR - R) { f.x = WR - R; f.vx = -Math.abs(f.vx) * 0.6; }
+    if (f.y - R > PY + PH) {
+      f.alive = false;
+      if (f.isStar) {                       // rescued!
+        G.rescued++;
+        G.score += TUNE.PT_STAR;
+        AU.star();
+        spawnText(PX + PW / 2, BY + PH * 0.3, 'نجمة! +' + TUNE.PT_STAR, '#FFD766', R * 1.1);
+        G.objNow = G.objInit - objectiveRemaining();
+        refreshHud();
+        /* the last shot can still be in the air when shots hit zero — a star
+           that lands during the fail countdown has to be able to rescue it */
+        if (G.ended && G.endPhase === 3 && objectiveMet()) { G.endPhase = 1; G.endT = 0.4; }
+        else checkEnd();
+      }
+    }
+  }
+
+  /* --- floating score text --------------------------------------------- */
+  for (let i = 0; i < textPool.length; i++) {
+    const t = textPool[i]; if (!t.alive) continue;
+    t.life -= dt; if (t.life <= 0) { t.alive = false; continue; }
+    t.y += t.vy * dt; t.vy *= 0.94;
+  }
+
+  driftDeco(dt);
+
+  /* --- end-of-level sequencing ----------------------------------------- */
+  if (G.ended) {
+    G.endT -= dt;
+    if (G.endPhase === 1) {                      // pause, then celebrate
+      if (G.endT <= 0) {
+        G.endPhase = 2; G.endT = 0;
+        G.baseScore = G.score; G.shotBonus = 0;
+      }
+    } else if (G.endPhase === 2) {               // burn unused shots
+      if (G.endT <= 0) {
+        if (G.shots > 0) {
+          G.shots--;
+          G.score += TUNE.PT_SHOT; G.shotBonus += TUNE.PT_SHOT;
+          const cell = randomOccupiedCell();
+          if (cell >= 0) {
+            const r = (cell / TUNE.COLS_EVEN) | 0, c = cell % TUNE.COLS_EVEN;
+            removeCell(r, c, 0);
+            G.score += TUNE.PT_POP; G.shotBonus += TUNE.PT_POP;
+            const dn = dropFloating(0.05);
+            if (dn > 0) {
+              const bn = Math.round(TUNE.PT_DROP * Math.pow(dn, TUNE.DROP_EXP));
+              G.score += bn; G.shotBonus += bn;
+            }
+          }
+          spawnText(CANX, CANY - D, '+' + TUNE.PT_SHOT, '#FFD766', R * 0.85);
+          AU.pop(6);
+          refreshHud();
+          G.endT = TUNE.CELEBRATE_STEP;
+        } else {
+          G.endPhase = 4; G.endT = 0.7;
+        }
+      }
+    } else if (G.endPhase === 3) {               // failed
+      if (G.endT <= 0 && G.settle <= 0.6) { G.endPhase = 5; finishLose(); }
+    } else if (G.endPhase === 4) {               // won
+      if (G.endT <= 0) { G.endPhase = 5; finishWin(); }
+    }
+  }
+}
+
+function randomOccupiedCell() {
+  scratchB.length = 0;
+  for (let r = 0; r < TUNE.ROWS_MAX; r++) for (let c = 0, L = rowLen(r); c < L; c++)
+    if (G.grid[r][c]) scratchB.push(idx(r, c));
+  if (!scratchB.length) return -1;
+  return scratchB[(Math.random() * scratchB.length) | 0];
+}
+
+function confetti() {
+  for (let i = 0; i < 60; i++) {
+    const s = shardPool.get(); if (!s) break;
+    s.x = PX + Math.random() * PW; s.y = PY - 20 - Math.random() * 120;
+    s.vx = (Math.random() - 0.5) * 160; s.vy = 120 + Math.random() * 220;
+    s.rot = Math.random() * 6.28; s.vr = (Math.random() - 0.5) * 12;
+    s.sz = R * (0.22 + Math.random() * 0.3);
+    s.col = COLORS[(Math.random() * 6) | 0].base;
+    s.max = s.life = 1.6 + Math.random() * 0.8;
+  }
+}
+
+/* ==========================================================================
+   16. BACKGROUND DECOR
+   ========================================================================== */
+/* The decor runs on its OWN generator. Sharing Math.random() with the game
+   would let purely cosmetic bubbles (which drift and re-roll on their own
+   schedule, carrying across levels) shift which colours the cannon hands out. */
+let decoSeed = 20260817 >>> 0;
+function decoRnd() {
+  decoSeed = (decoSeed * 1664525 + 1013904223) >>> 0;
+  return decoSeed / 4294967296;
+}
+const deco = [];
+function driftDeco(dt) {
+  for (let i = 0; i < deco.length; i++) {
+    const d = deco[i];
+    d.y -= d.sp * dt;
+    d.x += Math.sin(G.time * d.w + d.ph) * 9 * dt;
+    if (d.y + d.r < PY - 10) { d.y = PY + PH + d.r + decoRnd() * 60; d.x = PX + decoRnd() * PW; }
+  }
+}
+function layoutDeco() {
+  deco.length = 0;
+  for (let i = 0; i < 14; i++) {
+    deco.push({
+      x: PX + decoRnd() * PW,
+      y: PY + decoRnd() * PH,
+      r: R * (0.5 + decoRnd() * 1.9),
+      sp: 8 + decoRnd() * 26,
+      w: 0.5 + decoRnd(),
+      ph: decoRnd() * 6.28,
+      a: 0.05 + decoRnd() * 0.09
+    });
+  }
+}
+
+/* ==========================================================================
+   17. RENDER
+   ========================================================================== */
+let skyGrad = null, skyKey = '';
+function drawBackground() {
+  const M = MAPS[G.map];
+  const key = G.map + '|' + Math.round(VW) + 'x' + Math.round(VH);
+  if (key !== skyKey) {
+    skyKey = key;
+    skyGrad = ctx.createLinearGradient(0, 0, 0, VH);
+    skyGrad.addColorStop(0, M.sky[0]);
+    skyGrad.addColorStop(0.42, M.sky[1]);
+    skyGrad.addColorStop(0.76, M.sky[2]);
+    skyGrad.addColorStop(1, M.sky[3]);
+  }
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, VW, VH);
+
+  /* drifting decorative bubbles, well behind the board */
+  ctx.save();
+  for (let i = 0; i < deco.length; i++) {
+    const d = deco[i];
+    ctx.globalAlpha = d.a;
+    ctx.fillStyle = M.deco;
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = d.a * 1.6;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(d.x - d.r * 0.3, d.y - d.r * 0.32, d.r * 0.3, 2.4, 4.4); ctx.stroke();
+  }
+  ctx.restore();
+
+  /* vignette keeps the board high-contrast against any scene */
+  const vg = ctx.createRadialGradient(VW / 2, VH * 0.42, Math.min(VW, VH) * 0.28, VW / 2, VH * 0.5, Math.max(VW, VH) * 0.78);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, M.vig);
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
+
+  /* letterbox bars on wide screens */
+  if (PX > 0.5) {
+    ctx.fillStyle = '#070B14';
+    ctx.fillRect(0, 0, PX, VH);
+    ctx.fillRect(PX + PW, 0, VW - PX - PW, VH);
+  }
+}
+
+function drawBoardFrame() {
+  const top = TOPY - 6, bot = CANY + D * 0.2;
+  ctx.fillStyle = 'rgba(8,14,28,.3)';
+  roundRect(WL - 4, top, (WR - WL) + 8, bot - top, 14); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = 1.5;
+  roundRect(WL - 4, top, (WR - WL) + 8, bot - top, 14); ctx.stroke();
+
+  /* ceiling rail the cluster hangs from */
+  ctx.fillStyle = 'rgba(255,255,255,.2)';
+  ctx.fillRect(WL - 4, top, (WR - WL) + 8, 3);
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawBubbleSprite(spr, x, y, scale, rot) {
+  const s = SPR * scale;
+  if (rot) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+    ctx.drawImage(spr, -s / 2, -s / 2, s, s);
+    ctx.restore();
+  } else {
+    ctx.drawImage(spr, x - s / 2, y - s / 2, s, s);
+  }
+}
+
+function drawGrid() {
+  /* rows further from the ceiling sway a little more — a hanging cluster */
+  for (let r = 0; r < TUNE.ROWS_MAX; r++) {
+    const off = G.swayX * (0.35 + r * 0.11);
+    const y0 = cellY(r);
+    for (let c = 0, L = rowLen(r); c < L; c++) {
+      const b = G.grid[r][c];
+      if (!b) continue;
+      const spr = spriteFor(b);
+      if (!spr) continue;
+      let sc = 1;
+      if (b.spawn > 0) sc = 1 + 0.32 * (b.spawn / 0.16) * (b.spawn / 0.16);
+      drawBubbleSprite(spr, cellX(r, c) + off, y0, sc, 0);
+    }
+  }
+  /* lightning row flash */
+  if (G.flashRow >= 0 && G.flashT > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, G.flashT / 0.4) * 0.6;
+    const y = cellY(G.flashRow);
+    const g = ctx.createLinearGradient(WL, 0, WR, 0);
+    g.addColorStop(0, 'rgba(255,246,194,0)');
+    g.addColorStop(0.5, 'rgba(255,246,194,1)');
+    g.addColorStop(1, 'rgba(255,246,194,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(WL, y - R * 0.9, WR - WL, R * 1.8);
+    ctx.restore();
+  }
+}
+
+function drawAim() {
+  if (G.screen !== 'play' || G.ended) return;
+  const alpha = G.aiming ? 1 : 0.34;
+  if (alpha <= 0) return;
+  traceAim(G.aimAng, G.aimBounces);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  /* dotted polyline along the traced segments */
+  const dotStep = Math.max(9, R * 0.72);
+  let travelled = 0;
+  const totalFade = PH * 1.4;
+  for (let i = 0; i + 3 < aimVN; i += 2) {
+    const x0 = aimV[i], y0 = aimV[i + 1], x1 = aimV[i + 2], y1 = aimV[i + 3];
+    const dx = x1 - x0, dy = y1 - y0;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.01) continue;
+    const ux = dx / len, uy = dy / len;
+    for (let d = R * 0.9; d < len; d += dotStep) {
+      const px = x0 + ux * d, py = y0 + uy * d;
+      const fade = 1 - Math.min(1, (travelled + d) / totalFade);
+      ctx.globalAlpha = alpha * (0.25 + 0.6 * fade);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(px, py, R * 0.15, 0, 6.2832); ctx.fill();
+    }
+    travelled += len;
+    /* bounce marker */
+    if (i + 4 < aimVN) {
+      ctx.globalAlpha = alpha * 0.75;
+      ctx.strokeStyle = '#5EEAD4'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x1, y1, R * 0.34, 0, 6.2832); ctx.stroke();
+    }
+  }
+
+  /* ghost preview of the landing cell */
+  if (aimCell.r >= 0) {
+    const gx = cellX(aimCell.r, aimCell.c), gy = cellY(aimCell.r);
+    const col = G.cur.kind === K_RAIN ? '#FFFFFF' : COLORS[G.cur.color] ? COLORS[G.cur.color].base : '#FFFFFF';
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.setLineDash([R * 0.42, R * 0.34]);
+    ctx.lineDashOffset = -G.time * 26;
+    ctx.strokeStyle = col; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc(gx, gy, R * 0.86, 0, 6.2832); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = alpha * 0.16;
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(gx, gy, R * 0.86, 0, 6.2832); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawCannon() {
+  const ang = G.aimAng;
+  const bx = CANX, by = CANY;
+
+  /* barrel */
+  ctx.save();
+  ctx.translate(bx, by);
+  ctx.rotate(-ang + Math.PI / 2);
+  const bw = R * 0.92, bl = R * 2.15;
+  const gg = ctx.createLinearGradient(-bw, 0, bw, 0);
+  gg.addColorStop(0, '#1A2440'); gg.addColorStop(0.4, '#42558A'); gg.addColorStop(1, '#131B31');
+  ctx.fillStyle = gg;
+  ctx.beginPath();
+  ctx.moveTo(-bw, 0); ctx.lineTo(-bw * 0.78, -bl); ctx.lineTo(bw * 0.78, -bl); ctx.lineTo(bw, 0);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(140,190,255,.45)'; ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.fillStyle = 'rgba(140,190,255,.28)';
+  ctx.fillRect(-bw * 0.8, -bl - 2, bw * 1.6, 4);
+  ctx.restore();
+
+  /* base ring */
+  const bg = ctx.createRadialGradient(bx - R * 0.4, by - R * 0.5, R * 0.2, bx, by, R * 1.7);
+  bg.addColorStop(0, '#4E639E'); bg.addColorStop(1, '#131B31');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(bx, by, R * 1.5, 0, 6.2832); ctx.fill();
+  ctx.strokeStyle = 'rgba(160,200,255,.45)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(bx, by, R * 1.5, 0, 6.2832); ctx.stroke();
+
+  /* loaded bubble */
+  if (G.cur && !G.proj.on && !G.ended) {
+    const spr = spriteFor(G.cur);
+    if (spr) drawBubbleSprite(spr, bx, by, 1, 0);
+  }
+
+  /* next bubble + swap affordance */
+  if (G.next && !G.ended) {
+    const nx = nextBubbleX(), ny = nextBubbleY();
+    ctx.save();
+    ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.arc(nx, ny, R * 0.92, 0, 6.2832); ctx.stroke();
+    ctx.setLineDash([]);
+    const spr = spriteFor(G.next);
+    if (spr) drawBubbleSprite(spr, nx, ny, 0.74, 0);
+    ctx.fillStyle = 'rgba(255,255,255,.65)';
+    ctx.font = '700 ' + Math.round(R * 0.55) + 'px Cairo, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⇄', nx, ny - R * 1.45);
+    ctx.restore();
+  }
+}
+function nextBubbleX() { return CANX - D * 1.75; }
+function nextBubbleY() { return CANY + D * 0.12; }
+
+function drawProjectile() {
+  if (!G.proj.on) return;
+  const p = G.proj;
+  const spr = spriteFor(p);
+  if (spr) drawBubbleSprite(spr, p.x, p.y, 1, 0);
+}
+
+function drawFx() {
+  /* pop swell */
+  for (let i = 0; i < popPool.length; i++) {
+    const p = popPool[i]; if (!p.alive || p.delay > 0) continue;
+    const k = p.t / TUNE.POP_GROW;
+    const spr = SPRITES[sprKey(p.kind === K_ICE ? K_ICE : p.kind, p.color < 0 ? 0 : p.color, 0)]
+             || SPRITES[sprKey(K_NORM, p.color < 0 ? 0 : p.color, 0)];
+    if (!spr) continue;
+    ctx.save();
+    ctx.globalAlpha = 1 - k * 0.25;
+    drawBubbleSprite(spr, p.x, p.y, 1 + 0.22 * k, 0);
+    ctx.restore();
+  }
+  /* rings */
+  for (let i = 0; i < ringPool.length; i++) {
+    const g = ringPool[i]; if (!g.alive) continue;
+    const k = 1 - g.life / g.max;
+    ctx.save();
+    ctx.globalAlpha = (1 - k) * 0.7;
+    ctx.strokeStyle = g.col; ctx.lineWidth = g.w * (1 - k * 0.6);
+    ctx.beginPath(); ctx.arc(g.x, g.y, g.r0 + (g.r1 - g.r0) * k, 0, 6.2832); ctx.stroke();
+    ctx.restore();
+  }
+  /* falling bubbles tumble */
+  for (let i = 0; i < fallPool.length; i++) {
+    const f = fallPool[i]; if (!f.alive || f.delay > 0) continue;
+    const spr = spriteFor(f);
+    if (spr) drawBubbleSprite(spr, f.x, f.y, 1, f.rot);
+  }
+  /* shards */
+  for (let i = 0; i < shardPool.length; i++) {
+    const s = shardPool[i]; if (!s.alive) continue;
+    const k = s.life / s.max;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, k * 1.6);
+    ctx.translate(s.x, s.y); ctx.rotate(s.rot);
+    ctx.fillStyle = s.col;
+    ctx.fillRect(-s.sz * 0.5, -s.sz * 0.5, s.sz, s.sz * 0.72);
+    ctx.restore();
+  }
+  /* floating score text */
+  for (let i = 0; i < textPool.length; i++) {
+    const t = textPool[i]; if (!t.alive) continue;
+    const k = t.life / t.max;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, k * 2);
+    ctx.font = '900 ' + Math.round(t.sz) + 'px Cairo, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(6,10,20,.8)';
+    ctx.strokeText(t.txt, t.x, t.y);
+    ctx.fillStyle = t.col;
+    ctx.fillText(t.txt, t.x, t.y);
+    ctx.restore();
+  }
+}
+
+function render() {
+  drawBackground();
+  if (G.screen === 'menu') { drawMenuArt(); return; }
+  if (G.screen === 'map') return;
+
+  ctx.save();
+  if (G.shakeT > 0) {
+    const k = G.shakeT / 0.32;
+    ctx.translate((Math.random() - 0.5) * G.shakeA * k, (Math.random() - 0.5) * G.shakeA * k);
+  }
+  drawBoardFrame();
+  drawGrid();
+  drawFx();
+  drawAim();
+  drawProjectile();
+  drawCannon();
+  ctx.restore();
+}
+
+/* decorative bubble cluster behind the main menu — kept in the empty band
+   ABOVE the title, otherwise it reads as clutter sitting on the wordmark */
+function drawMenuArt() {
+  const cy = PY + PH * 0.135;
+  for (let i = 0; i < 7; i++) {
+    const a = i * 0.897 + G.time * 0.25;
+    const rr = PW * (0.15 + 0.11 * ((i % 3)));
+    const x = PX + PW / 2 + Math.cos(a) * rr;
+    const y = cy + Math.sin(a * 1.3) * PH * 0.035;
+    const spr = SPRITES[sprKey(K_NORM, i % 6, 0)];
+    if (spr) {
+      const s = SPR * (0.85 + 0.35 * Math.sin(G.time * 1.2 + i));
+      ctx.save(); ctx.globalAlpha = 0.9;
+      ctx.drawImage(spr, x - s / 2, y - s / 2, s, s);
+      ctx.restore();
+    }
+  }
+}
+
+/* ==========================================================================
+   18. HUD
+   ========================================================================== */
+const el = id => document.getElementById(id);
+const shotsV = el('shotsV'), scoreV = el('scoreV'), shotChip = el('shotChip');
+const objIcon = el('objIcon'), objText = el('objText'), objProg = el('objProg'), objFill = el('objFill');
+
+function refreshHud() {
+  shotsV.textContent = G.shots;
+  scoreV.textContent = G.score;
+  shotChip.classList.toggle('low', G.shots <= 3 && !G.ended);
+
+  const o = LEVELS[G.level].obj;
+  objText.textContent = objectiveText();
+  const rem = objectiveRemaining();
+  const done = Math.max(0, G.objInit - rem);
+  objProg.textContent = done + '/' + G.objInit;
+  objFill.style.width = (G.objInit ? (done / G.objInit) * 100 : 0) + '%';
+
+  if (o.t === 'color') {
+    objIcon.textContent = SYM_CH[o.c];
+    objIcon.style.background = COLORS[o.c].base;
+    objIcon.style.color = '#08101F';
+  } else if (o.t === 'rescue') {
+    objIcon.textContent = '★'; objIcon.style.background = '#FFD766'; objIcon.style.color = '#5A3C00';
+  } else if (o.t === 'blockers') {
+    objIcon.textContent = '▨'; objIcon.style.background = '#8FA0BD'; objIcon.style.color = '#131B31';
+  } else {
+    objIcon.textContent = '◍'; objIcon.style.background = '#2E86FF'; objIcon.style.color = '#08101F';
+  }
+  refreshBoosters();
+}
+
+function refreshBoosters() {
+  const nodes = document.querySelectorAll('.bst');
+  for (let i = 0; i < nodes.length; i++) {
+    const k = nodes[i].dataset.b, n = SAVE.boosters[k] | 0;
+    nodes[i].querySelector('.bc').textContent = n;
+    nodes[i].classList.toggle('empty', n <= 0);
+    nodes[i].classList.toggle('on', k === 'aim' && G.boostAim);
+  }
+}
+
+let toastT = 0;
+function toast(msg) {
+  const t = el('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('on'), 1700);
+}
+
+/* ==========================================================================
+   19. SCREENS
+   ========================================================================== */
+const SCREENS = ['menu', 'map', 'how', 'pause', 'win', 'lose'];
+function show(name) {
+  for (let i = 0; i < SCREENS.length; i++) el(SCREENS[i]).classList.toggle('hide', SCREENS[i] !== name);
+  el('hud').classList.toggle('hide', !(name === null || name === 'pause'));
+  el('boosters').classList.toggle('hide', !(name === null));
+  if (name === 'menu') G.screen = 'menu';
+  else if (name === 'map') G.screen = 'map';
+  else if (name === null) G.screen = 'play';
+  else if (name === 'pause') G.screen = 'pause';
+  else G.screen = name;
+  if (name === 'menu' || name === 'map') {
+    el('tsV').textContent = totalStars() + ' / ' + (LEVELS.length * 3);
+    el('tsV2').textContent = totalStars();
+  }
+}
+
+/* ---------------------------------------------------------------- MAP ---- */
+function buildMap() {
+  const inner = el('mapInner');
+  const svg = el('mapSvg');
+  /* clear previous nodes but keep the svg */
+  while (inner.children.length > 1) inner.removeChild(inner.lastChild);
+
+  const w = PW || 360;
+  /* `top` has to clear #mapTop (back button + title bar) or the first section
+     header and node 1 render underneath it */
+  const gap = 96, top = 132, sectGap = 52;
+  const pts = [];
+  let y = top;
+  const frag = document.createDocumentFragment();
+
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (i % 10 === 0) {
+      const s = document.createElement('div');
+      s.className = 'sect';
+      s.style.top = (y - 46) + 'px';
+      s.innerHTML = '<div class="sl"></div><div class="sn">' + MAPS[LEVELS[i].m].name +
+        ' · <span class="num">' + (i + 1) + '-' + (i + 10) + '</span></div><div class="sr"></div>';
+      frag.appendChild(s);
+      y += 6;
+    }
+    const t = i * 0.72;
+    const x = w / 2 + Math.sin(t) * w * 0.28;
+    pts.push(x, y);
+
+    const stars = SAVE.stars[i] | 0;
+    const open = i <= SAVE.unlocked;
+    const n = document.createElement('button');
+    n.className = 'node' + (stars > 0 ? ' done' : (open ? ' open' : '')) + (open && stars === 0 ? ' cur' : '');
+    n.style.left = x + 'px'; n.style.top = y + 'px';
+    if (!open) n.innerHTML = '<span class="lk">🔒</span>';
+    else {
+      let h = '<span class="num">' + (i + 1) + '</span><span class="ns">';
+      for (let k = 0; k < 3; k++) h += '<i class="' + (k < stars ? 'f' : '') + '">★</i>';
+      n.innerHTML = h + '</span>';
+      n.addEventListener('click', () => { AU.init(); AU.ui(); startLevel(i); });
+    }
+    frag.appendChild(n);
+    y += gap;
+    if ((i + 1) % 10 === 0) y += sectGap;
+  }
+  inner.appendChild(frag);
+  inner.style.height = (y + 40) + 'px';
+
+  /* winding dashed path behind the nodes */
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + (y + 40));
+  svg.setAttribute('height', (y + 40));
+  let d = '';
+  for (let i = 0; i < pts.length; i += 2) {
+    d += (i === 0 ? 'M' : 'L') + pts[i].toFixed(1) + ' ' + pts[i + 1].toFixed(1) + ' ';
+  }
+  svg.innerHTML = '<path d="' + d + '" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="8" ' +
+    'stroke-linecap="round" stroke-dasharray="2 18"/>';
+
+  /* scroll to the first unfinished level */
+  const target = Math.min(SAVE.unlocked, LEVELS.length - 1);
+  const sc = el('mapScroll');
+  requestAnimationFrame(() => {
+    const ty = top + target * gap + Math.floor(target / 10) * sectGap;
+    sc.scrollTop = Math.max(0, ty - PH * 0.55);
+  });
+}
+
+function startLevel(n) {
+  loadLevel(n);
+  G.map = LEVELS[n].m;
+  skyKey = '';
+  el('pzLvl').textContent = n + 1;
+  show(null);
+}
+
+/* ==========================================================================
+   20. INPUT
+   ========================================================================== */
+let dragging = false, dragMoved = false, downX = 0, downY = 0;
+
+function evPos(e, out) {
+  const rect = cv.getBoundingClientRect();
+  const t = e.touches && e.touches.length ? e.touches[0] : (e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e);
+  out.x = t.clientX - rect.left;
+  out.y = t.clientY - rect.top;
+  return out;
+}
+const pt = { x: 0, y: 0 };
+
+function setAim(x, y) {
+  let dx = x - CANX, dy = CANY - y;
+  if (dy < 1) dy = 1;
+  let a = Math.atan2(dy, dx);
+  const lo = 15 * Math.PI / 180, hi = 165 * Math.PI / 180;
+  if (a < lo) a = lo; if (a > hi) a = hi;
+  G.aimAng = a;
+}
+
+function onDown(e) {
+  AU.init(); AU.resume();
+  if (G.screen !== 'play') return;
+  e.preventDefault();
+  evPos(e, pt);
+  if (pt.x < PX || pt.x > PX + PW) return;
+
+  /* tap the next bubble to swap it with the loaded one */
+  const nx = nextBubbleX(), ny = nextBubbleY();
+  if ((pt.x - nx) * (pt.x - nx) + (pt.y - ny) * (pt.y - ny) < (R * 1.5) * (R * 1.5)) {
+    if (G.cur && G.next && !G.proj.on && !G.ended) {
+      const t = G.cur; G.cur = G.next; G.next = t;
+      AU.ui();
+    }
+    return;
+  }
+  dragging = true; dragMoved = false;
+  downX = pt.x; downY = pt.y;
+  setAim(pt.x, pt.y);
+  G.aiming = true;
+}
+
+function onMove(e) {
+  if (e.cancelable) e.preventDefault();
+  if (!dragging || G.screen !== 'play') return;
+  evPos(e, pt);
+  if (Math.abs(pt.x - downX) > 4 || Math.abs(pt.y - downY) > 4) dragMoved = true;
+  setAim(pt.x, pt.y);
+}
+
+function onUp(e) {
+  if (!dragging) return;
+  if (e.cancelable) e.preventDefault();
+  dragging = false; G.aiming = false;
+  if (G.screen !== 'play' || G.ended) return;
+  evPos(e, pt);
+  setAim(pt.x, pt.y);
+  fire();
+}
+
+cv.addEventListener('touchstart', onDown, { passive: false });
+cv.addEventListener('touchmove', onMove, { passive: false });
+cv.addEventListener('touchend', onUp, { passive: false });
+cv.addEventListener('touchcancel', () => { dragging = false; G.aiming = false; }, { passive: false });
+cv.addEventListener('mousedown', onDown);
+window.addEventListener('mousemove', onMove);
+window.addEventListener('mouseup', onUp);
+/* belt-and-braces: the WebView must never scroll or pull-to-refresh */
+document.addEventListener('touchmove', e => { if (e.target === cv) e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ==========================================================================
+   21. BOOSTERS
+   ========================================================================== */
+function useBooster(k) {
+  if (G.screen !== 'play' || G.ended) return;
+  if ((SAVE.boosters[k] | 0) <= 0) { toast('لا يوجد لديك ' + BOOST_NAMES[k]); return; }
+
+  if (k === 'aim') {
+    if (G.boostAim) return;
+    G.boostAim = true; G.aimBounces = 2;
+  } else if (k === 'bomb') {
+    if (G.proj.on) return;
+    G.cur = { kind: K_BOMB, color: G.cur && G.cur.color >= 0 ? G.cur.color : G.palette[0], hp: 1 };
+  } else if (k === 'swap') {
+    G.cur = rollBubble(); G.next = rollBubble();
+  } else if (k === 'shots') {
+    G.shots += 5;
+    spawnText(CANX, CANY - D * 1.6, '+5', '#5EEAD4', R * 1.1);
+  }
+  SAVE.boosters[k]--; persist();
+  AU.ui(); refreshHud();
+}
+document.querySelectorAll('.bst').forEach(b => {
+  b.addEventListener('click', ev => { ev.preventDefault(); AU.init(); useBooster(b.dataset.b); });
+});
+
+/* ==========================================================================
+   22. BUTTONS
+   ========================================================================== */
+function bind(id, fn) { el(id).addEventListener('click', e => { e.preventDefault(); AU.init(); AU.ui(); fn(); }); }
+
+bind('btnPlay', () => { buildMap(); show('map'); });
+bind('btnMapBack', () => show('menu'));
+bind('btnHow', () => show('how'));
+bind('btnHowOk', () => show('menu'));
+bind('btnPause', () => { el('pzLvl').textContent = G.level + 1; show('pause'); });
+bind('btnResume', () => show(null));
+bind('btnRetry', () => startLevel(G.level));
+bind('btnRetry2', () => startLevel(G.level));
+bind('btnHome', () => { buildMap(); show('map'); });
+bind('btnHome2', () => { buildMap(); show('map'); });
+bind('btnHome3', () => { buildMap(); show('map'); });
+bind('btnNext', () => {
+  const n = G.level + 1;
+  if (n >= LEVELS.length) { toast('أكملت كل المستويات! 🎉'); buildMap(); show('map'); }
+  else startLevel(n);
+});
+el('btnMute').addEventListener('click', e => {
+  e.preventDefault(); AU.init();
+  AU.setMute(!SAVE.mute);
+  el('btnMute').textContent = (SAVE.mute ? '🔇' : '🔊') + ' الصوت';
+  AU.ui();
+});
+el('btnMute').textContent = (SAVE.mute ? '🔇' : '🔊') + ' الصوت';
+
+/* ==========================================================================
+   23. RESIZE — rescales the board without losing level state
+   ========================================================================== */
+function onResize() {
+  const pD = D, pBX = BX, pBY = BY;
+  layout();
+  if (pD > 0) {
+    const k = D / pD;
+    const conv = o => {
+      o.x = BX + (o.x - pBX) * k;
+      o.y = BY + (o.y - pBY) * k;
+    };
+    if (G.proj.on) conv(G.proj);
+    for (let i = 0; i < fallPool.length; i++) if (fallPool[i].alive) { conv(fallPool[i]); fallPool[i].vy *= k; fallPool[i].vx *= k; }
+    for (let i = 0; i < popPool.length; i++) if (popPool[i].alive) conv(popPool[i]);
+    for (let i = 0; i < shardPool.length; i++) if (shardPool[i].alive) { conv(shardPool[i]); shardPool[i].sz *= k; }
+    for (let i = 0; i < ringPool.length; i++) if (ringPool[i].alive) { conv(ringPool[i]); ringPool[i].r0 *= k; ringPool[i].r1 *= k; }
+    for (let i = 0; i < textPool.length; i++) if (textPool[i].alive) { conv(textPool[i]); textPool[i].sz *= k; }
+  }
+  skyKey = '';
+  if (G.screen === 'map') buildMap();
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => setTimeout(onResize, 120));
+
+/* ==========================================================================
+   24. MAIN LOOP — fixed timestep accumulator
+   ========================================================================== */
+const STEP = 1 / 60;
+let acc = 0, last = 0;
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  /* Don't trust 'resize' alone: Android WebViews change the canvas box when
+     the address bar or keyboard slides in, sometimes without an event. Two
+     cached property reads per frame keep the board from rendering at a stale
+     scale (which shows up as a board clipped past the right wall). */
+  if (cv.clientWidth !== VW || cv.clientHeight !== VH) onResize();
+  if (!last) last = now;
+  let dt = (now - last) / 1000;
+  last = now;
+  if (dt > 0.25) dt = 0.25;
+  acc += dt;
+  let guard = 0;
+  while (acc >= STEP && guard++ < 5) {
+    if (G.screen === 'play' || G.screen === 'menu') update(STEP);
+    else { G.time += STEP; driftDeco(STEP); }   // paused/map: keep only the scenery alive
+    acc -= STEP;
+  }
+  if (acc > STEP * 5) acc = 0;
+  render();
+}
+
+/* ==========================================================================
+   25. BOOT
+   ========================================================================== */
+(function boot() {
+  /* sanity-check the hand-authored layouts: a typo pads instead of breaking */
+  for (let i = 0; i < LEVELS.length; i++) {
+    const L = LEVELS[i];
+    for (let r = 0; r < L.rows.length; r++) {
+      const want = rowLen(r);
+      if (L.rows[r].length !== want) {
+        console.warn('level ' + (i + 1) + ' row ' + r + ': expected ' + want + ' chars, got ' + L.rows[r].length);
+        L.rows[r] = (L.rows[r] + '..........').slice(0, want);
+      }
+    }
+  }
+  layout();
+  loadLevel(Math.min(SAVE.unlocked, LEVELS.length - 1));
+  show('menu');
+  requestAnimationFrame(frame);
+  /* Cairo may land after first paint — sprites don't use it, but the menu does */
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { /* reflow only */ });
+})();
+</script>
+</body>
+</html>
