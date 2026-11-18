@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#FFE8C2">
+<title>دمج الفواكه</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#FFE8C2}
+body{font-family:'Cairo','Segoe UI',sans-serif;color:#5A3416;position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block}
+.num{direction:ltr;unicode-bidi:isolate}
+.hide{display:none!important}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(90,52,22,.55);z-index:10;padding:16px}
+.card{width:min(340px,100%);background:#FFF6E6;border:3px solid #E39B3B;border-radius:24px;padding:22px 18px;text-align:center;box-shadow:0 12px 0 #C9782A,0 18px 40px rgba(0,0,0,.3)}
+.card h1{font-size:36px;font-weight:900;color:#E2572B;line-height:1.3}
+.card p{margin:6px 0 12px;font-size:15px}
+.chain{font-size:24px;letter-spacing:2px;margin:6px 0 10px;direction:ltr}
+.btn{font-family:inherit;border:0;cursor:pointer;border-radius:16px;padding:12px;font-size:19px;font-weight:900;color:#fff;background:linear-gradient(180deg,#FF8A3D,#E2572B);width:100%;margin-top:8px;box-shadow:0 5px 0 #A93B17}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 #A93B17}
+.big{font-size:46px;font-weight:900;color:#E2572B}
+#pause{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;z-index:5;width:40px;height:40px;border-radius:12px;border:0;background:#FFF6E6;box-shadow:0 3px 0 #D9A363;color:#5A3416;font-size:16px;font-weight:900}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="pause" class="hide">❚❚</button>
+<div id="menu" class="ov">
+  <div class="card">
+    <h1>دمج الفواكه</h1>
+    <p>أسقط الفواكه في الصندوق. كل فاكهتين متطابقتين تندمجان في فاكهة أكبر! لا تدع الفواكه تتجاوز الخط الأحمر.</p>
+    <div class="chain">🍒🍓🍇🍋🍊🍎🍐🍑🍍🍈🍉</div>
+    <p id="bestM"></p>
+    <button class="btn" id="startBtn">ابدأ</button>
+  </div>
+</div>
+<div id="end" class="ov hide">
+  <div class="card">
+    <h1>انتهت اللعبة</h1>
+    <div class="big num" id="endS">0</div>
+    <p id="endP"></p>
+    <button class="btn" id="againBtn">العب مجدداً</button>
+  </div>
+</div>
+<div id="pauseOv" class="ov hide">
+  <div class="card">
+    <h1>استراحة</h1>
+    <button class="btn" id="resumeBtn">متابعة</button>
+    <button class="btn" style="background:#C9782A" id="restartBtn">إعادة البدء</button>
+  </div>
+</div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+const W=400,H=720;let scale=1,ox=0,oy=0,dpr=1;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;scale=Math.min(innerWidth/W,innerHeight/H);ox=(innerWidth-W*scale)/2;oy=(innerHeight-H*scale)/2;}
+addEventListener('resize',resize);resize();
+let ac=null;
+function beep(f,d,t,v){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=t||'sine';o.frequency.setValueAtTime(f,ac.currentTime);o.frequency.exponentialRampToValueAtTime(f*1.5,ac.currentTime+d);g.gain.setValueAtTime(v||.12,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+
+const EMO=['🍒','🍓','🍇','🍋','🍊','🍎','🍐','🍑','🍍','🍈','🍉'];
+const COL=['#E53950','#FF5A6E','#8E5BD6','#F7D23E','#FF9A2E','#E8423A','#B6D94C','#FFB38A','#F2C230','#9BE07A','#3DBE5A'];
+const RAD=[15,20,26,32,39,46,54,62,71,81,92];
+const BX0=26,BX1=374,BY1=694,BY0=170,LINE=210,DROPY=128;
+const G=1500;
+
+let bodies=[],score=0,best=0,cur=0,nxt=0,dropX=W/2,cool=0,state='menu',danger=0,pops=[],shakeT=0,nid=1,maxK=0;
+try{best=+localStorage.getItem('fm_best')||0;}catch(e){}
+$('bestM').innerHTML=best?'أفضل نتيجة: <span class="num">'+best+'</span>':'';
+const rnd=()=>Math.random()*5|0;
+
+function newGame(){bodies=[];score=0;cur=rnd();nxt=rnd();cool=0;danger=0;pops=[];maxK=0;state='play';$('pause').classList.remove('hide');}
+function drop(){
+  if(state!=='play'||cool>0)return;
+  const r=RAD[cur];const x=Math.max(BX0+r,Math.min(BX1-r,dropX));
+  bodies.push({id:nid++,x,y:DROPY,vx:0,vy:0,r,k:cur,a:0,born:performance.now()});
+  cur=nxt;nxt=rnd();cool=.45;beep(300,.08,'sine',.08);
+}
+function local(e){return{x:(e.clientX-ox)/scale,y:(e.clientY-oy)/scale};}
+let down=false;
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;down=true;dropX=local(e).x;});
+cv.addEventListener('pointermove',e=>{if(state!=='play')return;if(down||e.pointerType==='mouse')dropX=local(e).x;});
+cv.addEventListener('pointerup',e=>{if(state!=='play'||!down)return;down=false;dropX=local(e).x;drop();});
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')dropX-=20;if(e.key==='ArrowRight')dropX+=20;if(e.key===' ')drop();});
+
+function step(h){
+  for(const b of bodies){
+    b.vy+=G*h;b.x+=b.vx*h;b.y+=b.vy*h;b.a+=b.vx/b.r*h;
+  }
+  const merges=[];const used=new Set();
+  for(let it=0;it<2;it++){
+    for(let i=0;i<bodies.length;i++){
+      const a=bodies[i];
+      for(let j=i+1;j<bodies.length;j++){
+        const b=bodies[j];
+        const dx=b.x-a.x,dy=b.y-a.y,R=a.r+b.r;
+        if(dx>R||dx<-R||dy>R||dy<-R)continue;
+        const d2=dx*dx+dy*dy;if(d2>=R*R)continue;
+        const d=Math.sqrt(d2)||.01,nx=dx/d,ny=dy/d,ov=R-d;
+        if(a.k===b.k&&!used.has(a.id)&&!used.has(b.id)){used.add(a.id);used.add(b.id);merges.push([a,b]);continue;}
+        const ma=a.r*a.r,mb=b.r*b.r,ta=mb/(ma+mb),tb=ma/(ma+mb);
+        a.x-=nx*ov*ta*.9;a.y-=ny*ov*ta*.9;b.x+=nx*ov*tb*.9;b.y+=ny*ov*tb*.9;
+        const rv=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+        if(rv<0){const j2=-(1.15)*rv;a.vx-=nx*j2*ta;a.vy-=ny*j2*ta;b.vx+=nx*j2*tb;b.vy+=ny*j2*tb;
+          // tangential friction so stacks settle
+          const tx=-ny,ty=nx,rt=(b.vx-a.vx)*tx+(b.vy-a.vy)*ty,f=rt*.08;
+          a.vx+=tx*f*ta;a.vy+=ty*f*ta;b.vx-=tx*f*tb;b.vy-=ty*f*tb;}
+      }
+    }
+    for(const b of bodies){
+      if(b.x<BX0+b.r){b.x=BX0+b.r;if(b.vx<0)b.vx*=-.2;b.vy*=.995;}
+      if(b.x>BX1-b.r){b.x=BX1-b.r;if(b.vx>0)b.vx*=-.2;b.vy*=.995;}
+      if(b.y>BY1-b.r){b.y=BY1-b.r;if(b.vy>0)b.vy*=-.15;b.vx*=.97;}
+    }
+  }
+  for(const [a,b] of merges){
+    bodies.splice(bodies.indexOf(a),1);bodies.splice(bodies.indexOf(b),1);
+    const x=(a.x+b.x)/2,y=(a.y+b.y)/2;
+    if(a.k<10){
+      const k=a.k+1;bodies.push({id:nid++,x,y,vx:(a.vx+b.vx)/2,vy:(a.vy+b.vy)/2-60,r:RAD[k],k,a:0,born:0,grow:.4});
+      score+=(k+1)*(k+2)/2;if(k>maxK)maxK=k;
+      beep(260+k*70,.18,'triangle',.14);if(k>=7)shakeT=.25;
+    }else{score+=200;beep(1200,.5,'triangle',.18);shakeT=.4;}
+    pops.push({x,y,r:RAD[Math.min(10,a.k+1)],t:0,c:COL[a.k]});
+  }
+}
+function update(dt){
+  if(cool>0)cool-=dt;
+  const SUB=8;for(let i=0;i<SUB;i++)step(dt/SUB);
+  for(const b of bodies){b.vx*=Math.pow(.995,dt*60);if(b.grow)b.grow=Math.max(0,b.grow-dt*2);}
+  // game-over: something settled above the line for 2 seconds
+  const now=performance.now();
+  const over=bodies.some(b=>now-b.born>1200&&b.y-b.r<LINE&&Math.abs(b.vy)<120);
+  if(over){danger+=dt;if(danger>2)gameOver();}else danger=Math.max(0,danger-dt*2);
+}
+function gameOver(){
+  state='end';$('pause').classList.add('hide');
+  if(score>best){best=score;try{localStorage.setItem('fm_best',best);}catch(e){}}
+  $('endS').textContent=score;
+  $('endP').innerHTML='أكبر فاكهة: '+EMO[maxK]+'<br>أفضل نتيجة: <span class="num">'+best+'</span>';
+  beep(200,.6,'sawtooth',.1);
+  setTimeout(()=>$('end').classList.remove('hide'),600);
+}
+
+function fruit(x,y,k,a,s){
+  const r=RAD[k]*(s||1);
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle='rgba(90,52,22,.18)';ctx.beginPath();ctx.ellipse(2,r*.9,r*.8,r*.18,0,0,7);ctx.fill();
+  const g=ctx.createRadialGradient(-r*.35,-r*.4,r*.1,0,0,r);g.addColorStop(0,'#fff');g.addColorStop(.25,COL[k]);g.addColorStop(1,shade(COL[k],-40));
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();
+  ctx.rotate(a);ctx.font=`${r*1.15}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(EMO[k],0,r*.06);
+  ctx.restore();
+}
+function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=(n>>16)+amt,g=(n>>8&255)+amt,b=(n&255)+amt;r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));return`rgb(${r},${g},${b})`;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function draw(dt){
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#FFE8C2';ctx.fillRect(0,0,cv.width,cv.height);
+  let sx=0,sy=0;if(shakeT>0){shakeT-=dt;sx=(Math.random()-.5)*8;sy=(Math.random()-.5)*8;}
+  ctx.setTransform(dpr*scale,0,0,dpr*scale,dpr*(ox+sx*scale),dpr*(oy+sy*scale));
+  // background stripes
+  ctx.fillStyle='#FFDDA6';for(let i=-2;i<14;i++){ctx.beginPath();ctx.moveTo(i*60,0);ctx.lineTo(i*60+30,0);ctx.lineTo(i*60-170,H);ctx.lineTo(i*60-200,H);ctx.fill();}
+  // header
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillStyle='#5A3416';ctx.font='700 14px Cairo, sans-serif';ctx.fillText('النقاط',W/2,22);
+  ctx.font='900 34px Cairo, sans-serif';ctx.fillStyle='#E2572B';ctx.fillText(score,W/2,52);
+  ctx.font='700 13px Cairo, sans-serif';ctx.fillStyle='#5A3416';ctx.fillText('التالي',W-50,22);
+  rr(W-78,34,56,56,16);ctx.fillStyle='#FFF6E6';ctx.fill();
+  fruit(W-50,62,nxt,0,Math.min(1,22/RAD[nxt]));
+  ctx.fillText('الأفضل',70,22);ctx.font='900 18px Cairo, sans-serif';ctx.fillText(best,70,46);
+  // box
+  rr(BX0-12,BY0-6,BX1-BX0+24,BY1-BY0+18,18);ctx.fillStyle='#C9782A';ctx.fill();
+  rr(BX0,BY0,BX1-BX0,BY1-BY0,8);ctx.fillStyle='rgba(255,250,240,.9)';ctx.fill();
+  // danger line
+  ctx.setLineDash([10,8]);ctx.lineWidth=3;
+  ctx.strokeStyle=danger>0?`rgba(230,30,30,${.5+.5*Math.sin(performance.now()/80)})`:'rgba(230,60,60,.45)';
+  ctx.beginPath();ctx.moveTo(BX0,LINE);ctx.lineTo(BX1,LINE);ctx.stroke();ctx.setLineDash([]);
+  // guide + current
+  if(state==='play'){
+    const r=RAD[cur],x=Math.max(BX0+r,Math.min(BX1-r,dropX));
+    ctx.strokeStyle='rgba(90,52,22,.18)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,DROPY);ctx.lineTo(x,BY1);ctx.stroke();
+    if(cool<=0)fruit(x,DROPY,cur,0);else fruit(x,DROPY,cur,0,1-cool/.45*.6);
+  }
+  for(const b of bodies)fruit(b.x,b.y,b.k,b.a,b.grow?1-b.grow*.8:1);
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.t+=dt;if(p.t>.4){pops.splice(i,1);continue;}
+    ctx.strokeStyle=p.c;ctx.globalAlpha=1-p.t/.4;ctx.lineWidth=5;ctx.beginPath();ctx.arc(p.x,p.y,p.r*(1+p.t*2),0,7);ctx.stroke();ctx.globalAlpha=1;}
+  // box front lip
+  ctx.fillStyle='#C9782A';ctx.fillRect(BX0-12,BY1,BX1-BX0+24,12);
+}
+let last=performance.now();
+function loop(now){const dt=Math.max(.001,Math.min(.033,(now-last)/1000));last=now;if(state==='play')update(dt);draw(dt);requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+$('startBtn').onclick=()=>{$('menu').classList.add('hide');beep(500,.1);newGame();};
+$('againBtn').onclick=()=>{$('end').classList.add('hide');newGame();};
+$('pause').onclick=()=>{if(state==='play'){state='paused';$('pauseOv').classList.remove('hide');}};
+$('resumeBtn').onclick=()=>{$('pauseOv').classList.add('hide');state='play';last=performance.now();};
+$('restartBtn').onclick=()=>{$('pauseOv').classList.add('hide');newGame();};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='paused';$('pauseOv').classList.remove('hide');}});
+if(location.hash==='#autostart'){$('startBtn').click();const iv=setInterval(()=>{dropX=60+Math.random()*280;drop();},350);setTimeout(()=>{clearInterval(iv);console.log('AUTOTEST fruit bodies='+bodies.length+' score='+score+' nan='+bodies.some(b=>!isFinite(b.x)));},3800);}
+})();
+</script>
+</body>
+</html>

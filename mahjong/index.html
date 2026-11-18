@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#123524">
+<title>ماهجونغ</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#0D2A1C}
+body{font-family:'Cairo','Segoe UI',sans-serif;color:#F3F7EC;position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block}
+.num{direction:ltr;unicode-bidi:isolate}
+.hide{display:none!important}
+#hud{position:absolute;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 6px;display:flex;justify-content:space-between;align-items:center;font-weight:700;z-index:4;pointer-events:none}
+.pill{background:rgba(0,0,0,.35);border:1px solid rgba(255,220,140,.35);border-radius:12px;padding:3px 12px;font-size:14px}
+#bar{position:absolute;bottom:0;left:0;right:0;padding:8px 10px calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;gap:8px;justify-content:center;z-index:4}
+.tb{font-family:inherit;border:0;border-radius:14px;padding:9px 6px;min-width:70px;font-size:14px;font-weight:700;color:#fff;background:rgba(10,40,26,.9);border:1.5px solid #C9A24A;cursor:pointer}
+.tb:active{transform:scale(.94)}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,20,12,.8);z-index:10;padding:16px}
+.card{width:min(340px,100%);background:linear-gradient(160deg,#1C4A32,#0F2E1F);border:2px solid #C9A24A;border-radius:22px;padding:22px 18px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.card h1{font-size:34px;font-weight:900;color:#F2C94C;line-height:1.3}
+.card p{opacity:.85;margin:6px 0 14px;font-size:15px}
+.btn{font-family:inherit;border:0;cursor:pointer;border-radius:14px;padding:11px;font-size:16px;font-weight:700;color:#fff;background:#24573C;width:100%;margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+.btn small{opacity:.7;font-weight:400}
+.btn.go{background:linear-gradient(135deg,#E2A93B,#C0632B);justify-content:center;font-size:19px}
+.btn:active{transform:scale(.97)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud" class="hide">
+  <span class="pill">⏱ <span class="num" id="time">0:00</span></span>
+  <span class="pill">حركات: <span class="num" id="moves">0</span></span>
+  <span class="pill">متبقي: <span class="num" id="left">0</span></span>
+</div>
+<div id="bar" class="hide">
+  <button class="tb" id="bHint">💡 تلميح</button>
+  <button class="tb" id="bUndo">↶ تراجع</button>
+  <button class="tb" id="bShuf">🔀 خلط</button>
+  <button class="tb" id="bMenu">☰</button>
+</div>
+
+<div id="menu" class="ov">
+  <div class="card">
+    <h1>ماهجونغ</h1>
+    <p>طابق كل حجرين متشابهين حرّين. الحجر حرّ إذا لم يكن فوقه حجر وكان أحد جانبيه (يمين أو يسار) فارغاً.</p>
+    <div id="layouts"></div>
+  </div>
+</div>
+<div id="end" class="ov hide">
+  <div class="card">
+    <h1 id="endT">أحسنت! 🎉</h1>
+    <p id="endP"></p>
+    <button class="btn go" id="again">العب مجدداً</button>
+    <button class="btn" style="justify-content:center" id="toMenu">القائمة</button>
+  </div>
+</div>
+<div id="stuck" class="ov hide">
+  <div class="card">
+    <h1>لا توجد حركات!</h1>
+    <p>لم يعد هناك أي زوج متاح. اخلط الأحجار للمتابعة أو تراجع.</p>
+    <button class="btn go" id="sShuf">🔀 خلط الأحجار</button>
+    <button class="btn" style="justify-content:center" id="sUndo">↶ تراجع</button>
+  </div>
+</div>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+let dpr=1,VW=0,VH=0;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);VW=innerWidth;VH=innerHeight;cv.width=VW*dpr;cv.height=VH*dpr;layoutView();}
+addEventListener('resize',resize);
+
+let ac=null;
+function beep(f,d,t,v){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=t||'sine';o.frequency.value=f;g.gain.setValueAtTime(v||.12,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+
+const FACES=['🍎','🍊','🍋','🍇','🍓','🍒','🍑','🍍','🥝','🍉','🌸','🌻','🌹','🍀','🌙','⭐','☀️','❄️','🔥','💧','🐱','🐶','🐼','🦊','🐸','🐵','🦁','🐯','🐰','🐻','🐟','🦋','🐞','🎈','🎁','🔔'];
+
+/* Layouts in half-tile units: a tile at (x,y,z) covers [x,x+2)×[y,y+2) on layer z */
+function grid(z,x0,y0,cols,rows,out){for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)out.push({x:x0+c*2,y:y0+r*2,z});}
+const LAYOUTS=[
+  {name:'الحديقة',sub:'سهل · 44 حجراً',build(){const t=[];grid(0,0,0,5,6,t);grid(1,2,2,3,4,t);t.push({x:4,y:4,z:2},{x:4,y:6,z:2});return t;}},
+  {name:'الهرم',sub:'متوسط · 82 حجراً',build(){const t=[];grid(0,0,0,6,8,t);grid(1,2,2,4,6,t);grid(2,4,4,2,4,t);t.push({x:5,y:6,z:3},{x:5,y:8,z:3});return t;}},
+  {name:'القلعة',sub:'متوسط · 80 حجراً',build(){const t=[];grid(0,0,0,6,8,t);
+    for(let y=0;y<16;y+=2){t.push({x:0,y,z:1},{x:10,y,z:1});}for(let x=2;x<10;x+=2){t.push({x,y:0,z:1},{x,y:14,z:1});}
+    t.push({x:0,y:0,z:2},{x:10,y:0,z:2},{x:0,y:14,z:2},{x:10,y:14,z:2});grid(1,4,6,2,2,t);return t;}},
+  {name:'البرجان',sub:'صعب · 80 حجراً',build(){const t=[];grid(0,0,0,6,8,t);grid(1,0,2,2,6,t);grid(1,8,2,2,6,t);
+    for(let y=4;y<12;y+=2){t.push({x:1,y,z:2},{x:9,y,z:2});}return t;}},
+];
+
+let tiles=[],layoutIdx=0,sel=null,hint=null,hintT=0,undoStack=[],moves=0,t0=0,elapsed=0,state='menu',fx=[],shake=null;
+
+function isFree(t,alive){
+  let left=false,right=false;
+  for(const o of alive){
+    if(o===t)continue;
+    if(o.z===t.z+1&&Math.abs(o.x-t.x)<2&&Math.abs(o.y-t.y)<2)return false;
+    if(o.z===t.z&&Math.abs(o.y-t.y)<2){if(o.x===t.x-2)left=true;else if(o.x===t.x+2)right=true;}
+  }
+  return !(left&&right);
+}
+const aliveTiles=()=>tiles.filter(t=>!t.gone);
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+/* Solvable deal: simulate a random removal order, giving each removed pair the same face */
+function deal(pos,pairFaces){
+  for(let attempt=0;attempt<200;attempt++){
+    const alive=pos.slice(),order=[];let ok=true;
+    while(alive.length){
+      const free=alive.filter(t=>isFree(t,alive));
+      if(free.length<2){ok=false;break;}
+      shuffle(free);
+      // prefer taking tiles from higher layers first to keep the deal flexible
+      free.sort((a,b)=>b.z-a.z+(Math.random()-.5)*1.2);
+      const a=free[0],b=free[1];
+      order.push([a,b]);alive.splice(alive.indexOf(a),1);alive.splice(alive.indexOf(b),1);
+    }
+    if(!ok)continue;
+    const faces=shuffle(pairFaces.slice());
+    order.forEach(([a,b],i)=>{a.f=faces[i];b.f=faces[i];});
+    return true;
+  }
+  return false;
+}
+function newGame(i){
+  layoutIdx=i;
+  tiles=LAYOUTS[i].build().map((p,k)=>({...p,id:k,gone:false,f:0}));
+  const n=tiles.length/2,pf=[];const fs=shuffle([...Array(FACES.length).keys()]);
+  for(let k=0;k<n;k++)pf.push(fs[k%fs.length]);
+  deal(tiles,pf);
+  sel=null;hint=null;undoStack=[];moves=0;elapsed=0;t0=performance.now();fx=[];
+  state='play';layoutView();
+  ['hud','bar'].forEach(id=>$(id).classList.remove('hide'));
+  updHud();
+}
+function reshuffle(){
+  const alive=aliveTiles();if(alive.length<2)return;
+  const cnt={};alive.forEach(t=>cnt[t.f]=(cnt[t.f]||0)+1);
+  const pf=[];for(const f in cnt)for(let k=0;k<cnt[f]/2;k++)pf.push(+f);
+  deal(alive,pf);sel=null;hint=null;undoStack=[];beep(400,.2,'triangle');
+  updHud();
+}
+function findPair(){
+  const alive=aliveTiles(),free=alive.filter(t=>isFree(t,alive)),by={};
+  for(const t of free){if(by[t.f])return[by[t.f],t];by[t.f]=t;}
+  return null;
+}
+function countMoves(){
+  const alive=aliveTiles(),free=alive.filter(t=>isFree(t,alive)),c={};let n=0;
+  free.forEach(t=>c[t.f]=(c[t.f]||0)+1);for(const f in c)n+=c[f]*(c[f]-1)/2;return n;
+}
+function updHud(){
+  $('left').textContent=aliveTiles().length;$('moves').textContent=countMoves();
+}
+
+/* ---------- view ---------- */
+let TW=50,TH=66,DEP=5,OX=0,OY=0;
+function layoutView(){
+  if(!tiles.length)return;
+  let mx=0,my=0,mz=0;tiles.forEach(t=>{mx=Math.max(mx,t.x+2);my=Math.max(my,t.y+2);mz=Math.max(mz,t.z);});
+  const top=56,bot=78,availW=VW-20,availH=VH-top-bot;
+  // tile aspect 0.76
+  const byW=availW/(mx/2+mz*0.12+.1), byH=availH/((my/2)/0.76+mz*0.12+.1)*0.76;
+  TW=Math.min(byW,byH,90);TH=TW/0.76;DEP=Math.max(3,TW*0.09);
+  const bw=mx/2*TW,bh=my/2*TH;
+  OX=(VW-bw)/2+mz*DEP*0.5;OY=top+(availH-bh)/2+mz*DEP*0.5;
+}
+function tileRect(t){return{x:OX+t.x/2*TW-t.z*DEP,y:OY+t.y/2*TH-t.z*DEP,w:TW,h:TH};}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawTile(t,free,now){
+  const r=tileRect(t);let {x,y,w,h}=r;
+  if(shake&&shake.t===t){x+=Math.sin(now/25)*3*shake.k;}
+  const rad=w*0.12;
+  ctx.fillStyle='rgba(0,0,0,.28)';rr(x+DEP*1.6,y+DEP*1.6,w,h,rad);ctx.fill();
+  ctx.fillStyle='#8A6A38';rr(x+DEP,y+DEP,w,h,rad);ctx.fill();
+  ctx.fillStyle='#C9B48A';rr(x+DEP*.5,y+DEP*.5,w,h,rad);ctx.fill();
+  const g=ctx.createLinearGradient(x,y,x+w,y+h);
+  g.addColorStop(0,free?'#FFFDF4':'#E9E2CF');g.addColorStop(1,free?'#F1E7CC':'#D6CBAE');
+  ctx.fillStyle=g;rr(x,y,w,h,rad);ctx.fill();
+  ctx.strokeStyle='rgba(120,90,40,.45)';ctx.lineWidth=1;ctx.stroke();
+  ctx.font=`${w*0.62}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.globalAlpha=free?1:.72;ctx.fillText(FACES[t.f],x+w/2,y+h/2+1);ctx.globalAlpha=1;
+  if(!free){ctx.fillStyle='rgba(40,30,10,.16)';rr(x,y,w,h,rad);ctx.fill();}
+  if(sel===t){ctx.strokeStyle='#FFB800';ctx.lineWidth=4;rr(x+1,y+1,w-2,h-2,rad);ctx.stroke();ctx.fillStyle='rgba(255,200,0,.18)';ctx.fill();}
+  if(hint&&hint.includes(t)){ctx.strokeStyle=`rgba(40,200,90,${.5+.5*Math.sin(now/120)})`;ctx.lineWidth=4;rr(x+1,y+1,w-2,h-2,rad);ctx.stroke();}
+}
+function draw(now){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const g=ctx.createRadialGradient(VW/2,VH/2,50,VW/2,VH/2,Math.max(VW,VH)*.75);
+  g.addColorStop(0,'#1F5A3A');g.addColorStop(1,'#0B2516');ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);
+  if(state==='menu')return;
+  const alive=aliveTiles();
+  const order=alive.slice().sort((a,b)=>a.z-b.z||a.y-b.y||a.x-b.x);
+  for(const t of order)drawTile(t,isFree(t,alive),now);
+  for(let i=fx.length-1;i>=0;i--){const f=fx[i];f.k+=.035;if(f.k>=1){fx.splice(i,1);continue;}
+    const r=tileRect(f.t);ctx.globalAlpha=1-f.k;ctx.font=`${TW*0.62*(1+f.k*.6)}px "Segoe UI Emoji",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(FACES[f.t.f],r.x+r.w/2,r.y+r.h/2-f.k*40);ctx.globalAlpha=1;}
+}
+function hit(px,py){
+  const alive=aliveTiles();
+  const order=alive.slice().sort((a,b)=>b.z-a.z||b.y-a.y||b.x-a.x);
+  for(const t of order){const r=tileRect(t);if(px>=r.x&&px<=r.x+r.w&&py>=r.y&&py<=r.y+r.h)return t;}
+  return null;
+}
+cv.addEventListener('pointerdown',e=>{
+  if(state!=='play')return;
+  const t=hit(e.clientX,e.clientY);if(!t){sel=null;return;}
+  const alive=aliveTiles();
+  if(!isFree(t,alive)){shake={t,k:1};setTimeout(()=>shake=null,250);beep(120,.12,'square',.06);return;}
+  if(sel===t){sel=null;return;}
+  if(sel&&sel.f===t.f){
+    sel.gone=t.gone=true;undoStack.push([sel,t]);fx.push({t:sel,k:0},{t,k:0});
+    sel=null;hint=null;beep(660,.12,'triangle');setTimeout(()=>beep(990,.15,'triangle'),70);
+    updHud();
+    if(!aliveTiles().length)win();
+    else if(!findPair())setTimeout(()=>{if(state==='play')$('stuck').classList.remove('hide');},400);
+    return;
+  }
+  sel=t;beep(440,.06,'sine',.08);
+});
+function undo(){const p=undoStack.pop();if(!p)return;p[0].gone=p[1].gone=false;sel=null;hint=null;updHud();beep(300,.08);}
+function win(){
+  state='end';elapsed=(performance.now()-t0)/1000;
+  const key='mj_best_'+layoutIdx;let best=0;try{best=+localStorage.getItem(key)||0;if(!best||elapsed<best){best=elapsed;localStorage.setItem(key,best);}}catch(e){}
+  $('endP').innerHTML='أنهيت «'+LAYOUTS[layoutIdx].name+'» في <span class="num">'+fmt(elapsed)+'</span><br>أفضل وقت: <span class="num">'+fmt(best||elapsed)+'</span>';
+  setTimeout(()=>$('end').classList.remove('hide'),500);
+  [523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.25,'triangle'),i*120));
+}
+const fmt=s=>{s=Math.floor(s);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
+
+$('bHint').onclick=()=>{const p=findPair();if(p){hint=p;}else $('stuck').classList.remove('hide');};
+$('bUndo').onclick=undo;
+$('bShuf').onclick=reshuffle;
+$('sShuf').onclick=()=>{$('stuck').classList.add('hide');reshuffle();};
+$('sUndo').onclick=()=>{$('stuck').classList.add('hide');undo();};
+$('bMenu').onclick=()=>showMenu();
+$('again').onclick=()=>{$('end').classList.add('hide');newGame(layoutIdx);};
+$('toMenu').onclick=()=>{$('end').classList.add('hide');showMenu();};
+function showMenu(){
+  state='menu';['hud','bar'].forEach(id=>$(id).classList.add('hide'));
+  const box=$('layouts');box.innerHTML='';
+  LAYOUTS.forEach((L,i)=>{let b=0;try{b=+localStorage.getItem('mj_best_'+i)||0;}catch(e){}
+    const el=document.createElement('button');el.className='btn'+(i===0?' go':'');
+    el.innerHTML=`<span>${L.name}</span><small>${L.sub}${b?' · 🏆 <span class="num">'+fmt(b)+'</span>':''}</small>`;
+    if(i===0)el.style.justifyContent='space-between';
+    el.onclick=()=>{$('menu').classList.add('hide');newGame(i);};box.appendChild(el);});
+  $('menu').classList.remove('hide');
+}
+resize();showMenu();
+function loop(now){
+  if(state==='play'){$('time').textContent=fmt((now-t0)/1000);if(hint&&!hint.every(t=>!t.gone))hint=null;}
+  draw(now);requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+if(location.hash==='#autostart'){
+  newGame(1);$('menu').classList.add('hide');
+  // auto-solve to exercise the engine: every deal must clear completely
+  let n=0;const iv=setInterval(()=>{const p=findPair();if(!p){clearInterval(iv);console.log('AUTOTEST mahjong left='+aliveTiles().length+' pairs='+n);return;}p[0].gone=p[1].gone=true;n++;updHud();if(!aliveTiles().length){clearInterval(iv);console.log('AUTOTEST mahjong solved pairs='+n);}},10);
+}
+})();
+</script>
+</body>
+</html>

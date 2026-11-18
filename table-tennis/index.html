@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0E1B2C">
+<title>تنس الطاولة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#0E1B2C}
+body{font-family:'Cairo','Segoe UI',sans-serif;color:#EEF4FF;position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block}
+.num{direction:ltr;unicode-bidi:isolate}
+.hide{display:none!important}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,12,24,.8);z-index:10;padding:16px}
+.card{width:min(340px,100%);background:linear-gradient(160deg,#173052,#0E1B2C);border:2px solid #FF6B35;border-radius:22px;padding:22px 18px;text-align:center}
+.card h1{font-size:34px;font-weight:900;color:#FF8C5A;line-height:1.3}
+.card p{opacity:.88;margin:6px 0 12px;font-size:15px}
+.lbl{font-size:13px;opacity:.7;margin:10px 0 6px}
+.row{display:flex;gap:8px}
+.btn{font-family:inherit;border:0;cursor:pointer;border-radius:14px;padding:10px;font-size:15px;font-weight:700;color:#fff;background:#24406A;flex:1}
+.btn.sel{background:#FF6B35}
+.btn.go{background:linear-gradient(135deg,#FF6B35,#E53950);font-size:19px;padding:12px;margin-top:16px;width:100%}
+.btn:active{transform:scale(.96)}
+.big{font-size:44px;font-weight:900;margin:4px 0}
+#pause{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);left:10px;z-index:5;width:38px;height:38px;border-radius:12px;border:1.5px solid #FF6B35;background:rgba(14,27,44,.85);color:#fff;font-size:15px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="pause" class="hide">❚❚</button>
+<div id="menu" class="ov">
+  <div class="card">
+    <h1>تنس الطاولة 🏓</h1>
+    <p>حرّك مضربك بإصبعك واضرب الكرة بعد أن ترتد في جهتك. الضرب بطرف المضرب يوجّه الكرة جانباً، والسحب السريع للأمام يعطي ضربة قوية. أول من يصل إلى <span class="num">11</span> يفوز.</p>
+    <div class="lbl">الصعوبة</div>
+    <div class="row" id="diffRow"><button class="btn" data-d="0">سهل</button><button class="btn sel" data-d="1">متوسط</button><button class="btn" data-d="2">صعب</button></div>
+    <button class="btn go" id="startBtn">ابدأ</button>
+  </div>
+</div>
+<div id="end" class="ov hide">
+  <div class="card">
+    <h1 id="endT"></h1>
+    <div class="big num" id="endS"></div>
+    <p id="endP"></p>
+    <button class="btn go" id="again">العب مجدداً</button>
+    <button class="btn" style="width:100%;margin-top:8px" id="toMenu">القائمة</button>
+  </div>
+</div>
+<div id="pauseOv" class="ov hide"><div class="card"><h1>استراحة</h1><button class="btn go" id="resume">متابعة</button><button class="btn" style="width:100%;margin-top:8px" id="quit">القائمة</button></div></div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+const W=400,H=720;let scale=1,ox=0,oy=0,dpr=1;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;scale=Math.min(innerWidth/W,innerHeight/H);ox=(innerWidth-W*scale)/2;oy=(innerHeight-H*scale)/2;}
+addEventListener('resize',resize);resize();
+let ac=null;
+function beep(f,d,t,v){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=t||'sine';o.frequency.value=f;g.gain.setValueAtTime(v||.14,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+
+/* table (top-down). y grows toward the player */
+const TX0=60,TX1=340,TY0=110,TY1=610,NET=(TY0+TY1)/2,NETH=16,GR=1100,BR=7;
+const PADR=30;
+const DIFF=[{sp:260,err:46,pow:[420,560],miss:.12},{sp:400,err:24,pow:[480,680],miss:.06},{sp:600,err:10,pow:[560,820],miss:.025}];
+let diff=1,state='menu';
+const ball={x:0,y:0,z:0,vx:0,vy:0,vz:0,live:false,lastHit:0,bounces:0};
+const me={x:W/2,y:660,tx:W/2,ty:660,vx:0,vy:0,swing:0};
+const ai={x:W/2,y:62,tx:W/2,vx:0,swing:0,errOff:0};
+let sMe=0,sAi=0,server=0,serveT=0,banner='',bannerT=0,pointT=0,trail=[],rally=0,bestRally=0;
+try{bestRally=+localStorage.getItem('tt_rally')||0;}catch(e){}
+
+function launch(tx,ty,speed,hitter){
+  const z0=Math.max(ball.z,22);ball.z=z0;
+  const dist=Math.hypot(tx-ball.x,ty-ball.y);
+  let T=Math.max(.35,dist/speed);
+  for(let i=0;i<20;i++){
+    const vz=(.5*GR*T*T-z0)/T;
+    const tn=(NET-ball.y)/((ty-ball.y)/T);
+    const zn=z0+vz*tn-.5*GR*tn*tn;
+    if(tn<0||tn>T||zn>NETH+10)break;
+    T*=1.08;
+  }
+  ball.vx=(tx-ball.x)/T;ball.vy=(ty-ball.y)/T;ball.vz=(.5*GR*T*T-z0)/T;
+  ball.lastHit=hitter;ball.bounces=0;ball.live=true;
+  rally++;
+  beep(hitter===0?880:740,.05,'square',.12);
+}
+function point(toMe,why){
+  if(!ball.live)return;
+  ball.live=false;
+  if(toMe)sMe++;else sAi++;
+  banner=(toMe?'نقطة لك! ':'نقطة للخصم — ')+why;bannerT=1.6;
+  beep(toMe?660:220,.25,'triangle',.14);
+  if(rally-1>bestRally){bestRally=rally-1;try{localStorage.setItem('tt_rally',bestRally);}catch(e){}}
+  const tot=sMe+sAi;
+  if((sMe>=11||sAi>=11)&&Math.abs(sMe-sAi)>=2){setTimeout(finish,1200);state='over';return;}
+  server=(tot>=20)?(tot%2):(Math.floor(tot/2)%2);
+  pointT=1.4;
+}
+function setupServe(){
+  rally=0;ball.live=false;ball.z=30;ball.vx=ball.vy=ball.vz=0;serveT=server===1?.9:0;
+}
+function newGame(){sMe=0;sAi=0;server=0;state='play';setupServe();$('pause').classList.remove('hide');}
+function finish(){
+  state='end';$('pause').classList.add('hide');
+  const won=sMe>sAi;$('endT').textContent=won?'فوز! 🏆':'خسارة';$('endS').textContent=sMe+' - '+sAi;
+  $('endP').innerHTML='أطول تبادل: <span class="num">'+bestRally+'</span> ضربة';
+  $('end').classList.remove('hide');
+}
+
+/* input */
+function local(e){return{x:(e.clientX-ox)/scale,y:(e.clientY-oy)/scale};}
+let down=false,downAt=0;
+cv.addEventListener('pointerdown',e=>{down=true;downAt=performance.now();const p=local(e);me.tx=p.x;me.ty=p.y-30;});
+cv.addEventListener('pointermove',e=>{if(!down&&e.pointerType!=='mouse')return;const p=local(e);me.tx=p.x;me.ty=p.y-30;});
+cv.addEventListener('pointerup',()=>{down=false;if(state==='play'&&!ball.live&&server===0&&pointT<=0)playerServe();});
+function playerServe(){
+  ball.x=me.x;ball.y=me.y-PADR;ball.z=30;
+  const off=(me.x-W/2)/(TX1-TX0);
+  launch(W/2-off*120+(Math.random()-.5)*40,TY0+70+Math.random()*90,520,0);
+}
+
+function update(dt){
+  // player paddle
+  const px=me.x,py=me.y;
+  const cap=2400*dt,dx=me.tx-me.x,dy=me.ty-me.y,l=Math.hypot(dx,dy);
+  if(l>cap){me.x+=dx/l*cap;me.y+=dy/l*cap;}else{me.x=me.tx;me.y=me.ty;}
+  me.x=Math.max(20,Math.min(W-20,me.x));me.y=Math.max(NET+90,Math.min(H-14,me.y));
+  me.vx=me.vx*.6+(me.x-px)/dt*.4;me.vy=me.vy*.6+(me.y-py)/dt*.4;
+  if(me.swing>0)me.swing-=dt*4;if(ai.swing>0)ai.swing-=dt*4;
+  if(pointT>0){pointT-=dt;if(pointT<=0)setupServe();}
+  if(bannerT>0)bannerT-=dt;
+
+  // serve holding
+  if(!ball.live&&pointT<=0&&state==='play'){
+    if(server===0){ball.x=me.x;ball.y=me.y-PADR-4;ball.z=30+Math.sin(performance.now()/200)*8;}
+    else{ball.x=ai.x;ball.y=ai.y+PADR+4;ball.z=30;serveT-=dt;
+      if(serveT<=0){const D=DIFF[diff];launch(TX0+50+Math.random()*(TX1-TX0-100),TY1-60-Math.random()*120,D.pow[0],1);ai.swing=1;}}
+  }
+  aiUpdate(dt);
+  if(!ball.live)return;
+  const SUB=4,h=dt/SUB;
+  for(let s=0;s<SUB;s++){
+    ball.x+=ball.vx*h;ball.y+=ball.vy*h;ball.z+=ball.vz*h;ball.vz-=GR*h;
+    if(ball.z<=0&&ball.vz<0){
+      const onTable=ball.x>TX0-2&&ball.x<TX1+2&&ball.y>TY0-2&&ball.y<TY1+2;
+      const side=ball.y>NET?0:1; // which half it bounced on
+      if(!onTable){
+        if(ball.bounces===0)point(ball.lastHit!==0,'الكرة خارج الطاولة');
+        else point(ball.lastHit===0,'لم يلحق بالكرة');
+        return;
+      }
+      if(ball.bounces===0){
+        if(side===ball.lastHit){point(ball.lastHit!==0,'ارتدت في جهة الضارب');return;}
+        ball.bounces=1;ball.z=0;ball.vz=-ball.vz*.82;beep(1200,.03,'sine',.1);
+      }else{point(ball.lastHit===0,'ارتدت مرتين');return;}
+    }
+    if(ball.y>H+30||ball.y<-30||ball.x<-30||ball.x>W+30){point(ball.lastHit===0?ball.bounces>0:true,'لم يلحق بالكرة');return;}
+    // player hit
+    if(ball.lastHit===1&&ball.bounces===1&&ball.vy>0&&ball.z<110){
+      const d=Math.hypot(ball.x-me.x,ball.y-me.y);
+      if(d<PADR+BR+6){
+        const off=(ball.x-me.x)/(PADR+BR);
+        const fwd=Math.max(0,-me.vy);
+        const tx=W/2+off*140+me.vx*.08+(Math.random()-.5)*16;
+        const ty=TY0+40+Math.min(150,fwd*.12)+Math.random()*50;
+        const speed=480+Math.min(520,fwd*.45)+(ball.z>45?120:0);
+        ball.y=me.y-PADR;me.swing=1;
+        launch(tx,ty,speed,0);
+      }
+    }
+  }
+  trail.push({x:ball.x,y:ball.y-ball.z*.55});if(trail.length>8)trail.shift();
+}
+function aiUpdate(dt){
+  const D=DIFF[diff];
+  let target=W/2;
+  if(ball.live&&ball.lastHit===0&&ball.vy<0){
+    const t=(ai.y+10-ball.y)/ball.vy;
+    target=ball.x+ball.vx*t+ai.errOff;
+  }else{ai.errOff=(Math.random()-.5)*2*D.err;if(!ball.live&&server===1)target=ai.x;}
+  const dx=target-ai.x,st=D.sp*dt;ai.x+=Math.abs(dx)<st?dx:Math.sign(dx)*st;
+  ai.x=Math.max(20,Math.min(W-20,ai.x));
+  if(ball.live&&ball.lastHit===0&&ball.bounces===1&&ball.vy<0&&ball.z<110){
+    const d=Math.hypot(ball.x-ai.x,ball.y-ai.y);
+    if(d<PADR+BR+4){
+      let tx=TX0+30+Math.random()*(TX1-TX0-60);
+      // occasional unforced error: aims wide
+      if(Math.random()<D.miss)tx=Math.random()<.5?TX0-40:TX1+40;
+      const ty=NET+70+Math.random()*(TY1-NET-110);
+      ball.y=ai.y+PADR;ai.swing=1;
+      launch(tx,ty,D.pow[0]+Math.random()*(D.pow[1]-D.pow[0]),1);
+      ai.errOff=(Math.random()-.5)*2*D.err;
+    }
+  }
+}
+
+/* render */
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function paddle(p,col,flip){
+  const sw=p.swing>0?p.swing:0;
+  ctx.save();ctx.translate(p.x,p.y);ctx.rotate((flip?Math.PI:0)+sw*.5);
+  ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.arc(5,8,PADR,0,7);ctx.fill();
+  ctx.fillStyle='#C8935A';rr(-6,PADR-6,12,30,4);ctx.fill();
+  ctx.fillStyle='#3B2414';ctx.beginPath();ctx.arc(0,0,PADR+2,0,7);ctx.fill();
+  const g=ctx.createRadialGradient(-8,-8,4,0,0,PADR);g.addColorStop(0,col[0]);g.addColorStop(1,col[1]);
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,PADR,0,7);ctx.fill();
+  ctx.restore();
+}
+function draw(dt){
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#0E1B2C';ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.setTransform(dpr*scale,0,0,dpr*scale,dpr*ox,dpr*oy);
+  const fl=ctx.createLinearGradient(0,0,0,H);fl.addColorStop(0,'#2A1B3D');fl.addColorStop(1,'#44275A');
+  ctx.fillStyle=fl;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=2;for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  // table
+  ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(TX0+8,TY0+12,TX1-TX0,TY1-TY0);
+  ctx.fillStyle='#1B5FA8';ctx.fillRect(TX0,TY0,TX1-TX0,TY1-TY0);
+  ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(TX0+2,TY0+2,TX1-TX0-4,TY1-TY0-4);
+  ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(W/2,TY0);ctx.lineTo(W/2,TY1);ctx.stroke();
+  // ball shadow (under net drawn later if far side)
+  const bx=ball.x,by=ball.y,bz=ball.z;
+  const showBall=ball.live||(state==='play'&&pointT<=0);
+  if(showBall){ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.ellipse(bx+bz*.15,by,BR*(1-Math.min(.5,bz/300)),BR*.6,0,0,7);ctx.fill();}
+  // net
+  ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(TX0-14,NET+2,TX1-TX0+28,6);
+  ctx.fillStyle='rgba(240,240,255,.85)';ctx.fillRect(TX0-14,NET-NETH*.55,TX1-TX0+28,NETH*.55);
+  ctx.strokeStyle='rgba(30,40,60,.5)';ctx.lineWidth=1;for(let x=TX0-14;x<TX1+14;x+=6){ctx.beginPath();ctx.moveTo(x,NET-NETH*.55);ctx.lineTo(x,NET);ctx.stroke();}
+  ctx.fillStyle='#fff';ctx.fillRect(TX0-14,NET-NETH*.55-3,TX1-TX0+28,3);
+  ctx.fillStyle='#333';ctx.fillRect(TX0-18,NET-NETH*.8,6,NETH*.8+4);ctx.fillRect(TX1+12,NET-NETH*.8,6,NETH*.8+4);
+  paddle(ai,['#4A4A4A','#141414'],true);
+  // ball
+  if(showBall){
+    for(let i=0;i<trail.length&&ball.live;i++){ctx.fillStyle=`rgba(255,200,120,${i/trail.length*.25})`;ctx.beginPath();ctx.arc(trail[i].x,trail[i].y,BR*.8*i/trail.length,0,7);ctx.fill();}
+    const r=BR*(1+bz/260);
+    const g=ctx.createRadialGradient(bx-2,by-bz*.55-2,1,bx,by-bz*.55,r);g.addColorStop(0,'#fff');g.addColorStop(1,'#FF9A3C');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(bx,by-bz*.55,r,0,7);ctx.fill();
+  }
+  paddle(me,['#FF6B6B','#C21F2E'],false);
+  // scoreboard
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  rr(W/2-70,8,140,40,12);ctx.fillStyle='rgba(0,0,0,.45)';ctx.fill();
+  ctx.font='900 26px Cairo, sans-serif';ctx.fillStyle='#FF8C8C';ctx.fillText(sMe,W/2+35,29);
+  ctx.fillStyle='#ccc';ctx.fillText(':',W/2,27);ctx.fillStyle='#ddd';ctx.fillText(sAi,W/2-35,29);
+  ctx.font='700 11px Cairo, sans-serif';ctx.fillStyle='rgba(255,255,255,.6)';ctx.fillText('أنت',W/2+35,56);ctx.fillText('الخصم',W/2-35,56);
+  if(state==='play'&&!ball.live&&pointT<=0&&server===0){ctx.font='700 16px Cairo, sans-serif';ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillText('ارفع إصبعك للإرسال',W/2,NET+150);}
+  if(bannerT>0){ctx.globalAlpha=Math.min(1,bannerT*2);rr(30,NET-26,W-60,52,14);ctx.fillStyle='rgba(10,16,30,.8)';ctx.fill();
+    ctx.font='900 17px Cairo, sans-serif';ctx.fillStyle='#FFD08A';ctx.fillText(banner,W/2,NET);ctx.globalAlpha=1;}
+  if(ball.live&&rally>3){ctx.font='700 13px Cairo, sans-serif';ctx.fillStyle='rgba(255,255,255,.6)';ctx.fillText('تبادل: '+(rally-1),W/2,TY1+22);}
+}
+let last=performance.now();
+function loop(now){const dt=Math.max(.001,Math.min(.033,(now-last)/1000));last=now;if(state==='play'||state==='over')update(dt);draw(dt);requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+document.querySelectorAll('#diffRow .btn').forEach(b=>b.onclick=()=>{diff=+b.dataset.d;document.querySelectorAll('#diffRow .btn').forEach(x=>x.classList.toggle('sel',x===b));});
+$('startBtn').onclick=()=>{$('menu').classList.add('hide');beep(440,.05);newGame();};
+$('again').onclick=()=>{$('end').classList.add('hide');newGame();};
+$('toMenu').onclick=()=>{$('end').classList.add('hide');$('menu').classList.remove('hide');state='menu';};
+$('pause').onclick=()=>{if(state==='play'){state='paused';$('pauseOv').classList.remove('hide');}};
+$('resume').onclick=()=>{$('pauseOv').classList.add('hide');state='play';last=performance.now();};
+$('quit').onclick=()=>{$('pauseOv').classList.add('hide');$('pause').classList.add('hide');$('menu').classList.remove('hide');state='menu';};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='paused';$('pauseOv').classList.remove('hide');}});
+if(location.hash==='#autostart'){
+  // synchronous sim with a tracking bot as the player: proves rallies are returnable and points resolve
+  $('startBtn').click();let frames=0,launches=0;
+  for(let f=0;f<60*90&&state==='play';f++){
+    if(!ball.live&&server===0&&pointT<=0)playerServe();
+    if(ball.live&&ball.lastHit===1&&ball.vy>0){const t=(640-ball.y)/ball.vy;me.tx=ball.x+ball.vx*t+6;me.ty=640+30;}
+    update(1/60);frames++;
+  }
+  console.log('AUTOTEST tt me='+sMe+' ai='+sAi+' bestRally='+bestRally+' state='+state+' frames='+frames);
+}
+})();
+</script>
+</body>
+</html>

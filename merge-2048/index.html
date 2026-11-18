@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1C1830">
+<title>2048</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#1C1830}
+body{font-family:'Cairo','Segoe UI',sans-serif;color:#F4F0FF;position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:calc(env(safe-area-inset-top,0px) + 10px) 12px calc(env(safe-area-inset-bottom,0px) + 10px)}
+.num{direction:ltr;unicode-bidi:isolate}
+.hide{display:none!important}
+#head{width:var(--bw);display:flex;align-items:center;gap:8px}
+#logo{font-size:40px;font-weight:900;background:linear-gradient(135deg,#FFB547,#FF5C8A);-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1;margin-left:auto}
+.box{background:#2E2850;border-radius:12px;padding:4px 12px;text-align:center;min-width:70px}
+.box small{display:block;font-size:11px;opacity:.7;font-weight:700}
+.box b{font-size:20px;font-weight:900}
+#bar{width:var(--bw);display:flex;gap:8px}
+.tb{font-family:inherit;border:0;border-radius:12px;padding:8px 10px;font-size:14px;font-weight:700;color:#fff;background:#3B3366;cursor:pointer;flex:1}
+.tb:active{transform:scale(.95)}
+.tb:disabled{opacity:.4}
+#board{position:relative;width:var(--bw);height:var(--bw);background:#3B3366;border-radius:16px;padding:var(--gap);touch-action:none;direction:ltr}
+.cell,.tile{position:absolute;width:var(--cs);height:var(--cs);border-radius:10px}
+.cell{background:rgba(255,255,255,.07)}
+.tile{display:flex;align-items:center;justify-content:center;font-weight:900;transition:transform 110ms ease-out;will-change:transform;z-index:2}
+.tile .in{width:100%;height:100%;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 0 rgba(0,0,0,.25)}
+.tile.new .in{animation:pop .18s ease-out}
+.tile.merged .in{animation:bump .2s ease-out}
+.tile.merged{z-index:3}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+@keyframes bump{50%{transform:scale(1.18)}}
+#hint{font-size:13px;opacity:.6}
+.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(16,12,32,.78);z-index:10;padding:16px}
+.card{width:min(330px,100%);background:#2E2850;border:2px solid #FF8A5C;border-radius:22px;padding:22px 18px;text-align:center}
+.card h1{font-size:32px;font-weight:900;color:#FFB547;line-height:1.3}
+.card p{opacity:.85;margin:6px 0 12px}
+.btn{font-family:inherit;border:0;cursor:pointer;border-radius:14px;padding:11px;font-size:17px;font-weight:900;color:#fff;background:linear-gradient(135deg,#FF8A5C,#FF5C8A);width:100%;margin-top:8px}
+.btn.alt{background:#4A4280}
+.row{display:flex;gap:8px}
+.row .btn{flex:1}
+.btn.sel{outline:3px solid #FFB547}
+</style>
+</head>
+<body>
+<div id="head">
+  <div id="logo" class="num">2048</div>
+  <div class="box"><small>النقاط</small><b class="num" id="score">0</b></div>
+  <div class="box"><small>الأفضل</small><b class="num" id="best">0</b></div>
+</div>
+<div id="bar">
+  <button class="tb" id="bNew">↻ جديدة</button>
+  <button class="tb" id="bUndo">↶ تراجع (<span class="num" id="uc">3</span>)</button>
+  <button class="tb" id="bSize">▦ <span class="num" id="sz">4×4</span></button>
+</div>
+<div id="board"></div>
+<div id="hint">اسحب في أي اتجاه لتحريك كل المربعات</div>
+
+<div id="over" class="ov hide"><div class="card"><h1>انتهت اللعبة!</h1><p id="overP"></p><button class="btn" id="oNew">لعبة جديدة</button><button class="btn alt" id="oUndo">↶ تراجع</button></div></div>
+<div id="won" class="ov hide"><div class="card"><h1>وصلت إلى <span class="num">2048</span>! 🎉</h1><p>إنجاز رائع! هل تريد المتابعة نحو رقم أكبر؟</p><button class="btn" id="wCont">تابع اللعب</button><button class="btn alt" id="wNew">لعبة جديدة</button></div></div>
+<div id="sizeOv" class="ov hide"><div class="card"><h1>حجم اللوحة</h1><p>اللوحة الأكبر أسهل وتسمح بأرقام أعلى.</p>
+  <div class="row"><button class="btn alt" data-n="3">3×3</button><button class="btn alt" data-n="4">4×4</button></div>
+  <div class="row"><button class="btn alt" data-n="5">5×5</button><button class="btn alt" data-n="6">6×6</button></div></div></div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const board=$('board');
+let N=4,grid,tiles,score,best=0,undo=[],undoLeft=3,wonShown=false,nid=1,busy=false;
+const COLORS={2:['#EEE4DA','#5B4A3A'],4:['#EDE0C8','#5B4A3A'],8:['#F2B179','#fff'],16:['#F59563','#fff'],32:['#F67C5F','#fff'],64:['#F65E3B','#fff'],128:['#EDCF72','#fff'],256:['#EDCC61','#fff'],512:['#EDC850','#fff'],1024:['#9B6BFF','#fff'],2048:['#FF4FA3','#fff'],4096:['#3EC6FF','#fff'],8192:['#29D398','#fff']};
+let ac=null;
+function beep(f,d,v){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type='triangle';o.frequency.value=f;g.gain.setValueAtTime(v||.08,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+try{N=+localStorage.getItem('g2048_n')||4;}catch(e){}
+const bestKey=()=>'g2048_best_'+N;
+
+let BW,GAP,CS;
+function layout(){
+  BW=Math.min(innerWidth-24,innerHeight-230,480);GAP=Math.max(6,BW*0.025);CS=(BW-GAP*(N+1))/N;
+  document.body.style.setProperty('--bw',BW+'px');document.body.style.setProperty('--gap',GAP+'px');document.body.style.setProperty('--cs',CS+'px');
+  board.querySelectorAll('.cell').forEach(c=>c.remove());
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const d=document.createElement('div');d.className='cell';d.style.left=(GAP+c*(CS+GAP))+'px';d.style.top=(GAP+r*(CS+GAP))+'px';board.appendChild(d);}
+  for(const t of tiles||[])place(t);
+}
+addEventListener('resize',layout);
+function place(t){
+  t.el.style.left=GAP+'px';t.el.style.top=GAP+'px';
+  t.el.style.transform=`translate(${t.c*(CS+GAP)}px,${t.r*(CS+GAP)}px)`;
+  const [bg,fg]=COLORS[t.v]||['#222','#fff'];const inn=t.el.firstChild;
+  inn.style.background=bg;inn.style.color=fg;
+  const digits=String(t.v).length;inn.style.fontSize=(CS*(digits<3?.45:digits<4?.36:digits<5?.29:.24))+'px';
+  inn.textContent=t.v;
+  if(t.v>=128)inn.style.boxShadow=`0 3px 0 rgba(0,0,0,.25),0 0 ${Math.min(24,t.v/64)}px ${bg}`;
+}
+function mkTile(r,c,v,cls){
+  const el=document.createElement('div');el.className='tile'+(cls?' '+cls:'');el.innerHTML='<div class="in"></div>';
+  const t={id:nid++,r,c,v,el};board.appendChild(el);place(t);grid[r][c]=t;tiles.push(t);return t;
+}
+function spawn(){
+  const empty=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!grid[r][c])empty.push([r,c]);
+  if(!empty.length)return;const [r,c]=empty[Math.random()*empty.length|0];mkTile(r,c,Math.random()<.9?2:4,'new');
+}
+function snapshot(){return{score,tiles:tiles.map(t=>[t.r,t.c,t.v])};}
+function restore(s){
+  board.querySelectorAll('.tile').forEach(e=>e.remove());
+  grid=[...Array(N)].map(()=>Array(N).fill(null));tiles=[];score=s.score;
+  for(const [r,c,v] of s.tiles)mkTile(r,c,v);updHud();
+}
+function newGame(){
+  board.querySelectorAll('.tile').forEach(e=>e.remove());
+  grid=[...Array(N)].map(()=>Array(N).fill(null));tiles=[];score=0;undo=[];undoLeft=3;wonShown=false;
+  try{best=+localStorage.getItem(bestKey())||0;}catch(e){}
+  layout();spawn();spawn();updHud();
+  ['over','won'].forEach(x=>$(x).classList.add('hide'));
+}
+function updHud(){
+  if(score>best){best=score;try{localStorage.setItem(bestKey(),best);}catch(e){}}
+  $('score').textContent=score;$('best').textContent=best;$('uc').textContent=undoLeft;$('bUndo').disabled=!undoLeft||!undo.length;$('sz').textContent=N+'×'+N;
+}
+function canMove(){
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const t=grid[r][c];if(!t)return true;
+    if(c+1<N&&grid[r][c+1]&&grid[r][c+1].v===t.v)return true;if(r+1<N&&grid[r+1][c]&&grid[r+1][c].v===t.v)return true;}
+  return false;
+}
+// dir: 0 left,1 right,2 up,3 down
+function move(dir,instant){
+  if(busy)return false;
+  const snap=snapshot();let moved=false,gained=0;const removed=[],merged=[];
+  for(let i=0;i<N;i++){
+    const line=[];for(let j=0;j<N;j++){const [r,c]=dir<2?[i,dir===0?j:N-1-j]:[dir===2?j:N-1-j,i];line.push([r,c]);}
+    let tgt=0,lastT=null;
+    for(let j=0;j<N;j++){
+      const [r,c]=line[j],t=grid[r][c];if(!t)continue;grid[r][c]=null;
+      if(lastT&&lastT.v===t.v&&!lastT.m){
+        lastT.v*=2;lastT.m=true;gained+=lastT.v;const [lr,lc]=line[tgt-1];t.r=lr;t.c=lc;removed.push(t);merged.push(lastT);moved=true;
+      }else{
+        const [nr,nc]=line[tgt];if(nr!==r||nc!==c)moved=true;t.r=nr;t.c=nc;grid[nr][nc]=t;lastT=t;tgt++;
+      }
+    }
+  }
+  tiles.forEach(t=>t.m=false);
+  if(!moved)return false;
+  undo.push(snap);if(undo.length>10)undo.shift();
+  score+=gained;
+  for(const t of tiles){if(!merged.includes(t)||instant)place(t);else{t.el.style.transform=`translate(${t.c*(CS+GAP)}px,${t.r*(CS+GAP)}px)`;}}
+  const fin=()=>{
+    for(const t of removed){t.el.remove();tiles.splice(tiles.indexOf(t),1);}
+    for(const t of merged){place(t);t.el.classList.remove('merged','new');void t.el.offsetWidth;t.el.classList.add('merged');}
+    spawn();updHud();busy=false;
+    if(gained)beep(300+Math.log2(Math.max(...merged.map(t=>t.v)))*45,.09);
+    if(!wonShown&&tiles.some(t=>t.v===2048)){wonShown=true;$('won').classList.remove('hide');}
+    if(!canMove()){$('overP').innerHTML='النقاط: <span class="num">'+score+'</span> · أكبر مربع: <span class="num">'+Math.max(...tiles.map(t=>t.v))+'</span>';setTimeout(()=>$('over').classList.remove('hide'),300);}
+  };
+  if(instant)fin();else{busy=true;setTimeout(fin,115);}
+  return true;
+}
+// swipe
+let sx=0,sy=0,sw=false;
+addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;sx=e.clientX;sy=e.clientY;sw=true;});
+addEventListener('pointermove',e=>{if(!sw)return;const dx=e.clientX-sx,dy=e.clientY-sy;if(Math.max(Math.abs(dx),Math.abs(dy))>28){sw=false;
+  // board is laid out LTR, so a right swipe moves tiles right
+  move(Math.abs(dx)>Math.abs(dy)?(dx<0?0:1):(dy<0?2:3));}});
+addEventListener('pointerup',()=>sw=false);
+addEventListener('keydown',e=>{const m={ArrowLeft:0,ArrowRight:1,ArrowUp:2,ArrowDown:3,a:0,d:1,w:2,s:3}[e.key];if(m!==undefined){e.preventDefault();move(m);}});
+$('bNew').onclick=newGame;$('oNew').onclick=newGame;$('wNew').onclick=newGame;
+$('wCont').onclick=()=>$('won').classList.add('hide');
+function doUndo(){if(!undoLeft||!undo.length||busy)return;undoLeft--;restore(undo.pop());$('over').classList.add('hide');}
+$('bUndo').onclick=doUndo;$('oUndo').onclick=doUndo;
+$('bSize').onclick=()=>{document.querySelectorAll('#sizeOv [data-n]').forEach(b=>b.classList.toggle('sel',+b.dataset.n===N));$('sizeOv').classList.remove('hide');};
+document.querySelectorAll('#sizeOv [data-n]').forEach(b=>b.onclick=()=>{N=+b.dataset.n;try{localStorage.setItem('g2048_n',N);}catch(e){}$('sizeOv').classList.add('hide');newGame();});
+newGame();
+if(location.hash==='#autostart'){
+  // random play to exhaustion; checks merge/sum invariants
+  let n=0;while(canMove()&&n<5000){move(Math.random()*4|0,true);n++;
+    const sum=tiles.reduce((a,t)=>a+t.v,0);if(tiles.length!==board.querySelectorAll('.tile').length){console.log('AUTOTEST 2048 DOM MISMATCH');break;}}
+  console.log('AUTOTEST 2048 moves='+n+' score='+score+' max='+Math.max(...tiles.map(t=>t.v))+' over='+!canMove());
+}
+})();
+</script>
+</body>
+</html>

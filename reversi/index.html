@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14213D">
+<title>ريفيرسي</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#14213D}
+body{font-family:'Cairo','Segoe UI',sans-serif;color:#F1F5FF;position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px calc(env(safe-area-inset-bottom,0px) + 10px)}
+.num{direction:ltr;unicode-bidi:isolate}
+.hide{display:none!important}
+#top{width:min(96vw,460px);display:flex;gap:10px}
+.pl{flex:1;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:16px;background:rgba(255,255,255,.06);border:2px solid transparent;transition:.2s}
+.pl.on{border-color:#FCA311;background:rgba(252,163,17,.14);box-shadow:0 0 16px rgba(252,163,17,.3)}
+.disc{width:30px;height:30px;border-radius:50%;flex:0 0 30px}
+.disc.b{background:radial-gradient(circle at 35% 30%,#555,#0b0b0b)}
+.disc.w{background:radial-gradient(circle at 35% 30%,#fff,#cfd5e0)}
+.pl .nm{font-size:13px;opacity:.8;line-height:1.1}
+.pl .sc{font-size:24px;font-weight:900;line-height:1.1}
+#c{width:min(96vw,460px,calc(100vh - 210px));aspect-ratio:1;display:block;border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+#msg{min-height:26px;font-weight:700;color:#FCA311;font-size:16px}
+#bar{display:flex;gap:8px}
+.tb{font-family:inherit;border:0;border-radius:12px;padding:8px 14px;font-size:14px;font-weight:700;color:#fff;background:#24345C;cursor:pointer}
+.tb:active{transform:scale(.95)}
+.ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,14,30,.82);z-index:10;padding:16px}
+.card{width:min(340px,100%);background:linear-gradient(160deg,#1F2F57,#14213D);border:2px solid #FCA311;border-radius:22px;padding:22px 18px;text-align:center}
+.card h1{font-size:34px;font-weight:900;color:#FCA311;line-height:1.3}
+.card p{opacity:.85;margin:6px 0 12px;font-size:15px}
+.lbl{font-size:13px;opacity:.7;margin:10px 0 6px}
+.row{display:flex;gap:8px}
+.btn{font-family:inherit;border:0;cursor:pointer;border-radius:14px;padding:10px;font-size:15px;font-weight:700;color:#fff;background:#2A3D6B;flex:1}
+.btn.sel{background:#FCA311;color:#14213D}
+.btn.go{background:linear-gradient(135deg,#2EC4B6,#1A8F86);font-size:19px;padding:12px;margin-top:16px;width:100%}
+.big{font-size:42px;font-weight:900;margin:4px 0}
+</style>
+</head>
+<body>
+<div id="top">
+  <div class="pl" id="pB"><div class="disc b"></div><div><div class="nm" id="nB">أنت</div><div class="sc num" id="sB">2</div></div></div>
+  <div class="pl" id="pW"><div class="disc w"></div><div><div class="nm" id="nW">الكمبيوتر</div><div class="sc num" id="sW">2</div></div></div>
+</div>
+<canvas id="c"></canvas>
+<div id="msg"></div>
+<div id="bar"><button class="tb" id="bUndo">↶ تراجع</button><button class="tb" id="bHint">💡 الحركات</button><button class="tb" id="bMenu">☰ القائمة</button></div>
+
+<div id="menu" class="ov">
+  <div class="card">
+    <h1>ريفيرسي</h1>
+    <p>ضع قرصك بحيث تحاصر أقراص الخصم بين قرصين لك فتنقلب لصالحك. صاحب أكثر الأقراص عند امتلاء اللوحة يفوز.</p>
+    <div class="lbl">النمط</div>
+    <div class="row" id="modeRow"><button class="btn sel" data-m="ai">ضد الكمبيوتر</button><button class="btn" data-m="pvp">لاعبان</button></div>
+    <div id="diffBox"><div class="lbl">الصعوبة</div>
+    <div class="row" id="diffRow"><button class="btn" data-d="0">سهل</button><button class="btn sel" data-d="1">متوسط</button><button class="btn" data-d="2">صعب</button></div></div>
+    <button class="btn go" id="startBtn">ابدأ</button>
+  </div>
+</div>
+<div id="end" class="ov hide">
+  <div class="card">
+    <h1 id="endT"></h1>
+    <div class="big num" id="endS"></div>
+    <p id="endP"></p>
+    <button class="btn go" id="again">العب مجدداً</button>
+    <button class="btn" style="width:100%;margin-top:8px" id="toMenu">القائمة</button>
+  </div>
+</div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+let S=400,dpr=1;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);S=cv.clientWidth;cv.width=cv.height=S*dpr;}
+addEventListener('resize',resize);
+let ac=null;
+function beep(f,d,t,v){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=t||'sine';o.frequency.value=f;g.gain.setValueAtTime(v||.12,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+
+const B=1,Wh=2,DIRS=[-9,-8,-7,-1,1,7,8,9];
+const WT=[100,-20,10,5,5,10,-20,100,-20,-50,-2,-2,-2,-2,-50,-20,10,-2,1,1,1,1,-2,10,5,-2,1,0,0,1,-2,5,5,-2,1,0,0,1,-2,5,10,-2,1,1,1,1,-2,10,-20,-50,-2,-2,-2,-2,-50,-20,100,-20,10,5,5,10,-20,100];
+let board,turn,mode='ai',diff=1,hist=[],flipAnim={},lastMove=-1,state='menu',showHints=true,thinking=false;
+
+function flipsFor(bd,p,c){
+  if(bd[p])return[];const o=3-c,out=[];const r=p>>3,col=p&7;
+  for(const d of DIRS){
+    const dr=d===-9||d===-8||d===-7?-1:d===7||d===8||d===9?1:0;
+    const dc=d===-9||d===-1||d===7?-1:d===-7||d===1||d===9?1:0;
+    let rr=r+dr,cc=col+dc;const line=[];
+    while(rr>=0&&rr<8&&cc>=0&&cc<8&&bd[rr*8+cc]===o){line.push(rr*8+cc);rr+=dr;cc+=dc;}
+    if(line.length&&rr>=0&&rr<8&&cc>=0&&cc<8&&bd[rr*8+cc]===c)out.push(...line);
+  }
+  return out;
+}
+function movesOf(bd,c){const m=[];for(let p=0;p<64;p++)if(!bd[p]&&flipsFor(bd,p,c).length)m.push(p);return m;}
+function apply(bd,p,c){const f=flipsFor(bd,p,c);const nb=bd.slice();nb[p]=c;for(const q of f)nb[q]=c;return{nb,f};}
+function count(bd){let b=0,w=0;for(const v of bd){if(v===B)b++;else if(v===Wh)w++;}return{b,w};}
+
+/* ---------- AI ---------- */
+function evalB(bd,c){
+  const o=3-c;let s=0;
+  for(let p=0;p<64;p++){if(bd[p]===c)s+=WT[p];else if(bd[p]===o)s-=WT[p];}
+  // corners taken make the adjacent X/C squares harmless
+  for(const [cn,adj] of [[0,[1,8,9]],[7,[6,14,15]],[56,[48,57,49]],[63,[62,55,54]]]){
+    if(bd[cn])for(const a of adj){if(bd[a]===c)s-=WT[a];else if(bd[a]===o)s+=WT[a];}
+  }
+  const mc=movesOf(bd,c).length,mo=movesOf(bd,o).length;
+  s+=(mc-mo)*6;
+  return s;
+}
+function search(bd,c,depth,alpha,beta,me,passed){
+  const ms=movesOf(bd,c);
+  if(depth===0){return evalB(bd,me);}
+  if(!ms.length){
+    if(passed){const k=count(bd);const d=me===B?k.b-k.w:k.w-k.b;return d*1000;}
+    return search(bd,3-c,depth-1,alpha,beta,me,true);
+  }
+  ms.sort((a,b)=>WT[b]-WT[a]);
+  if(c===me){let v=-1e9;for(const m of ms){v=Math.max(v,search(apply(bd,m,c).nb,3-c,depth-1,alpha,beta,me,false));alpha=Math.max(alpha,v);if(alpha>=beta)break;}return v;}
+  let v=1e9;for(const m of ms){v=Math.min(v,search(apply(bd,m,c).nb,3-c,depth-1,alpha,beta,me,false));beta=Math.min(beta,v);if(alpha>=beta)break;}return v;
+}
+function aiPick(bd,c){
+  const ms=movesOf(bd,c);if(!ms.length)return-1;
+  if(diff===0){
+    // easy: mostly greedy on flips, with randomness, ignores corners
+    if(Math.random()<.4)return ms[Math.random()*ms.length|0];
+    let best=ms[0],bf=-1;for(const m of ms){const f=flipsFor(bd,m,c).length+Math.random()*2;if(f>bf){bf=f;best=m;}}return best;
+  }
+  const empties=bd.filter(v=>!v).length;
+  const depth=diff===1?2:(empties<=10?10:5);
+  let best=ms[0],bv=-1e9;
+  for(const m of ms){const v=search(apply(bd,m,c).nb,3-c,depth-1,-1e9,1e9,c,false)+Math.random()*(diff===1?8:.5);if(v>bv){bv=v;best=m;}}
+  return best;
+}
+
+/* ---------- flow ---------- */
+function newGame(){
+  board=Array(64).fill(0);board[27]=board[36]=Wh;board[28]=board[35]=B;
+  turn=B;hist=[];flipAnim={};lastMove=-1;state='play';thinking=false;
+  $('nB').textContent=mode==='ai'?'أنت':'الأسود';$('nW').textContent=mode==='ai'?'الكمبيوتر':'الأبيض';
+  resize();refresh();
+}
+function play(p){
+  const {nb,f}=apply(board,p,turn);
+  hist.push({board:board.slice(),turn,lastMove});
+  board=nb;lastMove=p;const t=performance.now();
+  flipAnim={};f.forEach((q,i)=>flipAnim[q]={t:t+i*40,from:3-turn});
+  flipAnim[p]={t,drop:true};
+  beep(520+f.length*30,.08,'triangle',.14);
+  turn=3-turn;advance();
+}
+function advance(){
+  if(!movesOf(board,turn).length){
+    if(!movesOf(board,3-turn).length){return finish();}
+    msg((turn===B?($('nB').textContent):($('nW').textContent))+' لا يملك حركة — دور الآخر');
+    turn=3-turn;
+  }else msg('');
+  refresh();
+  if(mode==='ai'&&turn===Wh&&state==='play'){
+    thinking=true;refresh();
+    setTimeout(()=>{const m=aiPick(board,Wh);thinking=false;if(state==='play'&&m>=0)play(m);},450);
+  }
+}
+let msgT=0;function msg(s){$('msg').textContent=s;}
+function refresh(){
+  const k=count(board);$('sB').textContent=k.b;$('sW').textContent=k.w;
+  $('pB').classList.toggle('on',turn===B&&state==='play');$('pW').classList.toggle('on',turn===Wh&&state==='play');
+  if(thinking)msg('الكمبيوتر يفكر…');
+}
+function finish(){
+  state='end';refresh();const k=count(board);
+  let t;
+  if(k.b===k.w)t='تعادل!';
+  else if(mode==='ai')t=k.b>k.w?'فزت! 🏆':'فاز الكمبيوتر';
+  else t=k.b>k.w?'فاز الأسود!':'فاز الأبيض!';
+  $('endT').textContent=t;$('endS').textContent=k.b+' - '+k.w;
+  let rec='';if(mode==='ai'){try{const key='rv_w'+diff;let w=+localStorage.getItem(key)||0;if(k.b>k.w){w++;localStorage.setItem(key,w);}rec='انتصاراتك في هذا المستوى: '+w;}catch(e){}}
+  $('endP').textContent=rec;
+  setTimeout(()=>$('end').classList.remove('hide'),900);
+  [392,523,659].forEach((f,i)=>setTimeout(()=>beep(f,.25,'triangle'),i*130));
+}
+cv.addEventListener('pointerdown',e=>{
+  if(state!=='play'||thinking)return;if(mode==='ai'&&turn!==B)return;
+  const r=cv.getBoundingClientRect();const c=Math.floor((e.clientX-r.left)/r.width*8),ro=Math.floor((e.clientY-r.top)/r.height*8);
+  if(c<0||c>7||ro<0||ro>7)return;
+  // board is drawn LTR (columns a–h left to right)
+  const p=ro*8+c;
+  if(flipsFor(board,p,turn).length)play(p);else beep(140,.08,'square',.05);
+});
+
+/* ---------- render ---------- */
+function draw(now){
+  if(!board){requestAnimationFrame(draw);return;}
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const c=S/8;
+  const g=ctx.createLinearGradient(0,0,S,S);g.addColorStop(0,'#1F8A5B');g.addColorStop(1,'#146C46');
+  ctx.fillStyle=g;ctx.fillRect(0,0,S,S);
+  ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=1.5;
+  for(let i=1;i<8;i++){ctx.beginPath();ctx.moveTo(i*c,0);ctx.lineTo(i*c,S);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*c);ctx.lineTo(S,i*c);ctx.stroke();}
+  ctx.fillStyle='rgba(0,0,0,.45)';for(const [x,y] of [[2,2],[6,2],[2,6],[6,6]]){ctx.beginPath();ctx.arc(x*c,y*c,3.5,0,7);ctx.fill();}
+  const ms=(state==='play'&&!thinking&&!(mode==='ai'&&turn===Wh)&&showHints)?movesOf(board,turn):[];
+  for(const p of ms){ctx.fillStyle=turn===B?'rgba(0,0,0,.22)':'rgba(255,255,255,.3)';ctx.beginPath();ctx.arc((p&7)*c+c/2,(p>>3)*c+c/2,c*.14,0,7);ctx.fill();}
+  for(let p=0;p<64;p++){
+    const v=board[p];if(!v)continue;
+    const x=(p&7)*c+c/2,y=(p>>3)*c+c/2,R=c*.4;
+    let col=v,sx=1,sc=1;const a=flipAnim[p];
+    if(a){const k=Math.max(0,Math.min(1,(now-a.t)/300));
+      if(a.drop){sc=.6+.4*Math.min(1,k*1.5);}
+      else{sx=Math.abs(Math.cos(k*Math.PI));if(k<.5)col=a.from;}
+      if(k>=1)delete flipAnim[p];}
+    ctx.save();ctx.translate(x,y);ctx.scale(sx*sc,sc);
+    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.arc(2,3,R,0,7);ctx.fill();
+    const gg=ctx.createRadialGradient(-R*.35,-R*.4,R*.1,0,0,R);
+    if(col===B){gg.addColorStop(0,'#5a5a5a');gg.addColorStop(1,'#080808');}else{gg.addColorStop(0,'#ffffff');gg.addColorStop(1,'#c9cfdb');}
+    ctx.fillStyle=gg;ctx.beginPath();ctx.arc(0,0,R,0,7);ctx.fill();
+    ctx.restore();
+    if(p===lastMove){ctx.fillStyle='#FCA311';ctx.beginPath();ctx.arc(x,y,c*.08,0,7);ctx.fill();}
+  }
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+document.querySelectorAll('#modeRow .btn').forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll('#modeRow .btn').forEach(x=>x.classList.toggle('sel',x===b));$('diffBox').classList.toggle('hide',mode==='pvp');});
+document.querySelectorAll('#diffRow .btn').forEach(b=>b.onclick=()=>{diff=+b.dataset.d;document.querySelectorAll('#diffRow .btn').forEach(x=>x.classList.toggle('sel',x===b));});
+$('startBtn').onclick=()=>{$('menu').classList.add('hide');beep(440,.05);newGame();};
+$('again').onclick=()=>{$('end').classList.add('hide');newGame();};
+$('toMenu').onclick=()=>{$('end').classList.add('hide');$('menu').classList.remove('hide');state='menu';};
+$('bMenu').onclick=()=>{$('menu').classList.remove('hide');state='menu';};
+$('bHint').onclick=()=>{showHints=!showHints;};
+$('bUndo').onclick=()=>{
+  if(state!=='play'||thinking||!hist.length)return;
+  // in AI mode, rewind to the player's previous turn
+  let h=hist.pop();if(mode==='ai')while(h.turn!==B&&hist.length)h=hist.pop();
+  board=h.board;turn=h.turn;lastMove=h.lastMove;flipAnim={};msg('');refresh();
+  if(mode==='ai'&&turn===Wh)advance();
+};
+resize();
+if(location.hash==='#autostart'){
+  diff=2;$('startBtn').click();
+  // let the AI play itself as black: exercises the full search until the game ends
+  const iv=setInterval(()=>{if(state!=='play'){clearInterval(iv);const k=count(board);console.log('AUTOTEST reversi end b='+k.b+' w='+k.w);return;}
+    if(turn===B&&!thinking){const m=aiPick(board,B);if(m>=0)play(m);}},60);
+}
+})();
+</script>
+</body>
+</html>

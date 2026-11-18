@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F4D9A8">
+<title>حبل الحلوى</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#E9C48A}
+body{font-family:'Cairo','Segoe UI',sans-serif;color:#4A2C12;position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block}
+.num{direction:ltr;unicode-bidi:isolate}
+.hide{display:none!important}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(74,44,18,.55);z-index:10;padding:16px}
+.card{width:min(360px,100%);background:#FFF3DC;border:3px solid #B9772E;border-radius:24px;padding:20px 16px;text-align:center;box-shadow:0 10px 0 #8A5522,0 16px 40px rgba(0,0,0,.3)}
+.card h1{font-size:34px;font-weight:900;color:#D2482E;line-height:1.3}
+.card p{margin:4px 0 12px;font-size:14px}
+#grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:8px}
+.lv{font-family:inherit;border:0;border-radius:14px;aspect-ratio:1;background:#F2B544;color:#4A2C12;font-weight:900;font-size:22px;box-shadow:0 4px 0 #B9772E;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.lv small{font-size:11px;letter-spacing:-1px;margin-top:4px}
+.lv.lock{background:#D8C6A6;color:#9B8A6A;box-shadow:0 4px 0 #B3A27F}
+.lv:active{transform:translateY(2px)}
+.btn{font-family:inherit;border:0;cursor:pointer;border-radius:16px;padding:11px;font-size:18px;font-weight:900;color:#fff;background:linear-gradient(180deg,#F26B3A,#D2482E);width:100%;margin-top:8px;box-shadow:0 5px 0 #9A2F1A}
+.btn.alt{background:#C79A5B;box-shadow:0 5px 0 #8A5522}
+.btn:active{transform:translateY(3px)}
+.stars{font-size:38px;letter-spacing:4px;margin:6px 0}
+#hud{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;z-index:5;pointer-events:none}
+#hud button{pointer-events:auto;width:42px;height:42px;border-radius:13px;border:0;background:#FFF3DC;box-shadow:0 3px 0 #B9772E;font-size:19px;color:#4A2C12;font-weight:900}
+#lvl{font-weight:900;font-size:17px;background:rgba(255,243,220,.85);padding:2px 14px;border-radius:12px}
+.hb{display:flex;gap:8px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud" class="hide"><div class="hb"><button id="bMenu">☰</button><button id="bRe">↻</button></div><div id="lvl"></div></div>
+<div id="menu" class="ov"><div class="card"><h1>حبل الحلوى 🍬</h1><p>اقطع الحبال بتمرير إصبعك لتوصل الحلوى إلى فم «نمنم» الجائع. اجمع النجوم الثلاث!</p><div id="grid"></div></div></div>
+<div id="win" class="ov hide"><div class="card"><h1>لذيذ! 😋</h1><div class="stars" id="wStars"></div><button class="btn" id="wNext">المرحلة التالية</button><button class="btn alt" id="wRe">إعادة</button></div></div>
+<div id="lose" class="ov hide"><div class="card"><h1>ضاعت الحلوى!</h1><p id="loseWhy"></p><button class="btn" id="lRe">حاول مجدداً</button><button class="btn alt" id="lMenu">المراحل</button></div></div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+const W=400,H=720;let scale=1,ox=0,oy=0,dpr=1;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;scale=Math.min(innerWidth/W,innerHeight/H);ox=(innerWidth-W*scale)/2;oy=(innerHeight-H*scale)/2;}
+addEventListener('resize',resize);resize();
+let ac=null;
+function beep(f,d,t,v){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=t||'sine';o.frequency.value=f;g.gain.setValueAtTime(v||.12,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+
+/* ---------- levels ----------
+   ropes: anchor + optional length (default = distance to candy)
+   pins: auto-attach rings that tie a new rope when the candy enters radius R
+   bubbles: candy entering one floats upward until tapped
+   spikes: deadly segments                                                        */
+const LEVELS=[
+ {candy:[200,260],ropes:[[200,110]],target:[200,610],stars:[[200,360],[200,450],[200,530]]},
+ {candy:[200,250],ropes:[[90,110],[310,110]],target:[200,610],stars:[[200,330],[200,420],[200,520]]},
+ {candy:[200,250],ropes:[[80,120],[320,120]],target:[320,610],stars:[[300,300],[320,420],[320,520]]},
+ {candy:[190,120],ropes:[[70,120]],pins:[[250,300,85]],target:[250,620],stars:[[160,215],[250,450],[250,540]]},
+ {candy:[120,560],ropes:[[120,650]],bubbles:[[120,545]],target:[120,115],stars:[[120,450],[120,340],[120,230]]},
+ {candy:[110,200],ropes:[[200,110]],bubbles:[[300,380]],target:[300,620],stars:[[300,300],[300,480],[245,250]]},
+ {candy:[200,230],ropes:[[200,100],[360,250]],spikes:[[130,440,260,440]],target:[320,620],stars:[[250,365],[310,405],[320,530]]},
+ {candy:[190,100],ropes:[[80,60]],pins:[[200,260,70],[320,380,70]],target:[320,620],stars:[[200,330],[320,450],[140,210]]},
+ {candy:[200,200],ropes:[[60,120],[340,120],[200,90]],spikes:[[40,470,170,470],[230,470,360,470]],target:[200,630],stars:[[200,330],[200,420],[200,540]]},
+ {candy:[200,120],ropes:[[320,80]],bubbles:[[320,330]],pins:[[110,300,75]],spikes:[[150,560,400,560]],target:[90,620],stars:[[250,190],[110,390],[105,500]]},
+];
+
+/* ---------- physics (fixed step, deterministic so the solver can verify levels) ---------- */
+const DT=1/60,G=1400,SEG=13,ITER=14;
+let L,candy,ropes,stars,bubble,popped,pinsUsed,status,why,collected,t,fadeRopes,target;
+function mkRope(ax,ay,len){
+  const dx=candy.x-ax,dy=candy.y-ay,d=Math.hypot(dx,dy);len=len||d;
+  const n=Math.max(2,Math.round(len/SEG)),nodes=[{x:ax,y:ay,px:ax,py:ay,im:0}];
+  for(let i=1;i<n;i++){const k=i/n,x=ax+dx*k,y=ay+dy*k;nodes.push({x,y,px:x,py:y,im:1});}
+  nodes.push(candy);
+  const links=[];for(let i=0;i<n;i++)links.push({a:nodes[i],b:nodes[i+1],len:len/n,on:true});
+  return{nodes,links,cut:-1,fade:1};
+}
+function load(i){
+  L=LEVELS[i];target={x:L.target[0],y:L.target[1]};
+  candy={x:L.candy[0],y:L.candy[1],px:L.candy[0],py:L.candy[1],im:.25};
+  ropes=L.ropes.map(r=>mkRope(r[0],r[1],r[2]));
+  stars=(L.stars||[]).map(s=>({x:s[0],y:s[1],got:false,a:0}));
+  bubble=null;popped=(L.bubbles||[]).map(()=>false);pinsUsed=(L.pins||[]).map(()=>false);
+  status='play';why='';collected=0;t=0;fadeRopes=[];
+}
+function cutRope(r,k){if(r.cut>=0)return;r.cut=k;r.links[k].on=false;r.links[r.links.length-1].on=false;beep(900,.06,'triangle',.1);}
+function step(){
+  t+=DT;
+  const pts=new Set();for(const r of ropes)for(const n of r.nodes)pts.add(n);pts.add(candy);
+  for(const p of pts){
+    if(!p.im)continue;
+    const fl=(p===candy&&bubble!==null);
+    const damp=fl?.93:.995;
+    const vx=(p.x-p.px)*damp,vy=(p.y-p.py)*damp;p.px=p.x;p.py=p.y;
+    // rope nodes are light so a hanging rope can't out-weigh a bubble's lift
+    p.x+=vx;p.y+=vy+(fl?-G*.7:(p===candy?G:G*.3))*DT*DT;
+  }
+  for(let it=0;it<ITER;it++)for(const r of ropes)for(const l of r.links){
+    if(!l.on)continue;
+    const a=l.a,b=l.b,dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+    if(d<=l.len||d===0)continue;
+    const s=a.im+b.im;if(!s)continue;
+    const k=(d-l.len)/d/s;
+    a.x+=dx*k*a.im;a.y+=dy*k*a.im;b.x-=dx*k*b.im;b.y-=dy*k*b.im;
+  }
+  // cut ropes fade away; once gone the tail no longer drags the candy
+  for(const r of ropes)if(r.cut>=0){r.fade-=DT*1.4;}
+  for(let i=ropes.length-1;i>=0;i--)if(ropes[i].fade<=0)ropes.splice(i,1);
+  // pins
+  (L.pins||[]).forEach((p,i)=>{if(!pinsUsed[i]&&Math.hypot(candy.x-p[0],candy.y-p[1])<p[2]){pinsUsed[i]=true;ropes.push(mkRope(p[0],p[1],Math.max(24,Math.hypot(candy.x-p[0],candy.y-p[1]))));beep(500,.1,'sine',.1);}});
+  // bubbles
+  (L.bubbles||[]).forEach((b,i)=>{if(!popped[i]&&bubble!==i&&Math.hypot(candy.x-b[0],candy.y-b[1])<34){bubble=i;popped[i]=true;beep(700,.15,'sine',.08);}});
+  for(const s of stars)if(!s.got&&Math.hypot(candy.x-s.x,candy.y-s.y)<28){s.got=true;collected++;beep(880+collected*180,.15,'triangle',.12);}
+  for(const sp of (L.spikes||[])){if(segDist(candy.x,candy.y,sp[0],sp[1],sp[2],sp[3])<16+7){status='lose';why='لمست الأشواك!';return;}}
+  if(Math.hypot(candy.x-target.x,candy.y-target.y)<38){status='win';return;}
+  if(candy.y>H+60||candy.y<-80||candy.x<-80||candy.x>W+80){status='lose';why='سقطت الحلوى بعيداً';}
+}
+function segDist(px,py,x1,y1,x2,y2){const dx=x2-x1,dy=y2-y1,l=dx*dx+dy*dy;let k=l?((px-x1)*dx+(py-y1)*dy)/l:0;k=Math.max(0,Math.min(1,k));return Math.hypot(px-x1-dx*k,py-y1-dy*k);}
+function popBubble(){if(bubble!==null){bubble=null;candy.py=candy.y;beep(300,.12,'square',.08);}}
+function segX(a,b,c,d){
+  const r=(b.x-a.x)*(d.y-c.y)-(b.y-a.y)*(d.x-c.x);if(!r)return false;
+  const u=((c.x-a.x)*(d.y-c.y)-(c.y-a.y)*(d.x-c.x))/r,v=((c.x-a.x)*(b.y-a.y)-(c.y-a.y)*(b.x-a.x))/r;
+  return u>=0&&u<=1&&v>=0&&v<=1;
+}
+
+/* ---------- progress ---------- */
+let prog=[];try{prog=JSON.parse(localStorage.getItem('cr_prog')||'[]');}catch(e){}
+function saveProg(){try{localStorage.setItem('cr_prog',JSON.stringify(prog));}catch(e){}}
+let cur=0,state='menu',acc=0,swipe=[],winT=0;
+function start(i){cur=i;load(i);state='play';acc=0;swipe=[];winT=0;$('hud').classList.remove('hide');$('lvl').innerHTML='المرحلة <span class="num">'+(i+1)+'</span>';['menu','win','lose'].forEach(x=>$(x).classList.add('hide'));}
+function showMenu(){
+  state='menu';$('hud').classList.add('hide');['win','lose'].forEach(x=>$(x).classList.add('hide'));
+  const g=$('grid');g.innerHTML='';
+  LEVELS.forEach((_,i)=>{const open=i===0||prog[i-1]!==undefined;const b=document.createElement('button');b.className='lv'+(open?'':' lock');
+    const s=prog[i]||0;b.innerHTML=open?`<span class="num">${i+1}</span><small>${'★'.repeat(s)}${'☆'.repeat(3-s)}</small>`:'🔒';
+    if(open)b.onclick=()=>start(i);g.appendChild(b);});
+  $('menu').classList.remove('hide');
+}
+
+/* ---------- input ---------- */
+function local(e){return{x:(e.clientX-ox)/scale,y:(e.clientY-oy)/scale};}
+let down=false,lastP=null;
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;down=true;lastP=local(e);swipe=[{...lastP,t:performance.now()}];
+  if(bubble!==null&&Math.hypot(lastP.x-candy.x,lastP.y-candy.y)<46)popBubble();});
+cv.addEventListener('pointermove',e=>{if(!down||state!=='play')return;const p=local(e);
+  for(const r of ropes)if(r.cut<0)for(let k=0;k<r.links.length;k++){const l=r.links[k];if(l.on&&segX(lastP,p,l.a,l.b)){cutRope(r,k);break;}}
+  swipe.push({...p,t:performance.now()});lastP=p;});
+addEventListener('pointerup',()=>{down=false;});
+
+/* ---------- render ---------- */
+function drawStar(x,y,r,a,fill){ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.beginPath();for(let i=0;i<10;i++){const rr=i%2?r*.45:r,an=i*Math.PI/5-Math.PI/2;ctx.lineTo(Math.cos(an)*rr,Math.sin(an)*rr);}ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle='#B9772E';ctx.lineWidth=2;ctx.stroke();ctx.restore();}
+function monster(x,y,now){
+  const d=Math.hypot(candy.x-x,candy.y-y),open=Math.max(0,Math.min(1,(220-d)/160)),eat=winT>0?Math.sin(winT*20)*.5+.5:0;
+  const bob=Math.sin(now/300)*3;
+  ctx.save();ctx.translate(x,y+bob);
+  ctx.fillStyle='rgba(0,0,0,.15)';ctx.beginPath();ctx.ellipse(0,46,46,9,0,0,7);ctx.fill();
+  const g=ctx.createRadialGradient(-12,-14,6,0,0,48);g.addColorStop(0,'#9BE36A');g.addColorStop(1,'#3E9A2E');
+  ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,6,46,42,0,0,7);ctx.fill();
+  ctx.fillStyle='#3E9A2E';ctx.beginPath();ctx.moveTo(-22,-30);ctx.lineTo(-30,-50);ctx.lineTo(-10,-34);ctx.fill();ctx.beginPath();ctx.moveTo(22,-30);ctx.lineTo(30,-50);ctx.lineTo(10,-34);ctx.fill();
+  const ex=Math.max(-4,Math.min(4,(candy.x-x)/40)),ey=Math.max(-4,Math.min(4,(candy.y-y)/40));
+  for(const s of [-1,1]){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s*17,-10,12,0,7);ctx.fill();ctx.fillStyle='#222';ctx.beginPath();ctx.arc(s*17+ex,-10+ey,5.5,0,7);ctx.fill();}
+  const mo=6+open*16+eat*10;
+  ctx.fillStyle='#7A1E2A';ctx.beginPath();ctx.ellipse(0,16,18+open*4,mo/2+1,0,0,7);ctx.fill();
+  ctx.fillStyle='#fff';ctx.fillRect(-8,16-mo/2,6,5);ctx.fillRect(2,16-mo/2,6,5);
+  ctx.restore();
+}
+function candyDraw(x,y){
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle='#E8455A';for(const s of [-1,1]){ctx.beginPath();ctx.moveTo(s*12,0);ctx.lineTo(s*28,-11);ctx.lineTo(s*28,11);ctx.closePath();ctx.fill();}
+  const g=ctx.createRadialGradient(-5,-5,2,0,0,16);g.addColorStop(0,'#FFB3BE');g.addColorStop(1,'#E8455A');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,16,0,7);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=3.5;for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(0,0,11-i*4,i,i+2.2);ctx.stroke();}
+  ctx.restore();
+}
+function draw(now,dt){
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#E9C48A';ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.setTransform(dpr*scale,0,0,dpr*scale,dpr*ox,dpr*oy);
+  ctx.fillStyle='#F4D9A8';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(185,119,46,.12)';ctx.lineWidth=1;for(let x=0;x<W;x+=24){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}for(let y=0;y<H;y+=24){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  if(state==='menu'||!L)return;
+  for(const sp of (L.spikes||[])){
+    const dx=sp[2]-sp[0],dy=sp[3]-sp[1],len=Math.hypot(dx,dy),an=Math.atan2(dy,dx);
+    ctx.save();ctx.translate(sp[0],sp[1]);ctx.rotate(an);ctx.fillStyle='#6B6F7A';ctx.fillRect(0,-5,len,10);
+    ctx.fillStyle='#9AA0AD';for(let x=0;x<len-4;x+=12){ctx.beginPath();ctx.moveTo(x,-5);ctx.lineTo(x+6,-15);ctx.lineTo(x+12,-5);ctx.fill();ctx.beginPath();ctx.moveTo(x,5);ctx.lineTo(x+6,15);ctx.lineTo(x+12,5);ctx.fill();}
+    ctx.restore();}
+  (L.pins||[]).forEach((p,i)=>{if(!pinsUsed[i]){ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(74,44,18,.45)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p[0],p[1],p[2],0,7);ctx.stroke();ctx.setLineDash([]);}
+    ctx.fillStyle='#8A5522';ctx.beginPath();ctx.arc(p[0],p[1],8,0,7);ctx.fill();ctx.fillStyle='#F2B544';ctx.beginPath();ctx.arc(p[0],p[1],4,0,7);ctx.fill();});
+  monster(target.x,target.y,now);
+  for(const s of stars){if(s.got){s.a+=dt*8;if(s.a<6)drawStar(s.x,s.y-s.a*8,14*(1-s.a/6),s.a,'rgba(255,215,0,'+(1-s.a/6)+')');}else drawStar(s.x,s.y,15+Math.sin(now/250)*1.5,Math.sin(now/600)*.3,'#FFD43B');}
+  (L.bubbles||[]).forEach((b,i)=>{if(!popped[i]){ctx.fillStyle='rgba(170,220,255,.35)';ctx.strokeStyle='rgba(120,190,255,.9)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(b[0],b[1]+Math.sin(now/400)*3,30,0,7);ctx.fill();ctx.stroke();}});
+  for(const r of ropes){
+    ctx.globalAlpha=Math.max(0,r.fade);
+    ctx.strokeStyle='#7A4A1E';ctx.lineWidth=5;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.beginPath();for(const l of r.links){if(!l.on)continue;ctx.moveTo(l.a.x,l.a.y);ctx.lineTo(l.b.x,l.b.y);}ctx.stroke();
+    ctx.strokeStyle='#C99355';ctx.lineWidth=2;ctx.setLineDash([4,5]);ctx.stroke();ctx.setLineDash([]);
+    ctx.globalAlpha=1;
+    const a=r.nodes[0];ctx.fillStyle='#8A5522';ctx.beginPath();ctx.arc(a.x,a.y,9,0,7);ctx.fill();ctx.fillStyle='#F2B544';ctx.beginPath();ctx.arc(a.x,a.y,5,0,7);ctx.fill();
+  }
+  if(status!=='win'||winT<.15)candyDraw(candy.x,candy.y);
+  if(bubble!==null){ctx.fillStyle='rgba(170,220,255,.35)';ctx.strokeStyle='rgba(120,190,255,.95)';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(candy.x,candy.y,30,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='rgba(255,255,255,.7)';ctx.beginPath();ctx.arc(candy.x-10,candy.y-12,5,0,7);ctx.fill();}
+  // swipe trail
+  const tn=performance.now();swipe=swipe.filter(p=>tn-p.t<180);
+  if(swipe.length>1){ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=4;ctx.beginPath();swipe.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();}
+}
+let last=performance.now();
+function loop(now){
+  const dt=Math.max(.001,Math.min(.05,(now-last)/1000));last=now;
+  if(state==='play'){
+    acc+=dt;while(acc>=DT&&status==='play'){step();acc-=DT;}
+    if(status==='win'){winT+=dt;if(winT===dt){beep(660,.15,'triangle');setTimeout(()=>beep(990,.2,'triangle'),120);}
+      if(winT>.9){state='done';const s=collected;prog[cur]=Math.max(prog[cur]||0,s);saveProg();$('wStars').textContent='★'.repeat(s)+'☆'.repeat(3-s);$('wNext').classList.toggle('hide',cur>=LEVELS.length-1);$('win').classList.remove('hide');}}
+    else if(status==='lose'){state='done';beep(180,.3,'sawtooth',.08);$('loseWhy').textContent=why;setTimeout(()=>$('lose').classList.remove('hide'),350);}
+  }
+  draw(now,dt);requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+$('bMenu').onclick=showMenu;$('bRe').onclick=()=>start(cur);
+$('wNext').onclick=()=>start(Math.min(LEVELS.length-1,cur+1));$('wRe').onclick=()=>start(cur);
+$('lRe').onclick=()=>start(cur);$('lMenu').onclick=showMenu;
+showMenu();
+
+if(location.hash==='#autostart'){
+  // random-search solver: proves every level is winnable with the real physics
+  let rs=12345;const rnd=()=>(rs=(rs*1103515245+12345)&0x7fffffff)/0x7fffffff;
+  const report=[];
+  LEVELS.forEach((_,li)=>{
+    let wins=0,best=-1,tries=0;
+    for(;tries<1500&&best<3;tries++){
+      load(li);const k=1+(rnd()*3|0),times=[];for(let j=0;j<k;j++)times.push(rnd()*3.5);times.sort((a,b)=>a-b);
+      let ti=0;
+      for(let f=0;f<420&&status==='play';f++){
+        while(ti<times.length&&t>=times[ti]){ti++;
+          const opts=ropes.filter(r=>r.cut<0);if(bubble!==null)opts.push('pop');
+          if(opts.length){const o=opts[rnd()*opts.length|0];if(o==='pop')popBubble();else cutRope(o,o.links.length>>1);}}
+        step();
+      }
+      if(status==='win'){wins++;best=Math.max(best,collected);}
+    }
+    report.push((li+1)+':'+(best<0?'FAIL':best+'★')+'/'+tries);
+  });
+  console.log('AUTOTEST candy '+report.join(' '));
+  load(0);state='menu';
+}
+})();
+</script>
+</body>
+</html>

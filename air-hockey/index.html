@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#071322">
+<title>هوكي الطاولة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#071322}
+body{font-family:'Cairo','Segoe UI',sans-serif;color:#EAF4FF;position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block}
+.num{direction:ltr;unicode-bidi:isolate}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,10,22,.78);backdrop-filter:blur(3px);z-index:10;padding:16px}
+.hide{display:none!important}
+.card{width:min(340px,100%);background:linear-gradient(160deg,#10243F,#0A1730);border:2px solid #2B6CB0;border-radius:22px;padding:24px 20px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.card h1{font-size:34px;font-weight:900;color:#7FD3FF;text-shadow:0 0 18px rgba(80,190,255,.6);line-height:1.3}
+.card p{opacity:.85;margin:6px 0 16px;font-size:15px}
+.lbl{font-size:13px;opacity:.7;margin:10px 0 6px}
+.row{display:flex;gap:8px;justify-content:center}
+.btn{font-family:inherit;border:0;cursor:pointer;border-radius:14px;padding:11px 10px;font-size:16px;font-weight:700;color:#fff;background:#1E3A5F;flex:1;transition:transform .1s}
+.btn:active{transform:scale(.95)}
+.btn.sel{background:#2B8CE0;box-shadow:0 0 12px rgba(43,140,224,.6)}
+.btn.go{background:linear-gradient(135deg,#FF4D6D,#FF8A3D);font-size:20px;padding:13px;margin-top:16px;width:100%}
+#pause{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);left:10px;z-index:5;width:38px;height:38px;border-radius:12px;border:1.5px solid #2B6CB0;background:rgba(10,23,48,.8);color:#fff;font-size:16px}
+.big{font-size:44px;font-weight:900;margin:6px 0}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="pause" class="hide">❚❚</button>
+
+<div id="menu" class="ov">
+  <div class="card">
+    <h1>هوكي الطاولة</h1>
+    <p>اسحب مضربك وسدّد القرص نحو مرمى الخصم. أول من يسجل <span class="num">7</span> أهداف يفوز!</p>
+    <div class="lbl">النمط</div>
+    <div class="row" id="modeRow">
+      <button class="btn sel" data-m="ai">ضد الكمبيوتر</button>
+      <button class="btn" data-m="pvp">لاعبان</button>
+    </div>
+    <div id="diffBox">
+      <div class="lbl">الصعوبة</div>
+      <div class="row" id="diffRow">
+        <button class="btn" data-d="0">سهل</button>
+        <button class="btn sel" data-d="1">متوسط</button>
+        <button class="btn" data-d="2">صعب</button>
+      </div>
+    </div>
+    <button class="btn go" id="startBtn">ابدأ اللعب</button>
+  </div>
+</div>
+
+<div id="end" class="ov hide">
+  <div class="card">
+    <h1 id="endT">فوز!</h1>
+    <div class="big num" id="endS">7 - 3</div>
+    <p id="endP"></p>
+    <button class="btn go" id="againBtn">العب مجدداً</button>
+    <button class="btn" style="width:100%;margin-top:8px" id="menuBtn">القائمة</button>
+  </div>
+</div>
+
+<div id="pauseOv" class="ov hide">
+  <div class="card">
+    <h1>استراحة</h1>
+    <button class="btn go" id="resumeBtn">متابعة</button>
+    <button class="btn" style="width:100%;margin-top:8px" id="quitBtn">القائمة</button>
+  </div>
+</div>
+
+<script>
+(()=>{
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=400,H=720;
+let scale=1,ox=0,oy=0,dpr=1;
+function resize(){
+  dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;
+  scale=Math.min(innerWidth/W,innerHeight/H);
+  ox=(innerWidth-W*scale)/2;oy=(innerHeight-H*scale)/2;
+}
+addEventListener('resize',resize);resize();
+
+/* ---------- audio ---------- */
+let ac=null;
+function beep(f,d,type,vol){
+  try{
+    if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type=type||'sine';o.frequency.value=f;
+    g.gain.setValueAtTime(vol||.15,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);
+    o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);
+  }catch(e){}
+}
+
+/* ---------- table geometry ---------- */
+const TX0=24,TX1=376,TY0=46,TY1=700,MID=(TY0+TY1)/2;
+const GW=130,GX0=W/2-GW/2,GX1=W/2+GW/2;
+const PR=15,MR=29;   // puck radius, mallet radius
+const MAXV=1500;
+const WIN=7;
+const DIFF=[{sp:380,react:.10,aim:60},{sp:600,react:.06,aim:30},{sp:880,react:.03,aim:12}];
+
+let mode='ai',diff=1,state='menu';
+const puck={x:W/2,y:MID,vx:0,vy:0};
+const me={x:W/2,y:TY1-80,px:W/2,py:TY1-80,tx:W/2,ty:TY1-80,vx:0,vy:0};
+const op={x:W/2,y:TY0+80,px:W/2,py:TY0+80,tx:W/2,ty:TY0+80,vx:0,vy:0};
+let sMe=0,sOp=0,pauseT=0,flash=0,flashSide=0,trail=[],sparks=[],aiThink=0;
+
+function resetPuck(towardMe){
+  puck.x=W/2;puck.y=towardMe?MID+90:MID-90;puck.vx=0;puck.vy=0;trail=[];
+}
+function newGame(){
+  sMe=0;sOp=0;
+  me.x=me.px=me.tx=W/2;me.y=me.py=me.ty=TY1-80;
+  op.x=op.px=op.tx=W/2;op.y=op.py=op.ty=TY0+80;
+  resetPuck(Math.random()<.5);pauseT=1;state='play';
+  document.getElementById('pause').classList.remove('hide');
+}
+
+/* ---------- input (multi-touch) ---------- */
+const ptrs={};
+function local(e){return{x:(e.clientX-ox)/scale,y:(e.clientY-oy)/scale};}
+cv.addEventListener('pointerdown',e=>{
+  const p=local(e);
+  const side=(mode==='pvp'&&p.y<MID)?'op':'me';
+  ptrs[e.pointerId]=side;
+  setTarget(side,p);
+});
+cv.addEventListener('pointermove',e=>{
+  const s=ptrs[e.pointerId];
+  if(s)setTarget(s,local(e));
+  else if(e.pointerType==='mouse'&&mode==='ai')setTarget('me',local(e));
+});
+function up(e){delete ptrs[e.pointerId];}
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+function setTarget(side,p){
+  const m=side==='me'?me:op;
+  // finger offset upward a little so the mallet isn't hidden under the thumb
+  m.tx=p.x;m.ty=p.y-(side==='me'?18:-18);
+}
+function clampMallet(m,isMe){
+  m.x=Math.max(TX0+MR,Math.min(TX1-MR,m.x));
+  if(isMe)m.y=Math.max(MID+MR,Math.min(TY1-MR,m.y));
+  else m.y=Math.max(TY0+MR,Math.min(MID-MR,m.y));
+}
+
+/* ---------- AI ---------- */
+function aiUpdate(dt){
+  const D=DIFF[diff];
+  aiThink-=dt;
+  if(aiThink<=0){
+    aiThink=D.react;
+    const home={x:W/2+(puck.x-W/2)*.45,y:TY0+62};
+    const inMyHalf=puck.y<MID+20;
+    if(inMyHalf){
+      if(op.y<puck.y-MR*.5){
+        // in front of the puck: strike through it toward the player's goal
+        const gx=W/2+(Math.random()-.5)*D.aim*2,gy=TY1+40;
+        let dx=gx-puck.x,dy=gy-puck.y,l=Math.hypot(dx,dy)||1;
+        op.tx=puck.x+dx/l*30;op.ty=puck.y+dy/l*30;
+      }else{
+        // behind the puck: circle around it to get on the goal side
+        op.tx=puck.x+(puck.x<W/2?MR*1.6:-MR*1.6);op.ty=puck.y-MR*2.2;
+      }
+      if(puck.vy<-250&&puck.y>MID-140){op.tx=home.x;op.ty=home.y;}
+    }else{
+      // predict where the puck crosses the defence line
+      let tx=home.x;
+      if(puck.vy<-50){
+        const t=(puck.y-(TY0+70))/-puck.vy;
+        let px=puck.x+puck.vx*t;
+        const L=TX0+PR,R=TX1-PR,span=R-L;
+        let k=((px-L)%(2*span)+2*span)%(2*span);
+        px=k>span?L+2*span-k:L+k;
+        tx=W/2+(px-W/2)*.8;
+      }
+      op.tx=tx;op.ty=home.y;
+    }
+  }
+  const dx=op.tx-op.x,dy=op.ty-op.y,l=Math.hypot(dx,dy);
+  const step=D.sp*dt;
+  if(l>step){op.x+=dx/l*step;op.y+=dy/l*step;}else{op.x=op.tx;op.y=op.ty;}
+}
+
+/* ---------- physics ---------- */
+function collide(m,h){
+  const dx=puck.x-m.x,dy=puck.y-m.y,d=Math.hypot(dx,dy),R=PR+MR;
+  if(d<R&&d>0){
+    const nx=dx/d,ny=dy/d;
+    puck.x=m.x+nx*R;puck.y=m.y+ny*R;
+    const rvx=puck.vx-m.vx,rvy=puck.vy-m.vy,vn=rvx*nx+rvy*ny;
+    if(vn<0){
+      puck.vx-=1.85*vn*nx;puck.vy-=1.85*vn*ny;
+      const sp=Math.hypot(puck.vx,puck.vy);
+      if(sp>MAXV){puck.vx*=MAXV/sp;puck.vy*=MAXV/sp;}
+      if(-vn>120){beep(220+Math.min(-vn,1200)*.3,.07,'triangle',.18);spark(puck.x-nx*PR,puck.y-ny*PR,Math.min(10,-vn/100|0));}
+    }
+  }
+}
+function spark(x,y,n){for(let i=0;i<n;i++){const a=Math.random()*6.28,s=60+Math.random()*180;sparks.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:.4});}}
+
+function goal(forMe){
+  if(forMe)sMe++;else sOp++;
+  flash=1;flashSide=forMe?0:1;
+  beep(forMe?660:200,.35,'square',.12);setTimeout(()=>beep(forMe?880:160,.4,'square',.1),120);
+  spark(puck.x,forMe?TY0:TY1,24);
+  if(sMe>=WIN||sOp>=WIN){setTimeout(endGame,700);state='over';return;}
+  resetPuck(forMe);pauseT=1.1;
+}
+
+function physics(dt){
+  const SUB=6,h=dt/SUB;
+  // mallet velocities from movement
+  const mts=[me,op];
+  for(const m of mts){m.sx=m.x;m.sy=m.y;}
+  // player mallet follows finger with a speed cap (prevents teleport tunnelling)
+  for(const [m,isMe] of [[me,true],[op,false]]){
+    if(!isMe&&mode==='ai')continue;
+    const dx=m.tx-m.x,dy=m.ty-m.y,l=Math.hypot(dx,dy),cap=2600*dt;
+    if(l>cap){m.x+=dx/l*cap;m.y+=dy/l*cap;}else{m.x=m.tx;m.y=m.ty;}
+  }
+  if(mode==='ai')aiUpdate(dt);
+  clampMallet(me,true);clampMallet(op,false);
+  for(const m of mts){
+    m.ex=m.x;m.ey=m.y;
+    m.vx=(m.ex-m.sx)/dt;m.vy=(m.ey-m.sy)/dt;
+  }
+  for(let i=1;i<=SUB;i++){
+    for(const m of mts){m.x=m.sx+(m.ex-m.sx)*i/SUB;m.y=m.sy+(m.ey-m.sy)*i/SUB;}
+    puck.x+=puck.vx*h;puck.y+=puck.vy*h;
+    if(puck.x<TX0+PR){puck.x=TX0+PR;puck.vx=Math.abs(puck.vx)*.9;wallHit();}
+    if(puck.x>TX1-PR){puck.x=TX1-PR;puck.vx=-Math.abs(puck.vx)*.9;wallHit();}
+    const inGoal=puck.x>GX0+4&&puck.x<GX1-4;
+    if(puck.y<TY0+PR&&!inGoal){puck.y=TY0+PR;puck.vy=Math.abs(puck.vy)*.9;wallHit();}
+    if(puck.y>TY1-PR&&!inGoal){puck.y=TY1-PR;puck.vy=-Math.abs(puck.vy)*.9;wallHit();}
+    if(inGoal&&(puck.y<TY0+PR||puck.y>TY1-PR)){
+      // goal-post corners
+      for(const gx of [GX0,GX1])for(const gy of [TY0,TY1]){
+        const dx=puck.x-gx,dy=puck.y-gy,d=Math.hypot(dx,dy);
+        if(d<PR&&d>0){const nx=dx/d,ny=dy/d,vn=puck.vx*nx+puck.vy*ny;puck.x=gx+nx*PR;puck.y=gy+ny*PR;if(vn<0){puck.vx-=1.8*vn*nx;puck.vy-=1.8*vn*ny;}}
+      }
+    }
+    if(puck.y<TY0-PR*1.2){goal(true);return;}
+    if(puck.y>TY1+PR*1.2){goal(false);return;}
+    collide(me);collide(op);
+  }
+  const f=Math.pow(.992,dt*60);puck.vx*=f;puck.vy*=f;
+  // nudge a puck that died exactly on the centre line
+  if(Math.abs(puck.y-MID)<PR&&Math.hypot(puck.vx,puck.vy)<15){puck.vy+=(Math.random()<.5?-1:1)*40;}
+}
+let lastWall=0;
+function wallHit(){const n=performance.now();if(n-lastWall>60&&Math.hypot(puck.vx,puck.vy)>150){beep(140,.05,'sine',.12);lastWall=n;}}
+
+function endGame(){
+  state='end';
+  document.getElementById('pause').classList.add('hide');
+  const won=sMe>sOp;
+  let t;
+  if(mode==='pvp')t=won?'فاز اللاعب الأزرق!':'فاز اللاعب الأحمر!';
+  else t=won?'فوز رائع! 🏆':'خسارة… حاول مجدداً';
+  document.getElementById('endT').textContent=t;
+  document.getElementById('endS').textContent=sMe+' - '+sOp;
+  let wins=0;try{wins=+localStorage.getItem('ah_wins')||0;if(won&&mode==='ai'){wins++;localStorage.setItem('ah_wins',wins);}}catch(e){}
+  document.getElementById('endP').textContent=mode==='ai'?('مجموع انتصاراتك: '+wins):'';
+  document.getElementById('end').classList.remove('hide');
+}
+
+/* ---------- render ---------- */
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function mallet(m,c1,c2){
+  ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.arc(m.x+4,m.y+6,MR,0,7);ctx.fill();
+  const g=ctx.createRadialGradient(m.x-8,m.y-8,4,m.x,m.y,MR);g.addColorStop(0,c1);g.addColorStop(1,c2);
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(m.x,m.y,MR,0,7);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(m.x,m.y,MR*.62,0,7);ctx.stroke();
+  ctx.fillStyle=c2;ctx.beginPath();ctx.arc(m.x,m.y,MR*.42,0,7);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.4)';ctx.beginPath();ctx.arc(m.x-5,m.y-6,MR*.18,0,7);ctx.fill();
+}
+function draw(dt){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle='#071322';ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.setTransform(dpr*scale,0,0,dpr*scale,dpr*ox,dpr*oy);
+  // rim
+  rr(TX0-14,TY0-14,TX1-TX0+28,TY1-TY0+28,30);ctx.fillStyle='#1B2C4A';ctx.fill();
+  ctx.strokeStyle='#3A6EA5';ctx.lineWidth=2;ctx.stroke();
+  // surface
+  rr(TX0,TY0,TX1-TX0,TY1-TY0,18);
+  const g=ctx.createLinearGradient(0,TY0,0,TY1);g.addColorStop(0,'#D8F0FF');g.addColorStop(.5,'#F2FAFF');g.addColorStop(1,'#D8F0FF');
+  ctx.fillStyle=g;ctx.fill();
+  ctx.save();ctx.clip();
+  // air holes
+  ctx.fillStyle='rgba(60,110,160,.13)';
+  for(let y=TY0+14;y<TY1;y+=22)for(let x=TX0+14+((y/22|0)%2)*11;x<TX1;x+=22){ctx.fillRect(x,y,2,2);}
+  // goal flash
+  if(flash>0){ctx.fillStyle=flashSide===0?`rgba(255,80,110,${flash*.35})`:`rgba(60,150,255,${flash*.35})`;ctx.fillRect(TX0,flashSide===0?TY0:MID,TX1-TX0,MID-TY0);}
+  // markings
+  ctx.lineWidth=4;ctx.strokeStyle='rgba(230,60,90,.55)';
+  ctx.beginPath();ctx.moveTo(TX0,MID);ctx.lineTo(TX1,MID);ctx.stroke();
+  ctx.beginPath();ctx.arc(W/2,MID,56,0,7);ctx.stroke();
+  ctx.strokeStyle='rgba(50,120,220,.5)';
+  ctx.beginPath();ctx.arc(W/2,TY0,78,0,Math.PI);ctx.stroke();
+  ctx.beginPath();ctx.arc(W/2,TY1,78,Math.PI,0);ctx.stroke();
+  // scores
+  ctx.font='900 110px Cairo, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillStyle='rgba(230,60,90,.10)';ctx.fillText(sOp,W/2,MID-150);
+  ctx.fillStyle='rgba(40,120,230,.12)';ctx.fillText(sMe,W/2,MID+150);
+  ctx.restore();
+  // goals
+  ctx.fillStyle='#0A1220';
+  rr(GX0,TY0-16,GW,18,6);ctx.fill();rr(GX0,TY1-2,GW,18,6);ctx.fill();
+  ctx.fillStyle='#FF4D6D';ctx.fillRect(GX0-6,TY0-16,6,18);ctx.fillRect(GX1,TY0-16,6,18);
+  ctx.fillStyle='#2B8CE0';ctx.fillRect(GX0-6,TY1-2,6,18);ctx.fillRect(GX1,TY1-2,6,18);
+  // trail
+  trail.push({x:puck.x,y:puck.y});if(trail.length>10)trail.shift();
+  const sp=Math.hypot(puck.vx,puck.vy);
+  if(sp>300)for(let i=0;i<trail.length;i++){ctx.fillStyle=`rgba(255,120,60,${i/trail.length*.25})`;ctx.beginPath();ctx.arc(trail[i].x,trail[i].y,PR*i/trail.length,0,7);ctx.fill();}
+  // puck
+  ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ctx.arc(puck.x+3,puck.y+4,PR,0,7);ctx.fill();
+  ctx.fillStyle='#1A1A24';ctx.beginPath();ctx.arc(puck.x,puck.y,PR,0,7);ctx.fill();
+  ctx.strokeStyle='#FFB020';ctx.lineWidth=3;ctx.beginPath();ctx.arc(puck.x,puck.y,PR-4,0,7);ctx.stroke();
+  mallet(op,'#FF8FA3','#D7263D');
+  mallet(me,'#8FD0FF','#1666C5');
+  // sparks
+  for(let i=sparks.length-1;i>=0;i--){const s=sparks[i];s.t-=dt;if(s.t<=0){sparks.splice(i,1);continue;}s.x+=s.vx*dt;s.y+=s.vy*dt;ctx.fillStyle=`rgba(255,190,60,${s.t*2.5})`;ctx.fillRect(s.x-2,s.y-2,4,4);}
+  // header
+  ctx.font='700 15px Cairo, sans-serif';ctx.textBaseline='middle';
+  ctx.fillStyle='#FF8FA3';ctx.textAlign='right';ctx.fillText(mode==='ai'?'الكمبيوتر':'الأحمر',TX1,18);
+  ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='900 20px Cairo, sans-serif';ctx.fillText(sMe+'  :  '+sOp,W/2,18);
+  ctx.font='700 15px Cairo, sans-serif';ctx.fillStyle='#8FD0FF';ctx.textAlign='left';ctx.fillText(mode==='ai'?'أنت':'الأزرق',TX0+50,18);
+  if(pauseT>0&&state==='play'){ctx.font='900 40px Cairo, sans-serif';ctx.fillStyle='rgba(20,40,80,.6)';ctx.textAlign='center';ctx.fillText('استعد!',W/2,MID);}
+}
+
+let last=performance.now();
+function loop(now){
+  let dt=Math.max(.001,Math.min(.033,(now-last)/1000));last=now;
+  if(state==='play'){
+    if(pauseT>0){pauseT-=dt;
+      // allow mallets to move during the countdown
+      const p={...puck};physics(dt);Object.assign(puck,p);
+    }else physics(dt);
+  }
+  if(flash>0)flash=Math.max(0,flash-dt*1.5);
+  draw(dt);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ---------- menus ---------- */
+const $=id=>document.getElementById(id);
+document.querySelectorAll('#modeRow .btn').forEach(b=>b.onclick=()=>{
+  mode=b.dataset.m;document.querySelectorAll('#modeRow .btn').forEach(x=>x.classList.toggle('sel',x===b));
+  $('diffBox').classList.toggle('hide',mode==='pvp');
+});
+document.querySelectorAll('#diffRow .btn').forEach(b=>b.onclick=()=>{
+  diff=+b.dataset.d;document.querySelectorAll('#diffRow .btn').forEach(x=>x.classList.toggle('sel',x===b));
+});
+$('startBtn').onclick=()=>{$('menu').classList.add('hide');beep(0.01,.01);newGame();};
+$('againBtn').onclick=()=>{$('end').classList.add('hide');newGame();};
+$('menuBtn').onclick=()=>{$('end').classList.add('hide');$('menu').classList.remove('hide');state='menu';};
+$('pause').onclick=()=>{if(state==='play'){state='paused';$('pauseOv').classList.remove('hide');}};
+$('resumeBtn').onclick=()=>{$('pauseOv').classList.add('hide');state='play';last=performance.now();};
+$('quitBtn').onclick=()=>{$('pauseOv').classList.add('hide');$('pause').classList.add('hide');$('menu').classList.remove('hide');state='menu';};
+if(location.hash==='#autostart'){$('startBtn').click();setTimeout(()=>{me.tx=W/2;me.ty=MID+60;},500);}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='paused';$('pauseOv').classList.remove('hide');}});
+})();
+</script>
+</body>
+</html>
