@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -64,10 +64,10 @@ jobs:
           echo "Games: ${out:-<none>}"
           echo "folders=$out" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.games.outputs.folders != ''
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: tools/package-lock.json
 
@@ -85,6 +85,10 @@ jobs:
 
       - name: Generate missing covers (Cloudflare FLUX, 1:1)
         if: steps.games.outputs.folders != ''
+        # A failed cover must not block the review queue: the game is queued
+        # with an empty imageUrl and the run is marked failed at the end.
+        id: covers
+        continue-on-error: true
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -129,3 +133,9 @@ jobs:
           TEST_REPORT: ${{ runner.temp }}/test-report.json
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node tools/push-pending.mjs ${{ steps.games.outputs.folders }}
+
+      - name: Flag missing covers
+        if: steps.covers.outcome == 'failure'
+        run: |
+          echo "::error title=Covers::Cover generation failed — games were queued without a cover. See the annotation above."
+          exit 1

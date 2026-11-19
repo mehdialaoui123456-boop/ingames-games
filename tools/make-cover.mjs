@@ -10,7 +10,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import sharp from 'sharp';
 import { loadDotEnv, loadGame, coverPath, COVERS_DIR } from './lib.mjs';
 
 const MODEL = '@cf/black-forest-labs/flux-1-schnell';
@@ -22,6 +21,20 @@ const STYLE =
   'clean uncluttered background, no text, no letters, no words, no logo, no watermark, no UI. Scene: ';
 
 loadDotEnv();
+
+// In GitHub Actions, ::error lines become public annotations (logs need a login).
+const report = (msg) =>
+  console.error(
+    process.env.GITHUB_ACTIONS ? `::error title=Cover generation::${msg.replace(/\s+/g, ' ')}` : msg,
+  );
+
+let sharp;
+try {
+  sharp = (await import('sharp')).default;
+} catch (e) {
+  report(`sharp failed to load: ${e.message}`);
+  process.exit(1);
+}
 const args = process.argv.slice(2);
 const force = args.includes('--force');
 const vi = args.indexOf('--variants');
@@ -34,7 +47,7 @@ if (!folders.length) {
 }
 const { CF_ACCOUNT_ID, CF_API_TOKEN } = process.env;
 if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
-  console.error('Missing CF_ACCOUNT_ID / CF_API_TOKEN (set them in .env or the environment).');
+  report('Missing CF_ACCOUNT_ID / CF_API_TOKEN (set them in .env or the environment).');
   process.exit(2);
 }
 
@@ -49,7 +62,7 @@ async function generate(prompt, seed) {
   );
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body?.result?.image) {
-    const msg = body?.errors?.map((e) => e.message).join('; ') || res.statusText;
+    const msg = body?.errors?.map((e) => `${e.code ?? ''} ${e.message}`.trim()).join('; ') || res.statusText;
     throw new Error(`Cloudflare AI ${res.status}: ${msg}`);
   }
   return Buffer.from(body.result.image, 'base64');
@@ -83,7 +96,7 @@ for (const folder of folders) {
     }
   } catch (e) {
     failed++;
-    console.error(`FAIL  ${folder}: ${e.message}`);
+    report(`FAIL ${folder}: ${e.message}`);
   }
 }
 process.exit(failed ? 1 : 0);

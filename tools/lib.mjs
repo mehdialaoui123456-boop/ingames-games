@@ -101,7 +101,9 @@ export function toGameDoc(g) {
     stepsAr: (g.stepsAr ?? []).map((s) => s.trim()).filter(Boolean),
     order: Number.isInteger(g.order) ? g.order : 0,
     playUrl: g.playUrl ?? `${pagesBase()}${g.folder}/${g.entry === 'index.html' ? '' : g.entry}`,
-    imageUrl: coverUrl(g.id),
+    // Empty when no cover exists yet (e.g. generation failed) — the admin panel
+    // shows a placeholder and the cover can be set in "Review & edit".
+    imageUrl: fs.existsSync(coverPath(g.id)) ? coverUrl(g.id) : '',
     isMultiplayer: g.isMultiplayer === true,
     categories,
     ...derivePlayersAndDifficulty(categories),
