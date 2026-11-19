@@ -1,0 +1,11 @@
+{
+  "titleAr": "معركة الإيقاع",
+  "emoji": "🎤",
+  "descriptionAr": "معركة غناء على المسرح! الخصم يغني مقطعاً ثم دورك لتردّه على الإيقاع. المس الأسهم في الوقت المناسب واملأ شريط الطاقة لتفوز.",
+  "howToPlayAr": "المس العمود عندما يصل السهم إلى الخط السفلي.",
+  "stepsAr": ["استمع لمقطع الخصم وراقب أسهمه", "عندما يأتي دورك المس العمود مع وصول السهم للخط", "التوقيت الدقيق يعطي «ممتاز» ونقاطاً أكثر", "لا تدع الخصم يدفع شريط الطاقة حتى النهاية"],
+  "categories": ["single", "hard"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "two cartoon singers having a microphone battle on a neon stage, glowing colorful arrow symbols floating between them, purple and pink spotlights, music notes, energetic party mood"
+}
