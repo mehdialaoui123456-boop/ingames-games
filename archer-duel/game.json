@@ -1,0 +1,11 @@
+{
+  "titleAr": "مبارزة الرماة",
+  "emoji": "🏹",
+  "descriptionAr": "مبارزة رماية بالأقواس فوق التلال! صوّب بدقة، احسب قوة الرياح، وأصب رأس خصمك قبل أن يصيبك.",
+  "howToPlayAr": "اسحب للخلف من أي مكان لتحديد القوة والاتجاه، ثم اترك لإطلاق السهم.",
+  "stepsAr": ["اسحب للخلف لتصويب القوس", "راقب اتجاه الرياح وقوتها", "الرأس 50 والجسد 30 والساق 18", "أسقط طاقة خصمك إلى الصفر لتفوز"],
+  "categories": ["single", "team"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "two cartoon hooded archers standing on opposite grassy hills at sunset, one aiming a wooden bow, a flying arrow arcing across a warm orange sky with distant mountains"
+}

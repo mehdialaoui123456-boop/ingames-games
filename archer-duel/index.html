@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F6C38B">
+<title>مبارزة الرماة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#F6C38B}
+body{font-family:'Cairo','Segoe UI',sans-serif;color:#2A1E1A;position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block}
+.num{direction:ltr;unicode-bidi:isolate}
+.hide{display:none!important}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(42,30,26,.5);z-index:10;padding:16px}
+.card{width:min(340px,100%);background:#FFF4E2;border:3px solid #2A1E1A;border-radius:22px;padding:20px 16px;text-align:center;box-shadow:0 8px 0 #2A1E1A}
+.card h1{font-size:32px;font-weight:900;color:#B5432D;line-height:1.3}
+.card p{margin:6px 0 8px;font-size:14px;color:#5A463C}
+.btn{font-family:inherit;border:3px solid #2A1E1A;cursor:pointer;border-radius:14px;padding:9px;font-size:18px;font-weight:900;color:#fff;background:#B5432D;width:100%;margin-top:8px;box-shadow:0 4px 0 #2A1E1A}
+.btn.alt{background:#3D7A5A}
+.btn.ghost{background:#FFF4E2;color:#2A1E1A}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #2A1E1A}
+.row{display:flex;gap:6px}
+.row .btn{font-size:15px;padding:8px 4px}
+.btn.sel{outline:3px solid #F2B705}
+#pause{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;z-index:5;width:40px;height:40px;border-radius:12px;border:3px solid #2A1E1A;background:#FFF4E2;color:#2A1E1A;font-size:15px;font-weight:900}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="pause" class="hide">❚❚</button>
+<div id="menu" class="ov"><div class="card">
+  <h1>مبارزة الرماة 🏹</h1>
+  <p>اسحب للخلف من أي مكان لتحديد قوة الرمية واتجاهها ثم اترك. انتبه للرياح! الرأس يُسقط 50، الجسد 30، الساق 18.</p>
+  <p style="margin:2px 0 0;font-weight:700">مستوى الخصم</p>
+  <div class="row" id="diff"><button class="btn ghost" data-d="0">سهل</button><button class="btn ghost sel" data-d="1">متوسط</button><button class="btn ghost" data-d="2">صعب</button></div>
+  <button class="btn" id="vsAI">ضد الكمبيوتر</button>
+  <button class="btn alt" id="vs2">لاعبان على نفس الجهاز</button>
+  <p id="bestM" style="margin-top:8px"></p>
+</div></div>
+<div id="end" class="ov hide"><div class="card"><h1 id="endT"></h1><p id="endP"></p><button class="btn" id="again">مباراة جديدة</button><button class="btn ghost" id="toMenu">القائمة</button></div></div>
+<div id="pauseOv" class="ov hide"><div class="card"><h1>استراحة</h1><button class="btn" id="resume">متابعة</button><button class="btn ghost" id="quit">القائمة</button></div></div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+const W=400,H=720;let scale=1,ox=0,oy=0,dpr=1;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;scale=Math.min(innerWidth/W,innerHeight/H);ox=(innerWidth-W*scale)/2;oy=(innerHeight-H*scale)/2;}
+addEventListener('resize',resize);resize();
+let ac=null;
+function sfx(f,d,t,v,f2){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=t||'sine';o.frequency.setValueAtTime(f,ac.currentTime);if(f2)o.frequency.exponentialRampToValueAtTime(f2,ac.currentTime+d);g.gain.setValueAtTime(v||.08,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+
+const GRAV=520,MAXP=980,ZOOM=.62,BASE=560;
+let mode='ai',diff=1,state='menu',arch=[],turn=0,arrow=null,stuck=[],texts=[],parts=[],wind=0,aim=null,camX=0,camTX=0,hills=[],winsA=0,aiSd=null,shotT=0,best=0,round=0;
+try{best=+localStorage.getItem('ad_wins')||0;}catch(e){}
+function bestTxt(){$('bestM').innerHTML=best?'انتصاراتك على الكمبيوتر: <span class="num">'+best+'</span>':'';}bestTxt();
+for(const b of document.querySelectorAll('#diff .btn'))b.onclick=()=>{diff=+b.dataset.d;for(const x of document.querySelectorAll('#diff .btn'))x.classList.toggle('sel',x===b);};
+
+function groundY(x){let y=BASE;for(const h of hills)y-=h.a*Math.exp(-(((x-h.x)/h.w)**2));return y+Math.sin(x/90)*6;}
+function newMatch(m){
+  mode=m;const D=560+Math.random()*260;
+  hills=[{x:0,a:60+Math.random()*60,w:120},{x:D,a:60+Math.random()*80,w:130},{x:D/2,a:Math.random()*90,w:160}];
+  arch=[{x:0,hp:100,name:mode==='ai'?'أنت':'اللاعب 1',c:'#2F6FB0',dir:1},{x:D,hp:100,name:mode==='ai'?'الخصم':'اللاعب 2',c:'#B5432D',dir:-1}];
+  for(const a of arch)a.y=groundY(a.x);
+  stuck=[];texts=[];parts=[];arrow=null;turn=0;round=0;aiSd=null;newWind();camX=camTX=arch[0].x+150;state='aim';
+  $('pause').classList.remove('hide');
+}
+function newWind(){wind=Math.round((Math.random()*2-1)*(round<1?3:6+diff*2));}
+// body parts relative to feet: head circle, torso, legs
+function partsOf(a){return[{k:'head',x:a.x,y:a.y-66,r:11,dmg:50},{k:'body',x:a.x,y:a.y-38,rx:10,ry:17,dmg:30},{k:'leg',x:a.x,y:a.y-11,rx:9,ry:12,dmg:18}];}
+function hitTest(a,x,y){for(const p of partsOf(a)){if(p.r){if(Math.hypot(x-p.x,y-p.y)<p.r+2)return p;}else if(Math.abs(x-p.x)<p.rx+2&&Math.abs(y-p.y)<p.ry)return p;}return null;}
+function launchPos(a){return{x:a.x+a.dir*14,y:a.y-48};}
+function fire(ang,pow){
+  const a=arch[turn],p=launchPos(a);
+  arrow={x:p.x,y:p.y,vx:Math.cos(ang)*pow*a.dir,vy:-Math.sin(ang)*pow,owner:turn,t:0};
+  a.drawAng=ang;state='flight';shotT=0;sfx(320,.18,'triangle',.08,700);
+}
+// deterministic step shared by the real arrow and the AI simulator
+function step(o,dt){o.vx+=wind*22*dt;o.vy+=GRAV*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;}
+function simulate(ang,pow,shooter){
+  const a=arch[shooter],t=arch[1-shooter],p=launchPos(a);
+  const o={x:p.x,y:p.y,vx:Math.cos(ang)*pow*a.dir,vy:-Math.sin(ang)*pow};
+  for(let i=0;i<900;i++){step(o,1/120);const h=hitTest(t,o.x,o.y);if(h)return{hit:h,x:o.x};if(o.y>groundY(o.x)||o.x<-900||o.x>t.x+900+Math.abs(t.x))return{hit:null,x:o.x};}
+  return{hit:null,x:o.x};
+}
+function aiSolve(){
+  // search for an angle/power that hits the head/body, preferring head
+  let best=null;
+  for(let ang=.2;ang<1.25;ang+=.035)for(let pow=420;pow<=MAXP;pow+=16){
+    const r=simulate(ang,pow,turn);if(r.hit){const s=r.hit.dmg;if(!best||s>best.s)best={ang,pow,s};}
+  }
+  if(!best){// fallback: land as close as possible
+    let bd=1e9;for(let ang=.2;ang<1.25;ang+=.05)for(let pow=420;pow<=MAXP;pow+=20){const r=simulate(ang,pow,turn);const d=Math.abs(r.x-arch[1-turn].x);if(d<bd){bd=d;best={ang,pow};}}
+  }
+  return best;
+}
+function aiShoot(){
+  const sol=aiSolve();
+  if(aiSd===null)aiSd=[.2,.13,.085][diff];else aiSd=Math.max([.06,.035,.02][diff],aiSd*[.86,.8,.74][diff]); // learns from each miss
+  const n=()=>(Math.random()+Math.random()+Math.random()-1.5)/1.5;
+  fire(Math.max(.1,sol.ang+n()*aiSd),Math.min(MAXP,sol.pow*(1+n()*aiSd*.8)));
+}
+function burst(x,y,c,n){for(let i=0;i<n;i++){const a=Math.random()*6.283,v=60+Math.random()*160;parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-80,t:.6+Math.random()*.4,c});}}
+function endTurn(){
+  round++;
+  if(arch.some(a=>a.hp<=0)){
+    state='over';const w=arch[0].hp>0?0:1;
+    setTimeout(()=>{
+      state='end';$('pause').classList.add('hide');
+      if(mode==='ai'){$('endT').textContent=w===0?'🏆 فزت!':'💀 خسرت';if(w===0){best++;try{localStorage.setItem('ad_wins',best);}catch(e){}}}
+      else $('endT').textContent='🏆 فاز '+arch[w].name+'!';
+      $('endP').innerHTML='الجولات: <span class="num">'+round+'</span>';$('end').classList.remove('hide');
+      try{window.FlutterBridge&&FlutterBridge.postMessage('gameOver');}catch(e){}
+    },1300);
+    return;
+  }
+  turn=1-turn;if(turn===0||mode==='2p')newWind();
+  state='pan';camTX=arch[turn].x+arch[turn].dir*150;
+}
+function update(dt){
+  camX+=(camTX-camX)*Math.min(1,dt*(state==='flight'?8:3));
+  if(state==='pan'&&Math.abs(camX-camTX)<4){state='aim';if(mode==='ai'&&turn===1){state='aiwait';shotT=.7;}}
+  if(state==='aiwait'){shotT-=dt;if(shotT<=0)aiShoot();}
+  if(state==='flight'&&arrow){
+    shotT+=dt;
+    for(let i=0;i<Math.max(1,Math.round(dt*120));i++){
+      step(arrow,1/120);
+      const tgt=arch[1-arrow.owner],h=hitTest(tgt,arrow.x,arrow.y);
+      if(h){tgt.hp=Math.max(0,tgt.hp-h.dmg);stuck.push({x:arrow.x-tgt.x,y:arrow.y-tgt.y,a:Math.atan2(arrow.vy,arrow.vx),on:1-arrow.owner});
+        texts.push({x:arrow.x,y:arrow.y-24,s:(h.k==='head'?'رأس! ':'')+'-'+h.dmg,c:h.k==='head'?'#F2B705':'#fff',t:1.4});
+        burst(arrow.x,arrow.y,'#C0392B',h.k==='head'?22:12);sfx(h.k==='head'?180:240,.3,'square',.1,80);if(navigator.vibrate)try{navigator.vibrate(40);}catch(e){}
+        arrow=null;setTimeout(endTurn,900);state='hitwait';break;}
+      const self=arch[arrow.owner];
+      if(arrow.y>groundY(arrow.x)||arrow.x<self.x-1400||arrow.x>self.x+1800||shotT>9){
+        if(arrow.y>groundY(arrow.x))stuck.push({x:arrow.x,y:arrow.y,a:Math.atan2(arrow.vy,arrow.vx),on:-1});
+        burst(arrow.x,arrow.y,'#8B6B4A',6);sfx(140,.12,'triangle',.06);
+        const tx=arch[1-arrow.owner].x;texts.push({x:arrow.x,y:arrow.y-30,s:Math.abs(arrow.x-tx)<60?'قريب جداً!':'خطأ',c:'#fff',t:1});
+        arrow=null;setTimeout(endTurn,700);state='hitwait';break;}
+    }
+    if(arrow)camTX=arrow.x+arrow.vx*.15;
+  }
+  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.t-=dt;if(p.t<=0){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=500*dt;}
+  for(let i=texts.length-1;i>=0;i--){const x=texts[i];x.t-=dt;x.y-=30*dt;if(x.t<=0)texts.splice(i,1);}
+}
+function toWorld(sx,sy){const lx=(sx-ox)/scale,ly=(sy-oy)/scale;return{x:(lx-W/2)/ZOOM+camX,y:(ly-H*.62)/ZOOM+BASE-120};}
+function drawArcher(a,i,now){
+  const aiming=(state==='aim'||state==='aiwait'||state==='flight')&&turn===i;
+  const ang=aiming&&aim&&i===turn?aim.ang:(a.drawAng??.6);
+  ctx.save();ctx.translate(a.x,a.y);ctx.scale(a.dir,1);
+  ctx.strokeStyle='#2A1E1A';ctx.lineWidth=5;ctx.lineCap='round';
+  // legs
+  ctx.beginPath();ctx.moveTo(0,-24);ctx.lineTo(-7,0);ctx.moveTo(0,-24);ctx.lineTo(7,0);ctx.stroke();
+  // body
+  ctx.fillStyle=a.c;ctx.beginPath();ctx.ellipse(0,-40,11,18,0,0,7);ctx.fill();ctx.stroke();
+  // head + hood
+  ctx.fillStyle='#F2C9A0';ctx.beginPath();ctx.arc(0,-66,11,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle=a.c;ctx.beginPath();ctx.arc(0,-68,11.5,Math.PI*1.05,Math.PI*1.95);ctx.fill();
+  ctx.fillStyle='#2A1E1A';ctx.beginPath();ctx.arc(5,-66,1.8,0,7);ctx.fill();
+  // arm + bow rotate with aim
+  ctx.translate(4,-48);ctx.rotate(-ang);
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(16,0);ctx.stroke();
+  ctx.strokeStyle='#7A4A22';ctx.lineWidth=4;ctx.beginPath();ctx.arc(10,0,22,-1.25,1.25);ctx.stroke();
+  const pull=aiming&&aim?aim.pow/MAXP*14:0;
+  ctx.strokeStyle='#eee';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(10+22*Math.cos(-1.25),22*Math.sin(-1.25));ctx.lineTo(10-pull,0);ctx.lineTo(10+22*Math.cos(1.25),22*Math.sin(1.25));ctx.stroke();
+  if(aiming&&aim&&state==='aim'){ctx.strokeStyle='#5A3A1A';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(10-pull,0);ctx.lineTo(40-pull,0);ctx.stroke();}
+  ctx.restore();
+  for(const s of stuck)if(s.on===i)drawArrowAt(a.x+s.x,a.y+s.y,s.a);
+}
+function drawArrowAt(x,y,a){ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.strokeStyle='#5A3A1A';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(-34,0);ctx.lineTo(0,0);ctx.stroke();
+  ctx.fillStyle='#888';ctx.beginPath();ctx.moveTo(4,0);ctx.lineTo(-4,-3.5);ctx.lineTo(-4,3.5);ctx.fill();ctx.fillStyle='#E04B3A';ctx.fillRect(-36,-3,7,6);ctx.restore();}
+function draw(dt,now){
+  ctx.setTransform(1,0,0,1,0,0);
+  const sky=ctx.createLinearGradient(0,0,0,cv.height);sky.addColorStop(0,'#F9A66C');sky.addColorStop(.6,'#FBD38D');sky.addColorStop(1,'#F6E7C1');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.setTransform(dpr*scale,0,0,dpr*scale,dpr*ox,dpr*oy);
+  ctx.fillStyle='rgba(255,236,190,.9)';ctx.beginPath();ctx.arc(W*.7-camX*.02,H*.25,48,0,7);ctx.fill();
+  // far mountains (parallax)
+  ctx.fillStyle='#E59866';ctx.beginPath();ctx.moveTo(-50,H);for(let x=-50;x<=W+50;x+=20){const wx=x+camX*.2;ctx.lineTo(x,H*.52-Math.abs(Math.sin(wx/140))*90-Math.sin(wx/53)*14);}ctx.lineTo(W+50,H);ctx.fill();
+  ctx.save();ctx.translate(W/2,H*.62);ctx.scale(ZOOM,ZOOM);ctx.translate(-camX,-(BASE-120));
+  // ground
+  const vx0=camX-W/2/ZOOM-40,vx1=camX+W/2/ZOOM+40;
+  ctx.fillStyle='#8BA35A';ctx.beginPath();ctx.moveTo(vx0,BASE+600);for(let x=vx0;x<=vx1;x+=10)ctx.lineTo(x,groundY(x));ctx.lineTo(vx1,BASE+600);ctx.fill();
+  ctx.strokeStyle='#5E7A34';ctx.lineWidth=5;ctx.beginPath();for(let x=vx0;x<=vx1;x+=10)x===vx0?ctx.moveTo(x,groundY(x)):ctx.lineTo(x,groundY(x));ctx.stroke();
+  for(const s of stuck)if(s.on<0)drawArrowAt(s.x,s.y,s.a);
+  arch.forEach((a,i)=>drawArcher(a,i,now));
+  // aim preview: only the first few dots
+  if(state==='aim'&&aim&&!(mode==='ai'&&turn===1)){
+    const a=arch[turn],p=launchPos(a),o={x:p.x,y:p.y,vx:Math.cos(aim.ang)*aim.pow*a.dir,vy:-Math.sin(aim.ang)*aim.pow};
+    ctx.fillStyle='rgba(255,255,255,.85)';for(let i=0;i<40;i++){step(o,1/120);if(i%6===5){ctx.beginPath();ctx.arc(o.x,o.y,3.2-i*.05,0,7);ctx.fill();}}
+  }
+  if(arrow)drawArrowAt(arrow.x,arrow.y,Math.atan2(arrow.vy,arrow.vx));
+  for(const p of parts){ctx.globalAlpha=Math.min(1,p.t*2);ctx.fillStyle=p.c;ctx.fillRect(p.x-3,p.y-3,6,6);}ctx.globalAlpha=1;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  for(const x of texts){ctx.globalAlpha=Math.min(1,x.t*2);ctx.font='900 30px Cairo';ctx.strokeStyle='#2A1E1A';ctx.lineWidth=6;ctx.strokeText(x.s,x.x,x.y);ctx.fillStyle=x.c;ctx.fillText(x.s,x.x,x.y);}ctx.globalAlpha=1;
+  ctx.restore();
+  if(state==='menu')return;
+  // HUD: hp bars, wind, turn
+  arch.forEach((a,i)=>{const x=i===0?16:W-176;ctx.fillStyle='rgba(42,30,26,.75)';ctx.fillRect(x,54,160,30);ctx.fillStyle='#4a3a30';ctx.fillRect(x+4,70,152,10);
+    ctx.fillStyle=a.hp>50?'#59C26B':a.hp>25?'#F2B705':'#E04B3A';ctx.fillRect(x+4,70,152*a.hp/100,10);
+    ctx.fillStyle=a.c;ctx.fillRect(x,54,4,30);ctx.fillStyle='#fff';ctx.font='700 12px Cairo';ctx.textAlign=i===0?'left':'right';ctx.fillText(a.name+'  '+a.hp,i===0?x+10:x+152,62);});
+  ctx.textAlign='center';ctx.fillStyle='rgba(42,30,26,.75)';ctx.fillRect(W/2-58,96,116,30);ctx.fillStyle='#fff';ctx.font='700 13px Cairo';
+  ctx.fillText('الرياح '+(wind===0?'0':Math.abs(wind)+(wind>0?' ➜':' ⬅')),W/2,112);
+  const who=arch[turn];
+  // off-screen opponent marker
+  arch.forEach((a,i)=>{const sx=W/2+(a.x-camX)*ZOOM;if(sx>-10&&sx<W+10)return;const right=sx>W;const yy=H*.62+(a.y-60-(BASE-120))*ZOOM;
+    ctx.fillStyle=a.c;ctx.beginPath();if(right){ctx.moveTo(W-8,yy);ctx.lineTo(W-26,yy-12);ctx.lineTo(W-26,yy+12);}else{ctx.moveTo(8,yy);ctx.lineTo(26,yy-12);ctx.lineTo(26,yy+12);}ctx.fill();
+    ctx.font='900 13px Cairo';ctx.fillStyle='#2A1E1A';ctx.textAlign=right?'right':'left';ctx.fillText(Math.round(Math.abs(a.x-arch[1-i].x)/10)+' م',right?W-30:30,yy);ctx.textAlign='center';});
+  if(state==='aim'&&!(mode==='ai'&&turn===1)){ctx.font='900 18px Cairo';ctx.fillStyle='#2A1E1A';ctx.fillText(aim?'القوة '+Math.round(aim.pow/MAXP*100)+'% · الزاوية '+Math.round(aim.ang*57.3)+'°':'دور '+who.name+' — اسحب للخلف للتصويب',W/2,H-60);}
+  if(state==='aiwait'){ctx.font='900 18px Cairo';ctx.fillStyle='#2A1E1A';ctx.fillText('الخصم يصوّب…',W/2,H-60);}
+}
+let last=performance.now();
+function loop(now){const dt=Math.max(.001,Math.min(.033,(now-last)/1000));last=now;if(state!=='paused'&&state!=='menu'&&state!=='end')update(dt);draw(dt,now);requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+let drag=null;
+cv.addEventListener('pointerdown',e=>{if(state!=='aim'||(mode==='ai'&&turn===1))return;drag={x:e.clientX,y:e.clientY};aim=null;});
+addEventListener('pointermove',e=>{if(!drag)return;const dx=(drag.x-e.clientX)/scale,dy=(drag.y-e.clientY)/scale;
+  const len=Math.hypot(dx,dy);if(len<8){aim=null;return;}const dir=arch[turn].dir;
+  let ang=Math.atan2(dy*-1,dx*dir);ang=Math.max(-.3,Math.min(1.45,ang));aim={ang,pow:Math.min(MAXP,len/170*MAXP)};});
+addEventListener('pointerup',()=>{if(!drag)return;drag=null;if(aim&&aim.pow>200&&state==='aim')fire(aim.ang,aim.pow);aim=null;});
+$('vsAI').onclick=()=>{$('menu').classList.add('hide');sfx(440,.05);newMatch('ai');};
+$('vs2').onclick=()=>{$('menu').classList.add('hide');sfx(440,.05);newMatch('2p');};
+$('again').onclick=()=>{$('end').classList.add('hide');newMatch(mode);};
+$('toMenu').onclick=()=>{$('end').classList.add('hide');$('menu').classList.remove('hide');bestTxt();state='menu';};
+$('pause').onclick=()=>{if(state!=='menu'&&state!=='end'){$('pauseOv').dataset.prev=state;state='paused';$('pauseOv').classList.remove('hide');}};
+$('resume').onclick=()=>{$('pauseOv').classList.add('hide');state=$('pauseOv').dataset.prev||'aim';last=performance.now();};
+$('quit').onclick=()=>{$('pauseOv').classList.add('hide');$('pause').classList.add('hide');$('menu').classList.remove('hide');state='menu';};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state!=='menu'&&state!=='end'&&state!=='paused')$('pause').onclick();});
+if(location.hash==='#autostart'){
+  // 1) solvability: for random maps/winds a perfect shot that hits exists; 2) AI-vs-AI matches finish without NaN
+  let solvable=0;const N=12;
+  for(let i=0;i<N;i++){newMatch('ai');wind=Math.round((Math.random()*2-1)*12);turn=i%2;const s=aiSolve();if(s&&s.s)solvable++;}
+  const turns=[];let nan=false;const realTimeout=setTimeout;
+  for(let m=0;m<6;m++){
+    diff=m%3;newMatch('ai');let guard=0;
+    // drive the state machine synchronously; setTimeout callbacks are replaced by immediate calls
+    while(state!=='over'&&guard++<400){
+      if(state==='aim'||state==='aiwait'){aiShoot();}
+      let k=0;while(state==='flight'&&k++<3000)update(1/60);
+      if(state==='hitwait'){endTurn();}
+      if(state==='pan'){camX=camTX;state='aim';}
+      if(arch.some(a=>!isFinite(a.hp)))nan=true;
+    }
+    turns.push(round);
+  }
+  const ok=solvable===N&&!nan&&turns.every(t=>t>0&&t<120);
+  console.log('AUTOTEST archer solvable='+solvable+'/'+N+' matchTurns='+turns.join(',')+' nan='+nan+(ok?'':' FAIL'));
+  state='menu';$('pause').classList.add('hide');$('end').classList.add('hide');
+}
+})();
+</script>
+</body>
+</html>
