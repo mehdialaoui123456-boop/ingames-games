@@ -1,0 +1,11 @@
+{
+  "titleAr": "قطعة السكّر",
+  "emoji": "🍪",
+  "descriptionAr": "تحدّي الأعصاب الهادئة! انحت الشكل المحفور على قرص حلوى السكّر بإبرة رفيعة وأخرجه كاملاً قبل أن يتشقق القرص أو ينتهي الوقت.",
+  "howToPlayAr": "مرّر إصبعك ببطء فوق خط الشكل حتى تنحته بالكامل.",
+  "stepsAr": ["مرّر إصبعك فوق خط الشكل المحفور", "ابقَ على الخط تماماً ولا تسرع", "راقب مؤشر الشقوق", "انحت الشكل كاملاً قبل انتهاء الوقت"],
+  "categories": ["single", "hard"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "a round golden honeycomb sugar candy disc in a small metal tin with a star shape pressed into its center, a thin needle carving along the outline, tiny cracks, warm dramatic lighting on a dark wooden table"
+}
