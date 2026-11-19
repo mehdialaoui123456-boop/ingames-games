@@ -1,0 +1,131 @@
+# Game publishing pipeline.
+#
+# Trigger: a push to main that adds/changes <folder>/game.json (or a manual run).
+# For each such game:  validate → headless test → AI cover (if missing) →
+# commit cover → queue Firestore pendingGames/<id>.
+# Nothing goes live automatically: approve it in the admin panel → "Pending games".
+#
+# Repo secrets required:
+#   FIREBASE_SERVICE_ACCOUNT  service-account JSON key (role: Cloud Datastore User)
+#   CF_ACCOUNT_ID             Cloudflare account id
+#   CF_API_TOKEN              Cloudflare API token with "Workers AI: Read"
+
+name: Publish games
+
+on:
+  push:
+    branches: [main]
+    paths: ['*/game.json']
+  workflow_dispatch:
+    inputs:
+      folders:
+        description: 'Game folders, space-separated (e.g. "keeper sky-ball")'
+        required: true
+
+concurrency:
+  group: publish-games
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find changed games
+        id: games
+        env:
+          INPUT_FOLDERS: ${{ github.event.inputs.folders }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            list="$INPUT_FOLDERS"
+          else
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              files=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA")
+            else
+              files=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+            fi
+            list=$(echo "$files" | grep -E '^[^/]+/game\.json$' | xargs -r -n1 dirname || true)
+          fi
+          out=""
+          for f in $list; do
+            if ! echo "$f" | grep -qE '^[A-Za-z0-9_.-]+$'; then echo "::error::bad folder name: $f"; exit 1; fi
+            [ -f "$f/game.json" ] && out="$out $f"
+          done
+          out=$(echo $out)
+          echo "Games: ${out:-<none>}"
+          echo "folders=$out" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        if: steps.games.outputs.folders != ''
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tools/package-lock.json
+
+      - name: Install tools
+        if: steps.games.outputs.folders != ''
+        working-directory: tools
+        run: npm ci
+
+      - name: Validate + headless test
+        if: steps.games.outputs.folders != ''
+        env:
+          TEST_REPORT: ${{ runner.temp }}/test-report.json
+          CHROME: /usr/bin/google-chrome
+        run: node tools/test-game.mjs ${{ steps.games.outputs.folders }}
+
+      - name: Generate missing covers (Cloudflare FLUX, 1:1)
+        if: steps.games.outputs.folders != ''
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: node tools/make-cover.mjs ${{ steps.games.outputs.folders }}
+
+      - name: Commit covers
+        id: commit
+        if: steps.games.outputs.folders != ''
+        run: |
+          git add covers/*.webp 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Add covers: ${{ steps.games.outputs.folders }}"
+            git push
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rebuild Pages and wait for covers
+        if: steps.commit.outputs.pushed == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pages/builds" > /dev/null
+          owner="${GITHUB_REPOSITORY%%/*}"; repo="${GITHUB_REPOSITORY#*/}"
+          for f in ${{ steps.games.outputs.folders }}; do
+            id=$(node -e "const g=require('./$f/game.json');console.log(g.id||'$f')")
+            url="https://$owner.github.io/$repo/covers/$id.webp"
+            for i in $(seq 1 30); do
+              [ "$(curl -s -o /dev/null -w '%{http_code}' "$url")" = "200" ] && { echo "live: $url"; break; }
+              sleep 10
+            done
+          done
+
+      - name: Queue for review (Firestore pendingGames)
+        if: steps.games.outputs.folders != ''
+        env:
+          TEST_REPORT: ${{ runner.temp }}/test-report.json
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node tools/push-pending.mjs ${{ steps.games.outputs.folders }}

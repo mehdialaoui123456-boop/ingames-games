@@ -1,0 +1,18 @@
+{
+  "name": "ingames-games-tools",
+  "private": true,
+  "type": "module",
+  "description": "Game publishing pipeline: validate game.json, headless test, AI cover, queue in admin panel.",
+  "scripts": {
+    "test-game": "node test-game.mjs",
+    "cover": "node make-cover.mjs",
+    "pending": "node push-pending.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "sharp": "^0.33.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
