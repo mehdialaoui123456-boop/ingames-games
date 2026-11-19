@@ -1,0 +1,11 @@
+{
+  "titleAr": "مطعم البرغر",
+  "emoji": "🍔",
+  "descriptionAr": "افتح مطعمك الخاص! اشوِ اللحم، رتّب المكونات بالضبط كما في الطلب، جهّز المشروبات والبطاطس وقدّمها قبل أن ينفد صبر الزبائن.",
+  "howToPlayAr": "اشوِ اللحم، أضف المكونات بترتيب الطلب، أغلق البرغر ثم المس الزبون.",
+  "stepsAr": ["ضع اللحم النيء على الشواية وانتظر حتى ينضج", "أضف المكونات بنفس ترتيب ورقة الطلب", "أغلق البرغر بالخبز العلوي", "المس الزبون لتقديم الطلب قبل نفاد صبره"],
+  "categories": ["single"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "a giant juicy cartoon cheeseburger with lettuce, tomato and melted cheese on a diner counter, sizzling grill behind, fries and a red soda cup, happy warm orange restaurant colors"
+}
