@@ -63,9 +63,33 @@ async function generate(prompt, seed) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body?.result?.image) {
     const msg = body?.errors?.map((e) => `${e.code ?? ''} ${e.message}`.trim()).join('; ') || res.statusText;
-    throw new Error(`Cloudflare AI ${res.status}: ${msg}`);
+    const hint = res.status === 401 || res.status === 403 ? ` — ${await diagnoseAuth()}` : '';
+    throw new Error(`Cloudflare AI ${res.status}: ${msg}${hint}`);
   }
   return Buffer.from(body.result.image, 'base64');
+}
+
+/** Says whether the token or the account id is wrong, without printing either. */
+let diagnosis;
+async function diagnoseAuth() {
+  if (diagnosis) return diagnosis;
+  const get = (p) =>
+    fetch(`https://api.cloudflare.com/client/v4${p}`, {
+      headers: { Authorization: `Bearer ${CF_API_TOKEN}` },
+    }).then((r) => r.json()).catch(() => ({}));
+  const v = await get('/user/tokens/verify');
+  if (!v?.success) {
+    return (diagnosis =
+      'the TOKEN itself is rejected (expired, mistyped, or a Global API Key instead of an API Token)');
+  }
+  if (v.result?.status !== 'active') return (diagnosis = `the token exists but its status is "${v.result?.status}"`);
+  const a = await get('/accounts?per_page=50');
+  const ids = (a?.result ?? []).map((x) => x.id);
+  if (!ids.length) return (diagnosis = 'token is active but has no account access — recreate it from the "Workers AI" template and pick your account');
+  if (!ids.includes(CF_ACCOUNT_ID.trim())) {
+    return (diagnosis = `token is active, but CF_ACCOUNT_ID is not one of the ${ids.length} account(s) it can access (Zone ID copied instead of Account ID?)`);
+  }
+  return (diagnosis = 'token is active and the account id matches — the token is missing the "Workers AI" permission');
 }
 
 async function toWebp(buf, out) {
