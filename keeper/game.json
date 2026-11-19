@@ -1,0 +1,10 @@
+{
+  "titleAr": "الحارس",
+  "emoji": "🧤",
+  "descriptionAr": "كن حارس المرمى! اسحب الحارس يمينًا ويسارًا وأوقف كل تسديدة قبل أن تهز الشباك.",
+  "howToPlayAr": "اسحب إصبعك لتحريك الحارس — أوقف كل تسديدة.",
+  "stepsAr": ["اسحب إصبعك لتحريك الحارس", "راقب اتجاه الكرة", "تصدَّ لأكبر عدد من التسديدات"],
+  "categories": ["single"],
+  "isMultiplayer": false,
+  "coverPrompt": "a heroic soccer goalkeeper in a bright neon jersey diving sideways to catch a glowing football in front of a goal net, stadium floodlights, night sky"
+}
