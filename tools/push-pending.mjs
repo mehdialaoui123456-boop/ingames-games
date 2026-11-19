@@ -64,3 +64,5 @@ for (const [id, d] of docs) {
   });
   console.log(`queued pendingGames/${id} (${live.exists ? 'update' : 'new'})`);
 }
+// Public summary (run logs need a login; annotations don't)
+if (process.env.GITHUB_ACTIONS) console.log(`::notice title=Queued for review::${docs.map(([id]) => id).join(', ')}`);
