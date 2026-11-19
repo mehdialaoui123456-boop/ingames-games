@@ -1,0 +1,11 @@
+{
+  "titleAr": "خلّاط العصير",
+  "emoji": "🥤",
+  "descriptionAr": "محل عصائر طازجة! اسكب البرتقال والفراولة والمانجو بدقة حتى الخط تماماً، اتبع ترتيب الوصفة واخلط المخفوق لتحصل على ثلاث نجوم.",
+  "howToPlayAr": "اضغط مطوّلاً على النكهة لتصب، واتركها عند الخط تماماً.",
+  "stepsAr": ["اقرأ الوصفة وترتيب الطبقات", "اضغط مطوّلاً على النكهة لتصب حتى الخط", "اخلط الكوب فقط إذا طلب الزبون «مخفوق»", "اضغط «قدّم» واجمع النجوم"],
+  "categories": ["single"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "a tall glass with colorful layered fruit juice of orange, strawberry red and kiwi green layers, juice pouring from a shiny tap into it, fresh fruits around, bright turquoise background"
+}
