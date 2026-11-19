@@ -1,0 +1,11 @@
+{
+  "titleAr": "منحدر النيون",
+  "emoji": "🟢",
+  "descriptionAr": "كرة مضيئة تنطلق على منحدر نيون لا ينتهي! وجّهها بين الكتل الحمراء واقفز فوق الفجوات، والسرعة تزداد كل لحظة.",
+  "howToPlayAr": "المس يسار الشاشة أو يمينها لتوجيه الكرة.",
+  "stepsAr": ["المس يمين الشاشة أو يسارها للتوجيه", "تجنّب الكتل الحمراء", "المربعات الخضراء تقفز بك فوق الفجوات", "لا تسقط من حافة المنحدر"],
+  "categories": ["single", "hard"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "a glowing mint-green neon ball speeding down an endless dark futuristic slope made of glowing grid tiles, red glowing obstacle blocks, deep space background with stars, strong perspective"
+}

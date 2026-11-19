@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#04030C">
+<title>منحدر النيون</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#04030C}
+body{font-family:'Cairo','Segoe UI',sans-serif;color:#EAF6FF;position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+.num{direction:ltr;unicode-bidi:isolate}
+.hide{display:none!important}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,3,12,.7);z-index:10;padding:16px}
+.card{width:min(330px,100%);background:linear-gradient(160deg,rgba(30,12,60,.96),rgba(6,4,20,.96));border:2px solid #3DFFB5;border-radius:22px;padding:22px 18px;text-align:center;box-shadow:0 0 34px rgba(61,255,181,.25)}
+.card h1{font-size:34px;font-weight:900;color:#3DFFB5;text-shadow:0 0 16px rgba(61,255,181,.7);line-height:1.3}
+.card p{opacity:.88;margin:6px 0 10px;font-size:14px}
+.btn{font-family:inherit;border:0;cursor:pointer;border-radius:14px;padding:12px;font-size:19px;font-weight:900;color:#04030C;background:linear-gradient(135deg,#3DFFB5,#3DB8FF);width:100%;margin-top:12px}
+.btn:active{transform:scale(.96)}
+.big{font-size:48px;font-weight:900;color:#3DFFB5;margin:4px 0}
+#hud{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);left:0;right:0;text-align:center;z-index:4;pointer-events:none}
+#dist{font-size:42px;font-weight:900;text-shadow:0 0 14px rgba(61,255,181,.8)}
+#spd{font-size:13px;opacity:.7}
+#pause{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;z-index:5;width:38px;height:38px;border-radius:12px;border:1.5px solid #3DFFB5;background:rgba(6,4,20,.8);color:#fff;font-size:15px}
+.hint{direction:ltr;position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);left:0;right:0;display:flex;justify-content:space-between;padding:0 22px;z-index:4;pointer-events:none;font-size:30px;opacity:.35}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hud" class="hide"><div id="dist" class="num">0</div><div id="spd"></div></div>
+<div class="hint hide" id="hint"><span>◀</span><span>▶</span></div>
+<button id="pause" class="hide">❚❚</button>
+<div id="menu" class="ov"><div class="card">
+  <h1>منحدر النيون</h1>
+  <p>كرة مضيئة تتدحرج على منحدر لا ينتهي! المس يمين الشاشة أو يسارها للتوجيه. تجنّب الكتل الحمراء ولا تسقط من الحافة، والمربعات الخضراء تقفز بك فوق الفجوات.</p>
+  <p id="bestM"></p>
+  <button class="btn" id="startBtn">انطلق</button>
+</div></div>
+<div id="end" class="ov hide"><div class="card"><h1 id="endT">سقطت!</h1><div class="big num" id="endS">0</div><p id="endP"></p><button class="btn" id="again">العب مجدداً</button></div></div>
+<div id="pauseOv" class="ov hide"><div class="card"><h1>استراحة</h1><button class="btn" id="resume">متابعة</button></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+let ac=null;
+function sfx(f,d,t,v,f2){try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=t||'sine';o.frequency.setValueAtTime(f,ac.currentTime);if(f2)o.frequency.exponentialRampToValueAtTime(f2,ac.currentTime+d);g.gain.setValueAtTime(v||.08,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+
+/* ── Simulation (flat local frame: forward = +s, lateral = x, up = y). Rendering tilts it downhill. ── */
+const R=.5,G=42,JUMP=11,LAT=12.5;
+const speedAt=z=>Math.min(40,16+z/90);
+let segs=[],obs=[],genS=0,genX=0,state='menu',s=0,x=0,y=R,vy=0,vx=0,input=0,speed=16,best=0,deadWhy='',hue=0;
+try{best=+localStorage.getItem('ns_best')||0;}catch(e){}
+$('bestM').innerHTML=best?'أفضل مسافة: <span class="num">'+best+'</span> م':'';
+
+function addSeg(len,w,cx,kind){segs.push({s0:genS,s1:genS+len,x:cx,w,kind:kind||'n',mesh:null});genS+=len;}
+function gap(len){genS+=len;}
+function difficulty(){return Math.min(1,genS/2600);}
+function genPiece(){
+  const d=difficulty(),r=Math.random();
+  if(genS<60){addSeg(60,6,0);return;}
+  if(r<.16){addSeg(18+Math.random()*12,6,genX);}
+  else if(r<.40){ // obstacle field on a wide strip; always leaves a >=2.4 wide free lane
+    const len=34+d*16;const s0=genS;addSeg(len,6,genX);
+    let z=s0+speedAt(s0)*.45+3;while(z<s0+len-4){
+      const lane=Math.floor(Math.random()*3),wide=Math.random()<.35+d*.35;
+      // lanes at -2,0,2 (width 2 each); wide blocks cover two lanes
+      const cover=wide?(lane===0?[-2,0]:lane===2?[0,2]:(Math.random()<.5?[-2,0]:[0,2])):[[-2,0,2][lane]];
+      for(const c of cover)obs.push({s:z,x:genX+c,hw:.95,hd:.6,h:1.1,mesh:null});
+      // spacing grows with speed so a lane change (up to ~4 units) always fits: ~0.5s of travel
+      z+=speedAt(z)*.5+5+Math.random()*4;
+    }
+  }
+  else if(r<.55){addSeg(8,4,genX);addSeg(16+d*10,2.6,genX);addSeg(6,4,genX);}
+  else if(r<.72){ // curve: shifting narrow-ish tiles
+    const dir=Math.random()<.5?-1:1,n=5+Math.floor(Math.random()*4);
+    for(let i=0;i<n;i++){genX+=dir*(.55+d*.35);genX=Math.max(-9,Math.min(9,genX));addSeg(5,4.2,genX);}
+  }
+  else if(r<.88){ // jump: pad then gap then landing
+    addSeg(10,6,genX);addSeg(3,4,genX,'pad');gap(5+d*4);addSeg(16,6,genX);
+  }
+  else { // split: two strips with a hole in the middle
+    addSeg(6,6,genX);const s0=genS;
+    segs.push({s0,s1:s0+22,x:genX-2,w:2,kind:'n',mesh:null});segs.push({s0,s1:s0+22,x:genX+2,w:2,kind:'n',mesh:null});genS+=22;
+    addSeg(6,6,genX);
+  }
+}
+function ensureTrack(){while(genS<s+220)genPiece();}
+function supportAt(ps,px){for(const g of segs){if(ps>=g.s0&&ps<=g.s1&&Math.abs(px-g.x)<=g.w/2+R*.35)return g;}return null;}
+
+function newGame(){
+  clearMeshes();segs=[];obs=[];genS=0;genX=0;s=0;x=0;y=R;vy=0;vx=0;input=0;speed=16;hue=0;
+  ensureTrack();state='play';
+  $('hud').classList.remove('hide');$('pause').classList.remove('hide');$('hint').classList.remove('hide');
+}
+function die(why){
+  if(state!=='play')return;state='dying';deadWhy=why;sfx(why==='hit'?120:300,.5,'sawtooth',.1,40);
+  if(why==='hit'){vy=6;}
+  setTimeout(finish,900);
+}
+function finish(){
+  state='end';const m=Math.floor(s);
+  if(m>best){best=m;try{localStorage.setItem('ns_best',best);}catch(e){}}
+  $('endT').textContent=deadWhy==='hit'?'اصطدمت!':'سقطت!';
+  $('endS').textContent=m+' م';$('endP').innerHTML='أفضل مسافة: <span class="num">'+best+'</span> م';
+  $('end').classList.remove('hide');$('hud').classList.add('hide');$('pause').classList.add('hide');$('hint').classList.add('hide');
+  try{window.FlutterBridge&&FlutterBridge.postMessage('gameOver');}catch(e){}
+}
+function update(dt){
+  if(state==='dying'){s+=speed*.4*dt;vy-=G*dt;y+=vy*dt;return;}
+  if(state!=='play')return;
+  speed=speedAt(s);
+  vx+=(input*LAT-vx)*Math.min(1,dt*12);x+=vx*dt;
+  s+=speed*dt;ensureTrack();
+  const sup=supportAt(s,x);
+  if(sup&&y<=R+.02&&y>R-.75){
+    y=R;vy=0;
+    if(sup.kind==='pad'){vy=JUMP;y=R+.05;sfx(500,.25,'square',.06,1100);}
+  }else{vy-=G*dt;y+=vy*dt;if(y<R&&sup&&y>R-.75&&vy<0){y=R;vy=0;}}
+  if(y<-5)die('fall');
+  for(const o of obs){
+    if(Math.abs(o.s-s)<o.hd+R*.8&&Math.abs(o.x-x)<o.hw+R*.8&&y<o.h+R*.5){die('hit');break;}
+  }
+  // recycle passed geometry
+  while(segs.length&&segs[0].s1<s-30){const g=segs.shift();if(g.mesh)scene3.remove(g.mesh);}
+  while(obs.length&&obs[0].s<s-30){const o=obs.shift();if(o.mesh)scene3.remove(o.mesh);}
+}
+
+/* ── Rendering ── */
+let renderer=null,scene=null,camera=null,scene3=null,ball=null,light=null,matTile,matEdge,matPad,matObs,boxG,edgeG,stars;
+const SLOPE=.22;
+try{
+  renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+  scene=new THREE.Scene();scene.fog=new THREE.Fog(0x04030C,40,150);scene.background=new THREE.Color(0x04030C);
+  camera=new THREE.PerspectiveCamera(66,1,.1,400);
+  scene3=new THREE.Group();scene3.rotation.x=SLOPE;scene.add(scene3);
+  scene.add(new THREE.AmbientLight(0x6070a0,.7));
+  const dl=new THREE.DirectionalLight(0xffffff,.6);dl.position.set(3,10,6);scene.add(dl);
+  light=new THREE.PointLight(0x3DFFB5,1.6,14);scene3.add(light);
+  boxG=new THREE.BoxGeometry(1,1,1);edgeG=new THREE.EdgesGeometry(boxG);
+  matTile=new THREE.MeshLambertMaterial({color:0x101028});
+  matEdge=new THREE.LineBasicMaterial({color:0x3DFFB5});
+  matPad=new THREE.MeshBasicMaterial({color:0x3DFF6A});
+  matObs=new THREE.MeshLambertMaterial({color:0xFF2D55,emissive:0x990022});
+  ball=new THREE.Mesh(new THREE.SphereGeometry(R,24,16),new THREE.MeshStandardMaterial({color:0x3DFFB5,emissive:0x0f7a55,roughness:.3,metalness:.2}));
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(R*1.02,.05,6,24),new THREE.MeshBasicMaterial({color:0xffffff}));ball.add(ring);
+  scene3.add(ball);
+  const sg=new THREE.BufferGeometry(),pts=[];for(let i=0;i<600;i++)pts.push((Math.random()-.5)*400,Math.random()*160-20,-Math.random()*400);
+  sg.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  stars=new THREE.Points(sg,new THREE.PointsMaterial({color:0x9fb4ff,size:.8}));scene.add(stars);
+}catch(e){renderer=null;$('menu').querySelector('p').textContent='تعذّر تشغيل الرسوم ثلاثية الأبعاد على هذا الجهاز.';}
+function clearMeshes(){if(!scene3)return;for(const g of segs)if(g.mesh)scene3.remove(g.mesh);for(const o of obs)if(o.mesh)scene3.remove(o.mesh);}
+function meshFor(g){
+  const grp=new THREE.Group();const len=g.s1-g.s0;
+  const m=new THREE.Mesh(boxG,g.kind==='pad'?matPad:matTile);m.scale.set(g.w,.5,len);grp.add(m);
+  const e=new THREE.LineSegments(edgeG,matEdge);e.scale.copy(m.scale);grp.add(e);
+  grp.position.set(g.x,-.25,-(g.s0+len/2));scene3.add(grp);return grp;
+}
+function meshObs(o){
+  const grp=new THREE.Group();const m=new THREE.Mesh(boxG,matObs);m.scale.set(o.hw*2,o.h,o.hd*2);grp.add(m);
+  const e=new THREE.LineSegments(edgeG,new THREE.LineBasicMaterial({color:0xFF9AB0}));e.scale.copy(m.scale);grp.add(e);
+  grp.position.set(o.x,o.h/2,-o.s);scene3.add(grp);return grp;
+}
+const tmp=new THREE.Vector3?new THREE.Vector3():null,tmp2=new THREE.Vector3?new THREE.Vector3():null;
+function render(dt){
+  if(!renderer)return;
+  const w=innerWidth,h=innerHeight;if(renderer.domElement.width!==Math.floor(w*renderer.getPixelRatio())){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+  for(const g of segs)if(!g.mesh)g.mesh=meshFor(g);
+  for(const o of obs)if(!o.mesh)o.mesh=meshObs(o);
+  // colour theme drifts with distance
+  hue=(s/1200)%1;matEdge.color.setHSL((.44+hue)%1,1,.6);light.color.copy(matEdge.color);
+  ball.position.set(x,y,-s);ball.rotation.x-=speed*dt/R;ball.rotation.z=-vx*.03;
+  light.position.set(x,2,-s);
+  tmp.set(x*.75,y*.5+4.3,-s+8.2);scene3.localToWorld(tmp);camera.position.lerp(tmp,state==='play'?1:.08);
+  tmp2.set(x*.9,.6,-s-7);scene3.localToWorld(tmp2);camera.lookAt(tmp2);
+  camera.fov=62+(speed-16)*.35;camera.updateProjectionMatrix();
+  stars.position.copy(camera.position);
+  renderer.render(scene,camera);
+}
+let last=performance.now();
+function loop(now){const dt=Math.max(.001,Math.min(.033,(now-last)/1000));last=now;if(state!=='paused'&&state!=='menu')update(dt);
+  if(state==='play'){$('dist').textContent=Math.floor(s);$('spd').textContent=Math.round(speed*3.6)+' كم/س';}
+  render(dt);requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+// input: hold left / right half of the screen (or arrow keys)
+const touches=new Map();
+function recompute(){let l=0,r=0;for(const v of touches.values())v<innerWidth/2?l++:r++;input=(r>0?1:0)-(l>0?1:0);}
+addEventListener('pointerdown',e=>{if(e.target.closest('.ov,#pause'))return;touches.set(e.pointerId,e.clientX);recompute();});
+addEventListener('pointermove',e=>{if(touches.has(e.pointerId)){touches.set(e.pointerId,e.clientX);recompute();}});
+for(const ev of['pointerup','pointercancel'])addEventListener(ev,e=>{touches.delete(e.pointerId);recompute();});
+const keys={};addEventListener('keydown',e=>{keys[e.code]=1;input=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0);});
+addEventListener('keyup',e=>{keys[e.code]=0;input=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0);});
+$('startBtn').onclick=()=>{$('menu').classList.add('hide');sfx(440,.05);newGame();};
+$('again').onclick=()=>{$('end').classList.add('hide');newGame();};
+$('pause').onclick=()=>{if(state==='play'){state='paused';$('pauseOv').classList.remove('hide');}};
+$('resume').onclick=()=>{$('pauseOv').classList.add('hide');state='play';last=performance.now();};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='paused';$('pauseOv').classList.remove('hide');}});
+if(location.hash==='#autostart'){
+  // Fairness bot: steer to the safest x a short way ahead (supported + clear of obstacles). Must cover a long distance.
+  function botTarget(){
+    let bestX=x,bestScore=-1e9;
+    const HZ=5+speed*.6;
+    for(let cx=-11;cx<=11;cx+=.25){
+      let sc=0;
+      for(let k=2;k<=Math.min(14,4+speed*.35);k+=1){const sup=supportAt(s+k,cx-.4)&&supportAt(s+k,cx+.4);if(!sup)sc-=k<6?40:8;}
+      for(const o of obs){const ds=o.s-s;if(ds>-1&&ds<HZ&&Math.abs(o.x-cx)<o.hw+R+.3)sc-=60/(1+ds*.1);}
+      sc-=Math.abs(cx-x)*.6;
+      if(sc>bestScore){bestScore=sc;bestX=cx;}
+    }return bestX;
+  }
+  const runs=[];
+  for(let r=0;r<3;r++){
+    newGame();let f=0;
+    for(;f<60*240&&state==='play';f++){const tx=botTarget();input=Math.abs(tx-x)<.12?0:Math.sign(tx-x);update(1/60);}
+    runs.push(Math.floor(s)+(state==='play'?'+':'('+deadWhy+')'));
+  }
+  newGame();input=0;let g=0;for(;g<60*120&&state==='play';g++)update(1/60);
+  const far=runs.filter(v=>parseInt(v)>=1500).length;
+  console.log('AUTOTEST neonslope bot runs='+runs.join(',')+' | idle died at '+Math.floor(s)+'m'+(far>=2&&g<60*60?'':' FAIL'));
+  clearMeshes();state='menu';$('hud').classList.add('hide');$('pause').classList.add('hide');$('hint').classList.add('hide');
+}
+})();
+</script>
+</body>
+</html>
