@@ -1,0 +1,11 @@
+{
+  "titleAr": "حماة البرج",
+  "emoji": "🏰",
+  "descriptionAr": "الغزاة يزحفون نحو قلعتك! ابنِ أبراج الرماة والمدافع والجليد على طول الطريق، طوّرها بذكاء واصمد 15 موجة حتى الزعيم الأخير.",
+  "howToPlayAr": "المس منصة فارغة لبناء برج، والمس البرج لتطويره أو بيعه.",
+  "stepsAr": ["المس منصة لبناء برج رماة أو مدفع أو جليد", "اضغط «ابدأ الهجوم» لإطلاق الموجة", "اجمع الذهب من الأعداء وطوّر أبراجك", "اصمد 15 موجة لتحمي القلعة"],
+  "categories": ["single"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "a small stone castle on a green hill defended by cartoon archer, cannon and ice towers, a winding dirt road with a line of little goblin invaders, cannonball explosion, bright fantasy colors"
+}
