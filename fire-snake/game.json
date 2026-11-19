@@ -1,0 +1,10 @@
+{
+  "titleAr": "أفعى النار",
+  "emoji": "🔥",
+  "descriptionAr": "وجّه أفعى النار عبر الممرات الخطرة، اجمع الجمرات وافتح البوابة قبل أن ينفد الوقت.",
+  "howToPlayAr": "اسحب إصبعك في أي مكان على الشاشة لتوجيه الأفعى — إنها لا تتوقف أبدًا.",
+  "stepsAr": ["اسحب إصبعك لتوجيه الأفعى", "اجمع كل الجمرات", "ادخل البوابة قبل انتهاء الوقت", "تجنّب الأشواك والماء والشفرات"],
+  "categories": ["single"],
+  "isMultiplayer": false,
+  "coverPrompt": "a serpent made of living fire slithering through a dark volcanic maze, collecting glowing embers, glowing portal gate in the background, lava cracks"
+}
