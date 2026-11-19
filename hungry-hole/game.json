@@ -1,0 +1,11 @@
+{
+  "titleAr": "الثقب الجائع",
+  "emoji": "🕳️",
+  "descriptionAr": "أنت ثقب جائع في وسط المدينة! ابتلع الأقماع والسيارات ثم المباني الكاملة، وتنافس مع 3 ثقوب أخرى لتصبح الأكبر قبل نهاية الوقت.",
+  "howToPlayAr": "اسحب إصبعك لتحريك الثقب وابتلع كل ما هو أصغر منك.",
+  "stepsAr": ["اسحب إصبعك لتحريك الثقب", "ابتلع الأشياء الأصغر منك لتكبر", "ابتلع الثقوب الأصغر واهرب من الأكبر", "كن الأكبر عند نهاية الدقيقتين"],
+  "categories": ["single"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "top-down view of a cartoon city block with a giant black hole in the street swallowing cars, trees and a small building tilting into it, purple glowing rim around the hole, bright playful colors"
+}
