@@ -1,0 +1,10 @@
+{
+  "titleAr": "قفزة الهندسة",
+  "emoji": "🔷",
+  "descriptionAr": "مكعب يركض على الإيقاع! اضغط للقفز فوق الأشواك والعوائق — كل شيء في التوقيت.",
+  "howToPlayAr": "اضغط على الشاشة للقفز وتجنّب الأشواك.",
+  "stepsAr": ["اضغط للقفز", "تجنّب الأشواك والفجوات", "أكمل المستوى على الإيقاع"],
+  "categories": ["single", "hard"],
+  "isMultiplayer": false,
+  "coverPrompt": "a glowing neon cube leaping over sharp triangular spikes on a geometric platform, synthwave purple and cyan glow, motion trail"
+}
