@@ -1,0 +1,11 @@
+{
+  "titleAr": "اندفاع المتاهة",
+  "emoji": "⚡",
+  "descriptionAr": "مكعب نيون يندفع في متاهة مظلمة! اسحب ليتحرك حتى يصطدم بالجدار، اجمع النقاط الذهبية وتجنّب الأشواك والخفافيش حتى تصل إلى البوابة.",
+  "howToPlayAr": "اسحب في أي اتجاه فيندفع المكعب حتى أقرب جدار.",
+  "stepsAr": ["اسحب للأعلى أو الأسفل أو الجانبين", "اجمع كل النقاط الذهبية", "تجنّب الأشواك الحمراء والخفافيش", "اخرج من البوابة الخضراء بأقل الحركات لثلاث نجوم"],
+  "categories": ["single"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "a small glowing cyan cube with cute eyes dashing through a dark purple pixel maze with hot pink neon walls, golden dots trail, glowing green exit portal, retro arcade mood"
+}
