@@ -1,0 +1,11 @@
+{
+  "titleAr": "الطائر الورقي",
+  "emoji": "🕊️",
+  "descriptionAr": "طائر من الورق يحاول عبور غابة الخيزران! اضغط ليرفرف، مرّ بين الأعمدة واجمع النجوم الذهبية.",
+  "howToPlayAr": "اضغط في أي مكان على الشاشة ليرفرف الطائر ويرتفع.",
+  "stepsAr": ["اضغط ليرفرف الطائر", "مرّ بين الأعمدة دون لمسها", "اجمع النجوم لنقطتين إضافيتين", "انتبه للأعمدة المتحركة بعد النقطة 15"],
+  "categories": ["single"],
+  "isMultiplayer": false,
+  "autotest": true,
+  "coverPrompt": "a cute origami paper bird with a red beak flapping between tall green bamboo pillars, bright blue sky with fluffy clouds, golden stars floating"
+}
